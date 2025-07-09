@@ -8,6 +8,7 @@ Area AppのバックエンドAPIサーバーです。
 - エリア管理（作成、更新、削除、共有）
 - フレンド機能（追加、リクエスト管理）
 - 位置情報管理
+- 画像アップロード（Cloudinary）
 - リアルタイム通信（Socket.io）
 
 ## 技術スタック
@@ -15,7 +16,8 @@ Area AppのバックエンドAPIサーバーです。
 - **Node.js** + **Express.js**
 - **TypeScript**
 - **Prisma** (ORM)
-- **PostgreSQL** (データベース)
+- **MongoDB** (データベース)
+- **Cloudinary** (画像保存)
 - **Socket.io** (リアルタイム通信)
 - **JWT** (認証)
 - **Zod** (バリデーション)
@@ -36,14 +38,30 @@ npm install
 cp env.example .env
 ```
 
+#### 必要な環境変数
+
+**MongoDB**
+- `DATABASE_URL`: MongoDBの接続URL
+  - ローカル: `mongodb://localhost:27017/area_app`
+  - MongoDB Atlas: `mongodb+srv://username:password@cluster.mongodb.net/area_app`
+
+**Cloudinary**
+- `CLOUDINARY_CLOUD_NAME`: Cloudinaryのクラウド名
+- `CLOUDINARY_API_KEY`: CloudinaryのAPIキー
+- `CLOUDINARY_API_SECRET`: CloudinaryのAPIシークレット
+
+**その他**
+- `JWT_SECRET`: JWTの秘密鍵
+- `MAPBOX_ACCESS_TOKEN`: Mapboxのアクセストークン
+
 ### 3. データベースのセットアップ
 
 ```bash
 # Prismaクライアントの生成
 npm run db:generate
 
-# データベースのマイグレーション
-npm run db:migrate
+# データベースのスキーマ同期
+npm run db:push
 ```
 
 ### 4. 開発サーバーの起動
@@ -92,6 +110,13 @@ npm run dev
 - `GET /api/locations/friends` - フレンドの位置情報
 - `GET /api/locations/history` - 位置情報履歴
 
+### 画像
+
+- `POST /api/images/upload` - 画像アップロード
+- `GET /api/images` - ユーザーの画像一覧
+- `GET /api/images/:id` - 画像詳細
+- `DELETE /api/images/:id` - 画像削除
+
 ## データベーススキーマ
 
 詳細は `prisma/schema.prisma` を参照してください。
@@ -114,9 +139,31 @@ npm run dev
 |--------|------|------------|
 | `PORT` | サーバーポート | 3000 |
 | `NODE_ENV` | 環境 | development |
-| `DATABASE_URL` | データベースURL | - |
+| `DATABASE_URL` | MongoDB接続URL | - |
 | `JWT_SECRET` | JWT秘密鍵 | - |
 | `JWT_EXPIRES_IN` | JWT有効期限 | 7d |
 | `CORS_ORIGIN` | CORS許可オリジン | http://localhost:8081 |
+| `CLOUDINARY_CLOUD_NAME` | Cloudinaryクラウド名 | - |
+| `CLOUDINARY_API_KEY` | Cloudinary APIキー | - |
+| `CLOUDINARY_API_SECRET` | Cloudinary APIシークレット | - |
+| `MAPBOX_ACCESS_TOKEN` | Mapboxアクセストークン | - |
 | `RATE_LIMIT_WINDOW_MS` | レート制限ウィンドウ | 900000 |
-| `RATE_LIMIT_MAX_REQUESTS` | レート制限最大リクエスト数 | 100 | 
+| `RATE_LIMIT_MAX_REQUESTS` | レート制限最大リクエスト数 | 100 |
+
+## 外部サービス設定
+
+### MongoDB Atlas
+1. [MongoDB Atlas](https://www.mongodb.com/atlas)でアカウント作成
+2. クラスターを作成
+3. データベースユーザーを作成
+4. 接続文字列を取得して`DATABASE_URL`に設定
+
+### Cloudinary
+1. [Cloudinary](https://cloudinary.com/)でアカウント作成
+2. ダッシュボードから認証情報を取得
+3. 環境変数に設定
+
+### Mapbox
+1. [Mapbox](https://www.mapbox.com/)でアカウント作成
+2. アクセストークンを取得
+3. 環境変数に設定 

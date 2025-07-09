@@ -6,16 +6,17 @@ generator client {
 }
 
 datasource db {
-  provider = "postgresql"
+  provider = "mongodb"
   url      = env("DATABASE_URL")
 }
 
 model User {
-  id        String   @id @default(cuid())
+  id        String   @id @default(auto()) @map("_id") @db.ObjectId
   email     String   @unique
   nowId     String   @unique
   name      String
   password  String
+  profileImage String?
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -28,16 +29,18 @@ model User {
   locations     Location[]
   areaRequests  AreaRequest[] @relation("AreaRequestSender")
   receivedAreaRequests AreaRequest[] @relation("AreaRequestReceiver")
+  images        Image[]
 
   @@map("users")
 }
 
 model Area {
-  id          String   @id @default(cuid())
+  id          String   @id @default(auto()) @map("_id") @db.ObjectId
   name        String
   coordinates Json     // Array of {latitude: number, longitude: number}
-  userId      String
+  userId      String   @db.ObjectId
   isPublic    Boolean  @default(false)
+  imageUrl    String?
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
@@ -49,9 +52,9 @@ model Area {
 }
 
 model Friend {
-  id       String @id @default(cuid())
-  userId   String
-  friendId String
+  id       String @id @default(auto()) @map("_id") @db.ObjectId
+  userId   String @db.ObjectId
+  friendId String @db.ObjectId
   createdAt DateTime @default(now())
 
   // Relations
@@ -63,9 +66,9 @@ model Friend {
 }
 
 model FriendRequest {
-  id       String @id @default(cuid())
-  senderId String
-  receiverId String
+  id       String @id @default(auto()) @map("_id") @db.ObjectId
+  senderId String @db.ObjectId
+  receiverId String @db.ObjectId
   status   RequestStatus @default(PENDING)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -79,10 +82,10 @@ model FriendRequest {
 }
 
 model AreaRequest {
-  id       String @id @default(cuid())
-  senderId String
-  receiverId String
-  areaId   String
+  id       String @id @default(auto()) @map("_id") @db.ObjectId
+  senderId String @db.ObjectId
+  receiverId String @db.ObjectId
+  areaId   String @db.ObjectId
   status   RequestStatus @default(PENDING)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -96,8 +99,8 @@ model AreaRequest {
 }
 
 model Location {
-  id        String   @id @default(cuid())
-  userId    String
+  id        String   @id @default(auto()) @map("_id") @db.ObjectId
+  userId    String   @db.ObjectId
   latitude  Float
   longitude Float
   createdAt DateTime @default(now())
@@ -108,8 +111,28 @@ model Location {
   @@map("locations")
 }
 
+model Image {
+  id        String   @id @default(auto()) @map("_id") @db.ObjectId
+  userId    String   @db.ObjectId
+  url       String
+  publicId  String   // Cloudinary public ID
+  type      ImageType
+  createdAt DateTime @default(now())
+
+  // Relations
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("images")
+}
+
 enum RequestStatus {
   PENDING
   ACCEPTED
   REJECTED
+}
+
+enum ImageType {
+  PROFILE
+  AREA
+  GENERAL
 } 
