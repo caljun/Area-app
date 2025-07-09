@@ -1,0 +1,115 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  nowId     String   @unique
+  name      String
+  password  String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  areas         Area[]
+  friendRequests FriendRequest[] @relation("FriendRequests")
+  receivedRequests FriendRequest[] @relation("ReceivedRequests")
+  friends       Friend[] @relation("UserFriends")
+  friendOf      Friend[] @relation("FriendOfUser")
+  locations     Location[]
+  areaRequests  AreaRequest[] @relation("AreaRequestSender")
+  receivedAreaRequests AreaRequest[] @relation("AreaRequestReceiver")
+
+  @@map("users")
+}
+
+model Area {
+  id          String   @id @default(cuid())
+  name        String
+  coordinates Json     // Array of {latitude: number, longitude: number}
+  userId      String
+  isPublic    Boolean  @default(false)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Relations
+  user         User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  areaRequests AreaRequest[] @relation("AreaRequests")
+
+  @@map("areas")
+}
+
+model Friend {
+  id       String @id @default(cuid())
+  userId   String
+  friendId String
+  createdAt DateTime @default(now())
+
+  // Relations
+  user   User @relation("UserFriends", fields: [userId], references: [id], onDelete: Cascade)
+  friend User @relation("FriendOfUser", fields: [friendId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, friendId])
+  @@map("friends")
+}
+
+model FriendRequest {
+  id       String @id @default(cuid())
+  senderId String
+  receiverId String
+  status   RequestStatus @default(PENDING)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  sender   User @relation("FriendRequests", fields: [senderId], references: [id], onDelete: Cascade)
+  receiver User @relation("ReceivedRequests", fields: [receiverId], references: [id], onDelete: Cascade)
+
+  @@unique([senderId, receiverId])
+  @@map("friend_requests")
+}
+
+model AreaRequest {
+  id       String @id @default(cuid())
+  senderId String
+  receiverId String
+  areaId   String
+  status   RequestStatus @default(PENDING)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  sender   User @relation("AreaRequestSender", fields: [senderId], references: [id], onDelete: Cascade)
+  receiver User @relation("AreaRequestReceiver", fields: [receiverId], references: [id], onDelete: Cascade)
+  area     Area @relation("AreaRequests", fields: [areaId], references: [id], onDelete: Cascade)
+
+  @@map("area_requests")
+}
+
+model Location {
+  id        String   @id @default(cuid())
+  userId    String
+  latitude  Float
+  longitude Float
+  createdAt DateTime @default(now())
+
+  // Relations
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("locations")
+}
+
+enum RequestStatus {
+  PENDING
+  ACCEPTED
+  REJECTED
+} 
