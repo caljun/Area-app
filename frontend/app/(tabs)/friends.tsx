@@ -84,6 +84,7 @@ export default function FriendsScreen() {
   const [friends, setFriends] = useState(mockFriends);
   const [showAreaMap, setShowAreaMap] = useState<AreaRequest | null>(null);
   const [showAreaSelector, setShowAreaSelector] = useState<Friend | null>(null);
+  const [showAreaMembers, setShowAreaMembers] = useState<Area | null>(null);
 
   const sendFriendRequest = () => {
     if (nowId.trim()) {
@@ -107,6 +108,17 @@ export default function FriendsScreen() {
   const sendAreaRequest = (friend: Friend, area: Area) => {
     console.log(`Area request sent to ${friend.name} for ${area.name}`);
     setShowAreaSelector(null);
+  };
+
+  const addFriendToArea = (friend: Friend, area: Area) => {
+    console.log(`${friend.name} を ${area.name} に追加しました`);
+    // 実際のAPIではここでPOST /api/areas/:id/members を呼び出す
+    setShowAreaSelector(null);
+  };
+
+  const removeFriendFromArea = (friendId: string, areaId: string) => {
+    console.log(`友達をエリアから削除しました`);
+    // 実際のAPIではここでDELETE /api/areas/:id/members/:userId を呼び出す
   };
 
   const renderFriendRequest = ({ item }: { item: FriendRequest }) => (
@@ -180,6 +192,24 @@ export default function FriendsScreen() {
     </View>
   );
 
+  const renderAreaMember = ({ item }: { item: Friend }) => (
+    <View style={styles.friendItem}>
+      <View style={styles.friendInfo}>
+        <View style={styles.friendHeader}>
+          <Text style={styles.friendName}>{item.name}</Text>
+          <View style={[styles.onlineStatus, item.isOnline && styles.onlineActive]} />
+        </View>
+        <Text style={styles.friendId}>ID: {item.nowId}</Text>
+      </View>
+      <TouchableOpacity
+        style={[styles.addAreaButton, styles.removeButton]}
+        onPress={() => showAreaMembers && removeFriendFromArea(item.id, showAreaMembers.id)}
+      >
+        <Text style={styles.removeButtonText}>削除</Text>
+      </TouchableOpacity>
+    </View>
+  );
+
   return (
     <SafeAreaView style={styles.container}>
       <ScrollView style={styles.scrollView} contentContainerStyle={styles.scrollContent}>
@@ -204,6 +234,15 @@ export default function FriendsScreen() {
             >
               <UserPlus size={20} color={nowId.trim() ? '#fff' : '#999'} />
             </TouchableOpacity>
+          </View>
+          <View style={{ marginTop: 10 }}>
+            <Text style={{ color: '#666', fontSize: 13 }}>あなたのID</Text>
+            <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 2 }}>
+              <Text style={{ fontSize: 16, fontWeight: 'bold', color: '#333', marginRight: 10 }}>my_now_id_123</Text>
+              <TouchableOpacity style={{ paddingHorizontal: 8, paddingVertical: 4, backgroundColor: '#eee', borderRadius: 6 }}>
+                <Text style={{ fontSize: 13, color: '#666' }}>コピー</Text>
+              </TouchableOpacity>
+            </View>
           </View>
         </View>
 
@@ -292,7 +331,7 @@ export default function FriendsScreen() {
           <View style={styles.areaSelectorContent}>
             <View style={styles.areaSelectorHeader}>
               <Text style={styles.areaSelectorTitle}>
-                {showAreaSelector?.name} にエリア追加
+                {showAreaSelector?.name} をエリアに追加
               </Text>
               <TouchableOpacity onPress={() => setShowAreaSelector(null)}>
                 <X size={24} color="#000" />
@@ -304,11 +343,37 @@ export default function FriendsScreen() {
               renderItem={({ item }) => (
                 <TouchableOpacity
                   style={styles.areaOption}
-                  onPress={() => showAreaSelector && sendAreaRequest(showAreaSelector, item)}
+                  onPress={() => showAreaSelector && addFriendToArea(showAreaSelector, item)}
                 >
                   <Text style={styles.areaOptionText}>{item.name}</Text>
                 </TouchableOpacity>
               )}
+            />
+          </View>
+        </View>
+      </Modal>
+
+      {/* Area Members Modal */}
+      <Modal
+        visible={!!showAreaMembers}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setShowAreaMembers(null)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.areaSelectorContent}>
+            <View style={styles.areaSelectorHeader}>
+              <Text style={styles.areaSelectorTitle}>
+                {showAreaMembers?.name} のメンバー
+              </Text>
+              <TouchableOpacity onPress={() => setShowAreaMembers(null)}>
+                <X size={24} color="#000" />
+              </TouchableOpacity>
+            </View>
+            <FlatList
+              data={friends.filter(friend => friend.id === '1' || friend.id === '2')}
+              keyExtractor={(item) => item.id}
+              renderItem={renderAreaMember}
             />
           </View>
         </View>
@@ -482,6 +547,17 @@ const styles = StyleSheet.create({
   addAreaText: {
     fontSize: 12,
     color: '#000',
+    fontWeight: '600',
+  },
+  removeButton: {
+    backgroundColor: '#dc3545',
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 8,
+  },
+  removeButtonText: {
+    color: '#fff',
+    fontSize: 14,
     fontWeight: '600',
   },
   modalOverlay: {

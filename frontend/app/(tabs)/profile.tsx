@@ -84,6 +84,7 @@ export default function ProfileScreen() {
   const [isEditingName, setIsEditingName] = useState(false);
   const [tempName, setTempName] = useState(profile.name);
   const [selectedArea, setSelectedArea] = useState<Area | null>(null);
+  const [showAreaMembers, setShowAreaMembers] = useState<Area | null>(null);
 
   const saveName = () => {
     if (tempName.trim()) {
@@ -111,9 +112,17 @@ export default function ProfileScreen() {
       <View style={styles.areaInfo}>
         <View style={styles.areaHeader}>
           <Text style={styles.areaName}>{item.name}</Text>
-          <TouchableOpacity style={styles.viewButton}>
-            <Eye size={16} color="#666" />
-          </TouchableOpacity>
+          <View style={styles.areaActions}>
+            <TouchableOpacity 
+              style={styles.viewButton}
+              onPress={() => setShowAreaMembers(item)}
+            >
+              <Users size={16} color="#666" />
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.viewButton}>
+              <Eye size={16} color="#666" />
+            </TouchableOpacity>
+          </View>
         </View>
         <View style={styles.areaStats}>
           <View style={styles.statItem}>
@@ -249,6 +258,43 @@ export default function ProfileScreen() {
                 </View>
               </>
             )}
+          </View>
+        </View>
+      </Modal>
+
+      {/* Area Members Modal */}
+      <Modal
+        visible={!!showAreaMembers}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setShowAreaMembers(null)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.areaDetailContent}>
+            <View style={styles.areaDetailHeader}>
+              <Text style={styles.areaDetailTitle}>
+                {showAreaMembers?.name} のメンバー管理
+              </Text>
+              <TouchableOpacity onPress={() => setShowAreaMembers(null)}>
+                <X size={24} color="#000" />
+              </TouchableOpacity>
+            </View>
+            
+            <View style={styles.membersList}>
+              <Text style={styles.membersTitle}>メンバー一覧</Text>
+              <View style={styles.memberItem}>
+                <Text style={styles.memberName}>田中さん</Text>
+                <TouchableOpacity style={styles.removeMemberButton}>
+                  <Text style={styles.removeMemberText}>削除</Text>
+                </TouchableOpacity>
+              </View>
+              <View style={styles.memberItem}>
+                <Text style={styles.memberName}>佐藤さん</Text>
+                <TouchableOpacity style={styles.removeMemberButton}>
+                  <Text style={styles.removeMemberText}>削除</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
           </View>
         </View>
       </Modal>
@@ -431,6 +477,10 @@ const styles = StyleSheet.create({
   viewButton: {
     padding: 2,
   },
+  areaActions: {
+    flexDirection: 'row',
+    gap: 10,
+  },
   areaStats: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -513,5 +563,41 @@ const styles = StyleSheet.create({
     color: '#666',
     lineHeight: 24,
     textAlign: 'center',
+  },
+  membersList: {
+    paddingTop: 10,
+  },
+  membersTitle: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: '#000',
+    marginBottom: 15,
+    paddingHorizontal: 10,
+  },
+  memberItem: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: 10,
+    paddingHorizontal: 10,
+    backgroundColor: '#f0f0f0',
+    borderRadius: 8,
+    marginBottom: 8,
+  },
+  memberName: {
+    fontSize: 16,
+    color: '#333',
+    flex: 1,
+  },
+  removeMemberButton: {
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    backgroundColor: '#ff6b6b',
+    borderRadius: 5,
+  },
+  removeMemberText: {
+    color: '#fff',
+    fontSize: 14,
+    fontWeight: '600',
   },
 });

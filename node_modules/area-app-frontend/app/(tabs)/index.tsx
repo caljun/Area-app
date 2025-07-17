@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Modal, FlatList, ScrollView } from 'react-native';
 import MapView, { Marker, Polygon } from 'react-native-maps';
 import { ChevronDown, X } from 'lucide-react-native';
@@ -18,21 +18,36 @@ interface Area {
   coordinates: Array<{ latitude: number; longitude: number }>;
 }
 
-const mockFriends: Friend[] = [
-  { id: '1', name: '田中さん', latitude: 35.6762, longitude: 139.6503 },
-  { id: '2', name: '佐藤さん', latitude: 35.6800, longitude: 139.6569 },
-  { id: '3', name: '山田さん', latitude: 35.6735, longitude: 139.6585 },
-];
+// エリアごとの友達データ（実際のAPIでは動的に取得）
+const mockAreaFriends: { [areaId: string]: Friend[] } = {
+  1: [
+    { id: '1', name: '田中さん', latitude: 35.6762, longitude: 139.653 },
+    { id: '2', name: '佐藤さん', latitude: 35.6800, longitude: 139.6569 },
+  ],
+  2: [
+    { id: '3', name: '山田さん', latitude: 35.6735, longitude: 139.6585 },
+  ],
+};
 
 const mockAreas: Area[] = [
   {
     id: '1',
     name: '渋谷エリア',
     coordinates: [
-      { latitude: 35.6580, longitude: 139.6980 },
-      { latitude: 35.6580, longitude: 139.7080 },
-      { latitude: 35.6680, longitude: 139.7080 },
-      { latitude: 35.6680, longitude: 139.6980 },
+      { latitude: 35.6580, longitude: 139.698 },
+      { latitude: 35.6580, longitude: 139.708 },
+      { latitude: 35.6680, longitude: 139.708 },
+      { latitude: 35.6680, longitude: 139.698 },
+    ],
+  },
+  {
+    id: '2',
+    name: '新宿エリア',
+    coordinates: [
+      { latitude: 35.6900, longitude: 139.69 },
+      { latitude: 35.6900, longitude: 139.7 },
+      { latitude: 35.700, longitude: 139.7 },
+      { latitude: 35.700, longitude: 139.69 },
     ],
   },
 ];
@@ -40,6 +55,15 @@ const mockAreas: Area[] = [
 export default function HomeScreen() {
   const [selectedArea, setSelectedArea] = useState<Area | null>(mockAreas[0]);
   const [showAreaSelector, setShowAreaSelector] = useState(false);
+  const [areaFriends, setAreaFriends] = useState<Friend[]>([]);
+
+  // エリアが変更されたときに友達リストを更新
+  useEffect(() => {
+    if (selectedArea) {
+      const friends = mockAreaFriends[selectedArea.id] || [];
+      setAreaFriends(friends);
+    }
+  }, [selectedArea]);
 
   return (
     <View style={styles.container}>
@@ -61,7 +85,7 @@ export default function HomeScreen() {
           />
         )}
 
-        {mockFriends.map((friend) => (
+        {areaFriends.map((friend) => (
           <Marker
             key={friend.id}
             coordinate={{
@@ -95,6 +119,14 @@ export default function HomeScreen() {
           </Text>
           <ChevronDown size={20} color="#000" />
         </TouchableOpacity>
+        
+        {selectedArea && (
+          <View style={styles.areaInfo}>
+            <Text style={styles.areaInfoText}>
+              {areaFriends.length}人の友達がこのエリアにいます
+            </Text>
+          </View>
+        )}
       </View>
 
       {/* ▼ エリア選択モーダル */}
@@ -276,6 +308,18 @@ const styles = StyleSheet.create({
     color: '#000',
     fontSize: 16,
     fontWeight: '600',
+    textAlign: 'center',
+  },
+  areaInfo: {
+    marginTop: 10,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    backgroundColor: '#f0f0f0',
+    borderRadius: 8,
+  },
+  areaInfoText: {
+    fontSize: 14,
+    color: '#000',
     textAlign: 'center',
   },
 });

@@ -102,4 +102,65 @@ router.get('/history', async (req: AuthRequest, res: Response) => {
   }
 });
 
+// Get friends locations in specific area
+router.get('/area/:areaId/friends', async (req: AuthRequest, res: Response) => {
+  try {
+    const { areaId } = req.params;
+
+    // Check if user has access to this area
+    const area = await prisma.area.findFirst({
+      where: {
+        id: areaId,
+        OR: [
+          { userId: req.user!.id },
+          { isPublic: true }
+        ]
+      }
+    });
+
+    if (!area) {
+      return res.status(404).json({ error: 'Area not found' });
+    }
+
+    // Get area members
+    const areaMembers = await prisma.areaMember.findMany({
+      where: { areaId },
+      include: {
+        user: {
+          select: {
+            id: true,
+            name: true,
+            nowId: true,
+            profileImage: true
+          }
+        }
+      }
+    });
+
+    // Get latest location for each member
+    const membersWithLocations = await Promise.all(
+      areaMembers.map(async (member) => {
+        const latestLocation = await prisma.location.findFirst({
+          where: { userId: member.userId },
+          orderBy: { createdAt: 'desc' }
+        });
+
+        return {
+          ...member.user,
+          location: latestLocation ? {
+            latitude: latestLocation.latitude,
+            longitude: latestLocation.longitude,
+            updatedAt: latestLocation.createdAt
+          } : null
+        };
+      })
+    );
+
+    res.json({ friends: membersWithLocations });
+  } catch (error) {
+    console.error('Get area friends locations error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
 export default router; 

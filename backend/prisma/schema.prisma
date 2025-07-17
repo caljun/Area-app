@@ -30,6 +30,8 @@ model User {
   areaRequests  AreaRequest[] @relation("AreaRequestSender")
   receivedAreaRequests AreaRequest[] @relation("AreaRequestReceiver")
   images        Image[]
+  areaMembers   AreaMember[] @relation("AreaMembers")
+  addedAreaMembers AreaMember[] @relation("AreaMemberAddedBy")
 
   @@map("users")
 }
@@ -47,6 +49,7 @@ model Area {
   // Relations
   user         User          @relation(fields: [userId], references: [id], onDelete: Cascade)
   areaRequests AreaRequest[] @relation("AreaRequests")
+  areaMembers  AreaMember[]  @relation("AreaMembers")
 
   @@map("areas")
 }
@@ -123,6 +126,22 @@ model Image {
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@map("images")
+}
+
+model AreaMember {
+  id       String @id @default(auto()) @map("_id") @db.ObjectId
+  areaId   String @db.ObjectId
+  userId   String @db.ObjectId
+  addedBy  String @db.ObjectId  // 誰によって追加されたか
+  createdAt DateTime @default(now())
+
+  // Relations
+  area    Area @relation("AreaMembers", fields: [areaId], references: [id], onDelete: Cascade)
+  user    User @relation("AreaMembers", fields: [userId], references: [id], onDelete: Cascade)
+  addedByUser User @relation("AreaMemberAddedBy", fields: [addedBy], references: [id], onDelete: Cascade)
+
+  @@unique([areaId, userId])
+  @@map("area_members")
 }
 
 enum RequestStatus {

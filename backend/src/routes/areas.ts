@@ -197,4 +197,190 @@ router.delete('/:id', async (req: AuthRequest, res: Response) => {
   }
 });
 
+// Get area members
+router.get('/:id/members', async (req: AuthRequest, res: Response) => {
+  try {
+    const { id } = req.params;
+
+    // Check if user has access to this area
+    const area = await prisma.area.findFirst({
+      where: {
+        id,
+        OR: [
+          { userId: req.user!.id },
+          { isPublic: true }
+        ]
+      }
+    });
+
+    if (!area) {
+      return res.status(404).json({ error: 'Area not found' });
+    }
+
+    const members = await prisma.areaMember.findMany({
+      where: { areaId: id },
+      include: {
+        user: {
+          select: {
+            id: true,
+            name: true,
+            nowId: true,
+            profileImage: true
+          }
+        }
+      },
+      orderBy: { createdAt: 'asc' }
+    });
+
+    res.json({ members });
+  } catch (error) {
+    console.error('Get area members error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// Add member to area
+router.post('/:id/members', async (req: AuthRequest, res: Response) => {
+  try {
+    const { id } = req.params;
+    const { userId } = req.body;
+
+    if (!userId) {
+      return res.status(400).json({ error: 'User ID is required' });
+    }
+
+    // Check if area belongs to user
+    const area = await prisma.area.findFirst({
+      where: {
+        id,
+        userId: req.user!.id
+      }
+    });
+
+    if (!area) {
+      return res.status(404).json({ error: 'Area not found or access denied' });
+    }
+
+    // Check if they are friends
+    const friendship = await prisma.friend.findFirst({
+      where: {
+        OR: [
+          { userId: req.user!.id, friendId: userId },
+          { userId: userId, friendId: req.user!.id }
+        ]
+      }
+    });
+
+    if (!friendship) {
+      return res.status(400).json({ error: 'Can only add friends to areas' });
+    }
+
+    // Check if already a member
+    const existingMember = await prisma.areaMember.findFirst({
+      where: {
+        areaId: id,
+        userId: userId
+      }
+    });
+
+    if (existingMember) {
+      return res.status(400).json({ error: 'User is already a member of this area' });
+    }
+
+    const member = await prisma.areaMember.create({
+      data: {
+        areaId: id,
+        userId: userId,
+        addedBy: req.user!.id
+      },
+      include: {
+        user: {
+          select: {
+            id: true,
+            name: true,
+            nowId: true,
+            profileImage: true
+          }
+        }
+      }
+    });
+
+    res.status(201).json({
+      message: 'Member added successfully',
+      member
+    });
+  } catch (error) {
+    console.error('Add area member error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// Remove member from area
+router.delete('/:id/members/:userId', async (req: AuthRequest, res: Response) => {
+  try {
+    const { id, userId } = req.params;
+
+    // Check if area belongs to user
+    const area = await prisma.area.findFirst({
+      where: {
+        id,
+        userId: req.user!.id
+      }
+    });
+
+    if (!area) {
+      return res.status(404).json({ error: 'Area not found or access denied' });
+    }
+
+    // Check if member exists
+    const member = await prisma.areaMember.findFirst({
+      where: {
+        areaId: id,
+        userId: userId
+      }
+    });
+
+    if (!member) {
+      return res.status(404).json({ error: 'Member not found' });
+    }
+
+    await prisma.areaMember.delete({
+      where: { id: member.id }
+    });
+
+    res.json({ message: 'Member removed successfully' });
+  } catch (error) {
+    console.error('Remove area member error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// Get areas where user is a member
+router.get('/memberships', async (req: AuthRequest, res: Response) => {
+  try {
+    const memberships = await prisma.areaMember.findMany({
+      where: { userId: req.user!.id },
+      include: {
+        area: {
+          include: {
+            user: {
+              select: {
+                id: true,
+                name: true,
+                nowId: true
+              }
+            }
+          }
+        }
+      },
+      orderBy: { createdAt: 'desc' }
+    });
+
+    res.json({ memberships });
+  } catch (error) {
+    console.error('Get area memberships error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
 export default router; 
