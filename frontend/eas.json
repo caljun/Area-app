@@ -3,9 +3,8 @@
     "version": ">= 5.9.1"
   },
   "build": {
-    "preview": {
-      "distribution": "internal",
-      "developmentClient": false,
+    "production": {
+      "distribution": "store",
       "ios": {
         "simulator": false
       }
