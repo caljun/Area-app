@@ -1,7 +1,7 @@
 {
   "expo": {
-    "name": "Area App",
-    "slug": "area-app",
+    "name": "Area",
+    "slug": "area",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
@@ -46,7 +46,7 @@
     },
     "extra": {
       "eas": {
-        "projectId": "your-project-id-here"
+        "projectId": "b1b20e10-b45e-4f5f-a0c5-3e2bdab5b2c7"
       }
     }
   }
