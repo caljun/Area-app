@@ -54,6 +54,12 @@ export default {
             deploymentTarget: "14.0"
           }
         }
+      ],
+      [
+        "@rnmapbox/maps",
+        {
+          mapboxPublicKey: process.env.MAPBOX_ACCESS_TOKEN || "pk.eyJ1IjoiY2FsanVuIiwiYSI6ImNtZDlzaTZ0eDA5MWEybHNiYXB0N2J2bDcifQ._goEiKRsfnDMImATZniUtQ"
+        }
       ]
     ]
   },
