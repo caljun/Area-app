@@ -8,6 +8,7 @@
       "developmentClient": false,
       "distribution": "store",
       "ios": {
+        "workflow":"managed",
         "simulator": false,
         "autoIncrement": false,
         "buildConfiguration": "Release",
