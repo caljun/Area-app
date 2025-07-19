@@ -1,6 +1,7 @@
 {
   "cli": {
-    "version": ">= 5.9.1"
+    "version": ">= 5.9.1",
+    "appVersionSource": "app.json"
   },
   "build": {
     "production": {
@@ -8,9 +9,8 @@
       "distribution": "store",
       "ios": {
         "simulator": false,
-        "autoIncrement": "buildNumber"
+        "autoIncrement": false
       }
     }
   }
 }
-
