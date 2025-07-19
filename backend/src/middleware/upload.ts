@@ -8,6 +8,10 @@ declare module 'multer-storage-cloudinary' {
     cloudinary: any;
     params: any;
   }
+  
+  class CloudinaryStorage {
+    constructor(options: CloudinaryStorageOptions);
+  }
 }
 
 // Cloudinary設定
@@ -42,7 +46,7 @@ const fileFilter = (req: any, file: any, cb: any) => {
 
 // アップロード設定
 export const upload = multer({
-  storage: storage,
+  storage: storage as any,
   fileFilter: fileFilter,
   limits: {
     fileSize: 5 * 1024 * 1024, // 5MB
