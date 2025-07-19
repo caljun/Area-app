@@ -106,7 +106,7 @@ export default function AddAreaScreen() {
           >
             {points.map((point, index) => (
               <Mapbox.PointAnnotation
-                key={index}
+                key={index.toString()}
                 id={`point-${index}`}
                 coordinate={[point.longitude, point.latitude]}
               >
