@@ -1,3 +1,9 @@
+try {
+  require('dotenv/config');
+} catch (error) {
+  // dotenv is not available in EAS build environment
+}
+
 export default {
   expo: {
     name: 'Area',
@@ -30,7 +36,7 @@ export default {
       favicon: './assets/images/favicon.png',
     },
     extra: {
-      apiUrl: process.env.EXPO_PUBLIC_API_URL || "http://localhost:3000",
+      apiUrl: process.env.EXPO_PUBLIC_API_URL || "https://area-app.onrender.com/api",
       expoRouterRoot: process.env.EXPO_ROUTER_APP_ROOT ?? 'app',
       eas: {
         projectId: "b1b20e10-b45e-4f5f-a0c5-3e2bdab5b2c7"
