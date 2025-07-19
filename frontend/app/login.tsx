@@ -2,24 +2,29 @@ import React, { useState } from 'react';
 import { View, Text, StyleSheet, TextInput, TouchableOpacity, Alert } from 'react-native';
 import { router } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { useAuth } from '../contexts/AuthContext';
 
 export default function LoginScreen() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [isLoading, setIsLoading] = useState(false);
+  const { login } = useAuth();
 
-  const handleLogin = () => {
+  const handleLogin = async () => {
     if (!email || !password) {
       Alert.alert('エラー', 'メールアドレスとパスワードを入力してください。');
       return;
     }
 
-    // TODO: 実際のログイン処理を実装
-    Alert.alert('成功', 'ログインしました。', [
-      {
-        text: 'OK',
-        onPress: () => router.replace('/(tabs)'),
-      },
-    ]);
+    setIsLoading(true);
+    try {
+      await login(email, password);
+      router.replace('/(tabs)');
+    } catch (error: any) {
+      Alert.alert('エラー', error.message);
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return (
@@ -47,8 +52,14 @@ export default function LoginScreen() {
             secureTextEntry
           />
 
-          <TouchableOpacity style={styles.button} onPress={handleLogin}>
-            <Text style={styles.buttonText}>ログイン</Text>
+          <TouchableOpacity 
+            style={[styles.button, isLoading && styles.buttonDisabled]} 
+            onPress={handleLogin}
+            disabled={isLoading}
+          >
+            <Text style={styles.buttonText}>
+              {isLoading ? 'ログイン中...' : 'ログイン'}
+            </Text>
           </TouchableOpacity>
 
           <TouchableOpacity
@@ -106,6 +117,9 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontSize: 16,
     fontWeight: '600',
+  },
+  buttonDisabled: {
+    backgroundColor: '#999',
   },
   registerLink: {
     marginTop: 20,

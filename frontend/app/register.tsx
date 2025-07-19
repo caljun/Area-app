@@ -2,15 +2,19 @@ import React, { useState } from 'react';
 import { View, Text, StyleSheet, TextInput, TouchableOpacity, Alert } from 'react-native';
 import { router, Link } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { useAuth } from '../contexts/AuthContext';
 
 export default function RegisterScreen() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
-  const [username, setUsername] = useState('');
+  const [nowId, setNowId] = useState('');
+  const [name, setName] = useState('');
+  const [isLoading, setIsLoading] = useState(false);
+  const { register } = useAuth();
 
-  const handleRegister = () => {
-    if (!email || !password || !confirmPassword || !username) {
+  const handleRegister = async () => {
+    if (!email || !password || !confirmPassword || !nowId || !name) {
       Alert.alert('エラー', 'すべての項目を入力してください。');
       return;
     }
@@ -20,13 +24,15 @@ export default function RegisterScreen() {
       return;
     }
 
-    // TODO: 実際の登録処理を実装
-    Alert.alert('成功', '登録が完了しました。', [
-      {
-        text: 'OK',
-        onPress: () => router.replace('/(tabs)'),
-      },
-    ]);
+    setIsLoading(true);
+    try {
+      await register(email, nowId, name, password);
+      router.replace('/(tabs)');
+    } catch (error: any) {
+      Alert.alert('エラー', error.message);
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return (
@@ -35,13 +41,21 @@ export default function RegisterScreen() {
         <Text style={styles.title}>新規登録</Text>
         
         <View style={styles.form}>
-          <Text style={styles.label}>ユーザー名</Text>
+          <Text style={styles.label}>Now ID</Text>
           <TextInput
             style={styles.input}
-            value={username}
-            onChangeText={setUsername}
-            placeholder="ユーザー名を入力"
+            value={nowId}
+            onChangeText={setNowId}
+            placeholder="Now IDを入力"
             autoCapitalize="none"
+          />
+
+          <Text style={styles.label}>名前</Text>
+          <TextInput
+            style={styles.input}
+            value={name}
+            onChangeText={setName}
+            placeholder="名前を入力"
           />
 
           <Text style={styles.label}>メールアドレス</Text>
@@ -72,8 +86,14 @@ export default function RegisterScreen() {
             secureTextEntry
           />
 
-          <TouchableOpacity style={styles.button} onPress={handleRegister}>
-            <Text style={styles.buttonText}>登録する</Text>
+          <TouchableOpacity 
+            style={[styles.button, isLoading && styles.buttonDisabled]} 
+            onPress={handleRegister}
+            disabled={isLoading}
+          >
+            <Text style={styles.buttonText}>
+              {isLoading ? '登録中...' : '登録する'}
+            </Text>
           </TouchableOpacity>
 
           <TouchableOpacity
@@ -131,6 +151,9 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontSize: 16,
     fontWeight: '600',
+  },
+  buttonDisabled: {
+    backgroundColor: '#999',
   },
   loginLink: {
     marginTop: 20,
