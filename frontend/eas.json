@@ -28,6 +28,7 @@
   "submit": {
     "production": {
       "ios": {
+        "workflow": "managed",
         "appleId": "your-apple-id@example.com",
         "ascAppId": "your-app-store-connect-app-id",
         "appleTeamId": "your-apple-team-id"
