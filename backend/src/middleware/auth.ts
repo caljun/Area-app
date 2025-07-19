@@ -9,6 +9,7 @@ export interface AuthRequest extends Request {
     nowId: string;
     name: string;
   };
+  file?: Express.Multer.File;
 }
 
 export const authMiddleware = async (
