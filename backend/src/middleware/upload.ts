@@ -8,10 +8,6 @@ declare module 'multer-storage-cloudinary' {
     cloudinary: any;
     params: any;
   }
-  
-  class CloudinaryStorage {
-    constructor(options: CloudinaryStorageOptions);
-  }
 }
 
 // Cloudinary設定

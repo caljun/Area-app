@@ -21,6 +21,26 @@ import { authMiddleware } from './middleware/auth';
 // Import database
 import { PrismaClient } from '@prisma/client';
 
+// 型の問題を回避
+declare global {
+  namespace NodeJS {
+    interface ProcessEnv {
+      PORT?: string;
+      NODE_ENV?: string;
+      DATABASE_URL?: string;
+      JWT_SECRET?: string;
+      JWT_EXPIRES_IN?: string;
+      CORS_ORIGIN?: string;
+      RATE_LIMIT_WINDOW_MS?: string;
+      RATE_LIMIT_MAX_REQUESTS?: string;
+      CLOUDINARY_CLOUD_NAME?: string;
+      CLOUDINARY_API_KEY?: string;
+      CLOUDINARY_API_SECRET?: string;
+      MAPBOX_ACCESS_TOKEN?: string;
+    }
+  }
+}
+
 // Load environment variables
 dotenv.config();
 
