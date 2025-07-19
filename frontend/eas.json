@@ -9,7 +9,27 @@
       "distribution": "app-store",
       "ios": {
         "simulator": false,
-        "autoIncrement": false
+        "autoIncrement": false,
+        "buildConfiguration": "Release",
+        "resourceClass": "m-medium"
+      }
+    },
+    "preview": {
+      "developmentClient": false,
+      "distribution": "internal",
+      "ios": {
+        "simulator": false,
+        "autoIncrement": false,
+        "buildConfiguration": "Release"
+      }
+    }
+  },
+  "submit": {
+    "production": {
+      "ios": {
+        "appleId": "your-apple-id@example.com",
+        "ascAppId": "your-app-store-connect-app-id",
+        "appleTeamId": "your-apple-team-id"
       }
     }
   }

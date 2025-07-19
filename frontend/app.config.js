@@ -8,7 +8,7 @@ export default {
     orientation: 'portrait',
     scheme: 'area',
     userInterfaceStyle: 'light',
-    icon: './assets/icon.png',
+    icon: './assets/images/icon.png',
     splash: {
       image: './assets/splash.png',
       resizeMode: 'contain',
@@ -23,12 +23,12 @@ export default {
     },
     android: {
       adaptiveIcon: {
-        foregroundImage: './assets/adaptive-icon.png',
+        foregroundImage: './assets/images/icon.png',
         backgroundColor: '#FFFFFF',
       },
     },
     web: {
-      favicon: './assets/favicon.png',
+      favicon: './assets/images/favicon.png',
     },
     extra: {
       apiUrl: process.env.EXPO_PUBLIC_API_URL,
