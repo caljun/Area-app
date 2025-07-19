@@ -5,7 +5,6 @@
   },
   "build": {
     "production": {
-      "workflow": "managed",
       "developmentClient": false,
       "distribution": "store",
       "ios": {
@@ -16,7 +15,6 @@
       }
     },
     "preview": {
-      "workflow": "managed",
       "developmentClient": false,
       "distribution": "internal",
       "ios": {

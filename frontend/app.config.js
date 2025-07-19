@@ -55,7 +55,7 @@ export default {
           }
         }
       ],
-        "expo-router"
+      "expo-router"
     ]
   },
 };
