@@ -5,6 +5,9 @@ import { AuthRequest } from '../middleware/auth';
 import { uploadSingle, handleUploadError } from '../middleware/upload';
 import { v2 as cloudinary } from 'cloudinary';
 
+// Prismaの型定義
+type ImageType = 'PROFILE' | 'AREA' | 'GENERAL';
+
 // Cloudinaryの型定義
 interface CloudinaryFile extends Express.Multer.File {
   secure_url?: string;
@@ -19,7 +22,12 @@ const uploadImageSchema = z.object({
 });
 
 // Upload image
-router.post('/upload', uploadSingle, handleUploadError, async (req: AuthRequest, res: Response) => {
+router.post('/upload', 
+  (req: any, res: any, next: any) => {
+    uploadSingle(req, res, next);
+  },
+  handleUploadError, 
+  async (req: AuthRequest, res: Response) => {
   try {
     const { type } = uploadImageSchema.parse(req.body);
 
@@ -75,9 +83,9 @@ router.get('/', async (req: AuthRequest, res: Response) => {
   try {
     const { type } = req.query;
     
-    const where: { userId: string; type?: string } = { userId: req.user!.id };
+    const where: any = { userId: req.user!.id };
     if (type) {
-      where.type = type as string;
+      where.type = type as ImageType;
     }
 
     const images = await prisma.image.findMany({
