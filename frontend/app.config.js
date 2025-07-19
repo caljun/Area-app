@@ -54,7 +54,8 @@ export default {
             deploymentTarget: "14.0"
           }
         }
-      ]
+      ],
+        "expo-router"
     ]
   },
 };

@@ -18,6 +18,7 @@
       "developmentClient": false,
       "distribution": "internal",
       "ios": {
+        "workflow": "managed",
         "simulator": false,
         "autoIncrement": false,
         "buildConfiguration": "Release"
