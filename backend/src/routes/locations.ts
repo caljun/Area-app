@@ -24,7 +24,7 @@ router.post('/', async (req: AuthRequest, res: Response) => {
       }
     });
 
-    res.status(201).json({
+    return res.status(201).json({
       message: 'Location updated successfully',
       location
     });
@@ -37,7 +37,7 @@ router.post('/', async (req: AuthRequest, res: Response) => {
     }
     
     console.error('Update location error:', error);
-    res.status(500).json({ error: 'Internal server error' });
+    return res.status(500).json({ error: 'Internal server error' });
   }
 });
 
@@ -77,10 +77,10 @@ router.get('/friends', async (req: AuthRequest, res: Response) => {
       })
     );
 
-    res.json({ friends: friendsWithLocations });
+    return res.json({ friends: friendsWithLocations });
   } catch (error) {
     console.error('Get friends locations error:', error);
-    res.status(500).json({ error: 'Internal server error' });
+    return res.status(500).json({ error: 'Internal server error' });
   }
 });
 
@@ -95,10 +95,10 @@ router.get('/history', async (req: AuthRequest, res: Response) => {
       take: Math.min(limit, 100) // Max 100 locations
     });
 
-    res.json({ locations });
+    return res.json({ locations });
   } catch (error) {
     console.error('Get location history error:', error);
-    res.status(500).json({ error: 'Internal server error' });
+    return res.status(500).json({ error: 'Internal server error' });
   }
 });
 
@@ -156,10 +156,10 @@ router.get('/area/:areaId/friends', async (req: AuthRequest, res: Response) => {
       })
     );
 
-    res.json({ friends: membersWithLocations });
+    return res.json({ friends: membersWithLocations });
   } catch (error) {
     console.error('Get area friends locations error:', error);
-    res.status(500).json({ error: 'Internal server error' });
+    return res.status(500).json({ error: 'Internal server error' });
   }
 });
 

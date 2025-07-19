@@ -120,7 +120,7 @@ router.post('/request', async (req: AuthRequest, res: Response) => {
       }
     });
 
-    res.status(201).json({
+    return res.status(201).json({
       message: 'Friend request sent successfully',
       request
     });
@@ -133,7 +133,7 @@ router.post('/request', async (req: AuthRequest, res: Response) => {
     }
     
     console.error('Send friend request error:', error);
-    res.status(500).json({ error: 'Internal server error' });
+    return res.status(500).json({ error: 'Internal server error' });
   }
 });
 
@@ -170,7 +170,7 @@ router.put('/request/:requestId', async (req: AuthRequest, res: Response) => {
       });
     }
 
-    res.json({
+    return res.json({
       message: `Friend request ${status.toLowerCase()} successfully`
     });
   } catch (error) {
@@ -182,7 +182,7 @@ router.put('/request/:requestId', async (req: AuthRequest, res: Response) => {
     }
     
     console.error('Respond to friend request error:', error);
-    res.status(500).json({ error: 'Internal server error' });
+    return res.status(500).json({ error: 'Internal server error' });
   }
 });
 
@@ -213,10 +213,10 @@ router.get('/area-requests', async (req: AuthRequest, res: Response) => {
       orderBy: { createdAt: 'desc' }
     });
 
-    res.json({ requests });
+    return res.json({ requests });
   } catch (error) {
     console.error('Get area requests error:', error);
-    res.status(500).json({ error: 'Internal server error' });
+    return res.status(500).json({ error: 'Internal server error' });
   }
 });
 
@@ -289,7 +289,7 @@ router.post('/area-request', async (req: AuthRequest, res: Response) => {
       }
     });
 
-    res.status(201).json({
+    return res.status(201).json({
       message: 'Area request sent successfully',
       request
     });
@@ -302,7 +302,7 @@ router.post('/area-request', async (req: AuthRequest, res: Response) => {
     }
     
     console.error('Send area request error:', error);
-    res.status(500).json({ error: 'Internal server error' });
+    return res.status(500).json({ error: 'Internal server error' });
   }
 });
 
@@ -329,7 +329,7 @@ router.put('/area-request/:requestId', async (req: AuthRequest, res: Response) =
       data: { status }
     });
 
-    res.json({
+    return res.json({
       message: `Area request ${status.toLowerCase()} successfully`
     });
   } catch (error) {
@@ -341,7 +341,7 @@ router.put('/area-request/:requestId', async (req: AuthRequest, res: Response) =
     }
     
     console.error('Respond to area request error:', error);
-    res.status(500).json({ error: 'Internal server error' });
+    return res.status(500).json({ error: 'Internal server error' });
   }
 });
 

@@ -42,7 +42,7 @@ router.post('/upload', uploadSingle, handleUploadError, async (req: AuthRequest,
       });
     }
 
-    res.status(201).json({
+    return res.status(201).json({
       message: 'Image uploaded successfully',
       image: {
         id: image.id,
@@ -60,7 +60,7 @@ router.post('/upload', uploadSingle, handleUploadError, async (req: AuthRequest,
     }
     
     console.error('Upload image error:', error);
-    res.status(500).json({ error: 'Internal server error' });
+    return res.status(500).json({ error: 'Internal server error' });
   }
 });
 
@@ -79,10 +79,10 @@ router.get('/', async (req: AuthRequest, res: Response) => {
       orderBy: { createdAt: 'desc' }
     });
 
-    res.json({ images });
+    return res.json({ images });
   } catch (error) {
     console.error('Get images error:', error);
-    res.status(500).json({ error: 'Internal server error' });
+    return res.status(500).json({ error: 'Internal server error' });
   }
 });
 
@@ -123,10 +123,10 @@ router.delete('/:id', async (req: AuthRequest, res: Response) => {
       });
     }
 
-    res.json({ message: 'Image deleted successfully' });
+    return res.json({ message: 'Image deleted successfully' });
   } catch (error) {
     console.error('Delete image error:', error);
-    res.status(500).json({ error: 'Internal server error' });
+    return res.status(500).json({ error: 'Internal server error' });
   }
 });
 
@@ -146,10 +146,10 @@ router.get('/:id', async (req: AuthRequest, res: Response) => {
       return res.status(404).json({ error: 'Image not found' });
     }
 
-    res.json({ image });
+    return res.json({ image });
   } catch (error) {
     console.error('Get image error:', error);
-    res.status(500).json({ error: 'Internal server error' });
+    return res.status(500).json({ error: 'Internal server error' });
   }
 });
 
