@@ -64,11 +64,11 @@ router.post('/register', async (req: Request, res: Response) => {
     // Generate JWT token
     const token = jwt.sign(
       { userId: user.id },
-      process.env.JWT_SECRET!,
+      process.env.JWT_SECRET || 'fallback-secret',
       { expiresIn: process.env.JWT_EXPIRES_IN || '7d' }
     );
 
-    res.status(201).json({
+    return res.status(201).json({
       message: 'User registered successfully',
       user,
       token
@@ -82,7 +82,7 @@ router.post('/register', async (req: Request, res: Response) => {
     }
     
     console.error('Register error:', error);
-    res.status(500).json({ error: 'Internal server error' });
+    return res.status(500).json({ error: 'Internal server error' });
   }
 });
 
@@ -110,11 +110,11 @@ router.post('/login', async (req: Request, res: Response) => {
     // Generate JWT token
     const token = jwt.sign(
       { userId: user.id },
-      process.env.JWT_SECRET!,
+      process.env.JWT_SECRET || 'fallback-secret',
       { expiresIn: process.env.JWT_EXPIRES_IN || '7d' }
     );
 
-    res.json({
+    return res.json({
       message: 'Login successful',
       user: {
         id: user.id,
@@ -133,7 +133,7 @@ router.post('/login', async (req: Request, res: Response) => {
     }
     
     console.error('Login error:', error);
-    res.status(500).json({ error: 'Internal server error' });
+    return res.status(500).json({ error: 'Internal server error' });
   }
 });
 
@@ -147,7 +147,7 @@ router.get('/me', async (req: Request, res: Response) => {
     }
 
     const token = authHeader.substring(7);
-    const decoded = jwt.verify(token, process.env.JWT_SECRET!) as any;
+    const decoded = jwt.verify(token, process.env.JWT_SECRET || 'fallback-secret') as any;
 
     const user = await prisma.user.findUnique({
       where: { id: decoded.userId },
@@ -164,10 +164,10 @@ router.get('/me', async (req: Request, res: Response) => {
       return res.status(401).json({ error: 'User not found' });
     }
 
-    res.json({ user });
+    return res.json({ user });
   } catch (error) {
     console.error('Get current user error:', error);
-    res.status(500).json({ error: 'Internal server error' });
+    return res.status(500).json({ error: 'Internal server error' });
   }
 });
 
