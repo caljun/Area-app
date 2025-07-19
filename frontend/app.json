@@ -7,7 +7,6 @@
     "icon": "./assets/images/icon.png",
     "scheme": "areaapp",
     "userInterfaceStyle": "automatic",
-    "newArchEnabled": true,
     "splash": {
       "image": "./assets/splash.png",
       "resizeMode": "contain",
@@ -63,7 +62,7 @@
         "expo-build-properties",
         {
           "ios": {
-            "deploymentTarget": "13.0"
+            "deploymentTarget": "15.0"
           }
         }
       ]
