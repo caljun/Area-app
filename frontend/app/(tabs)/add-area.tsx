@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { View, Text, StyleSheet, TextInput, TouchableOpacity, Alert, ScrollView, ActivityIndicator } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import MapView, { Marker, Polygon } from 'react-native-maps';
+import Mapbox from '@rnmapbox/maps';
 import { Check } from 'lucide-react-native';
 import { useAuth } from '../../contexts/AuthContext';
 import { router } from 'expo-router';
@@ -19,7 +19,11 @@ export default function AddAreaScreen() {
   const [isCreating, setIsCreating] = useState(false);
 
   const handleMapPress = (event: any) => {
-    const { coordinate } = event.nativeEvent;
+    const { coordinates } = event.geometry;
+    const coordinate = {
+      latitude: coordinates[1],
+      longitude: coordinates[0]
+    };
     setPoints([...points, coordinate]);
   };
 
@@ -93,21 +97,18 @@ export default function AddAreaScreen() {
         </View>
 
         <View style={styles.mapContainer}>
-          <MapView
+          <Mapbox.MapView
             style={styles.map}
-            initialRegion={{
-              latitude: 35.6762,
-              longitude: 139.6503,
-              latitudeDelta: 0.0922,
-              longitudeDelta: 0.0421,
-            }}
-            onPress={handleMapPress}
+            styleURL={Mapbox.StyleURL.Street}
+            centerCoordinate={[139.6503, 35.6762]}
+            zoomLevel={10}
+            onTouch={handleMapPress}
           >
             {points.map((point, index) => (
-              <Marker
+              <Mapbox.PointAnnotation
                 key={index}
-                coordinate={point}
-                pinColor={index === points.length - 1 ? '#ff0000' : '#000'}
+                id={`point-${index}`}
+                coordinate={[point.longitude, point.latitude]}
               >
                 <View style={[
                   styles.pointMarker,
@@ -115,18 +116,31 @@ export default function AddAreaScreen() {
                 ]}>
                   <Text style={styles.pointNumber}>{index + 1}</Text>
                 </View>
-              </Marker>
+              </Mapbox.PointAnnotation>
             ))}
             
             {points.length >= 3 && (
-              <Polygon
-                coordinates={points}
-                fillColor="rgba(0, 0, 0, 0.1)"
-                strokeColor="#000"
-                strokeWidth={2}
-              />
+              <Mapbox.ShapeSource
+                id="polygonSource"
+                shape={{
+                  type: 'Feature',
+                  geometry: {
+                    type: 'Polygon',
+                    coordinates: [points.map(point => [point.longitude, point.latitude])]
+                  },
+                  properties: {}
+                }}
+              >
+                <Mapbox.FillLayer
+                  id="polygonFill"
+                  style={{
+                    fillColor: 'rgba(0, 0, 0, 0.1)',
+                    fillOutlineColor: '#000'
+                  }}
+                />
+              </Mapbox.ShapeSource>
             )}
-          </MapView>
+          </Mapbox.MapView>
         </View>
 
         <View style={styles.controls}>

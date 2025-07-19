@@ -56,6 +56,12 @@
         {
           "cameraPermission": "Allow Area App to access your camera to take photos for areas and profile."
         }
+      ],
+      [
+        "@rnmapbox/maps",
+        {
+          "mapboxPublicKey": "YOUR_MAPBOX_PUBLIC_KEY"
+        }
       ]
     ],
     "experiments": {

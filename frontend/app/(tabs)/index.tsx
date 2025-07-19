@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Modal, FlatList, ScrollView, ActivityIndicator } from 'react-native';
-import MapView from '@rnmapbox/maps';
+import Mapbox from '@rnmapbox/maps';
 import { ChevronDown, X } from 'lucide-react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useAuth } from '../../contexts/AuthContext';
@@ -103,32 +103,39 @@ export default function HomeScreen() {
 
   return (
     <View style={styles.container}>
-      <MapView
+      <Mapbox.MapView
         style={styles.map}
-        initialRegion={{
-          latitude: 35.6762,
-          longitude: 139.6503,
-          latitudeDelta: 0.0922,
-          longitudeDelta: 0.0421,
-        }}
+        styleURL={Mapbox.StyleURL.Street}
+        centerCoordinate={[139.6503, 35.6762]}
+        zoomLevel={10}
       >
-        {/* Polygon and Marker temporarily disabled for Mapbox compatibility
         {selectedArea && (
-          <Polygon
-            coordinates={selectedArea.coordinates}
-            fillColor="rgba(0, 0, 0, 0.1)"
-            strokeColor="#000"
-            strokeWidth={2}
-          />
+          <Mapbox.ShapeSource
+            id="areaPolygonSource"
+            shape={{
+              type: 'Feature',
+              geometry: {
+                type: 'Polygon',
+                coordinates: [selectedArea.coordinates.map(point => [point.longitude, point.latitude])]
+              },
+              properties: {}
+            }}
+          >
+            <Mapbox.FillLayer
+              id="areaPolygonFill"
+              style={{
+                fillColor: 'rgba(0, 0, 0, 0.1)',
+                fillOutlineColor: '#000'
+              }}
+            />
+          </Mapbox.ShapeSource>
         )}
 
         {areaFriends.map((friend) => (
-          <Marker
+          <Mapbox.PointAnnotation
             key={friend.id}
-            coordinate={{
-              latitude: friend.latitude,
-              longitude: friend.longitude,
-            }}
+            id={`friend-${friend.id}`}
+            coordinate={[friend.longitude, friend.latitude]}
             title={friend.name}
           >
             <View style={styles.markerContainer}>
@@ -139,10 +146,9 @@ export default function HomeScreen() {
                 <Text style={styles.markerLabelText}>{friend.name}</Text>
               </View>
             </View>
-          </Marker>
+          </Mapbox.PointAnnotation>
         ))}
-        */}
-      </MapView>
+      </Mapbox.MapView>
 
       {/* ▼ オーバーレイ（タイトル＋エリア選択） */}
       <View style={styles.overlay}>
