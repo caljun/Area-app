@@ -51,7 +51,7 @@ router.get('/search/:nowId', async (req: AuthRequest, res: Response) => {
     return res.json({ user });
   } catch (error) {
     console.error('Search user error:', error);
-    res.status(500).json({ error: 'Internal server error' });
+    return res.status(500).json({ error: 'Internal server error' });
   }
 });
 
