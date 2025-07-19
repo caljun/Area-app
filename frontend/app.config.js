@@ -38,7 +38,7 @@ export default {
       [
         "expo-router",
         {
-          appRoot: process.env.EXPO_ROUTER_APP_ROOT ?? 'app',
+          root: process.env.EXPO_ROUTER_APP_ROOT ?? "app"
         }
       ]
     ]
