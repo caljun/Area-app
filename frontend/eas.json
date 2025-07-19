@@ -5,10 +5,10 @@
   },
   "build": {
     "production": {
+      "workflow": "managed",
       "developmentClient": false,
       "distribution": "store",
       "ios": {
-        "workflow":"managed",
         "simulator": false,
         "autoIncrement": false,
         "buildConfiguration": "Release",
@@ -16,10 +16,10 @@
       }
     },
     "preview": {
+      "workflow": "managed",
       "developmentClient": false,
       "distribution": "internal",
       "ios": {
-        "workflow": "managed",
         "simulator": false,
         "autoIncrement": false,
         "buildConfiguration": "Release"
@@ -29,7 +29,6 @@
   "submit": {
     "production": {
       "ios": {
-        "workflow": "managed",
         "appleId": "your-apple-id@example.com",
         "ascAppId": "your-app-store-connect-app-id",
         "appleTeamId": "your-apple-team-id"
