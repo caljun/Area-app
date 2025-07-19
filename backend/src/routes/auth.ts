@@ -65,7 +65,7 @@ router.post('/register', async (req: Request, res: Response) => {
     const token = jwt.sign(
       { userId: user.id },
       process.env.JWT_SECRET || 'fallback-secret',
-      { expiresIn: process.env.JWT_EXPIRES_IN || '7d' } as jwt.SignOptions
+      { expiresIn: process.env.JWT_EXPIRES_IN || '7d' }
     );
 
     return res.status(201).json({
@@ -111,7 +111,7 @@ router.post('/login', async (req: Request, res: Response) => {
     const token = jwt.sign(
       { userId: user.id },
       process.env.JWT_SECRET || 'fallback-secret',
-      { expiresIn: process.env.JWT_EXPIRES_IN || '7d' } as jwt.SignOptions
+      { expiresIn: process.env.JWT_EXPIRES_IN || '7d' }
     );
 
     return res.json({
@@ -147,7 +147,7 @@ router.get('/me', async (req: Request, res: Response) => {
     }
 
     const token = authHeader.substring(7);
-    const decoded = jwt.verify(token, process.env.JWT_SECRET || 'fallback-secret') as any;
+    const decoded = jwt.verify(token, process.env.JWT_SECRET || 'fallback-secret') as { userId: string };
 
     const user = await prisma.user.findUnique({
       where: { id: decoded.userId },

@@ -82,7 +82,7 @@ router.post('/request', async (req: AuthRequest, res: Response) => {
           { userId: req.user!.id, friendId: receiverId },
           { userId: receiverId, friendId: req.user!.id }
         ]
-      }
+      } as any
     });
 
     if (existingFriend) {
@@ -93,11 +93,11 @@ router.post('/request', async (req: AuthRequest, res: Response) => {
     const existingRequest = await prisma.friendRequest.findFirst({
       where: {
         OR: [
-          { senderId: req.user!.id, receiverId },
+          { senderId: req.user!.id, receiverId: receiverId },
           { senderId: receiverId, receiverId: req.user!.id }
         ],
         status: 'PENDING'
-      }
+      } as any
     });
 
     if (existingRequest) {
@@ -232,7 +232,7 @@ router.post('/area-request', async (req: AuthRequest, res: Response) => {
           { userId: req.user!.id, friendId: receiverId },
           { userId: receiverId, friendId: req.user!.id }
         ]
-      }
+      } as any
     });
 
     if (!friendship) {

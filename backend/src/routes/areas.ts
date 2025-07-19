@@ -75,7 +75,7 @@ router.get('/:id', async (req: AuthRequest, res: Response) => {
           { userId: req.user!.id },
           { isPublic: true }
         ]
-      },
+      } as any,
       include: {
         user: {
           select: {
@@ -210,7 +210,7 @@ router.get('/:id/members', async (req: AuthRequest, res: Response) => {
           { userId: req.user!.id },
           { isPublic: true }
         ]
-      }
+      } as any
     });
 
     if (!area) {
@@ -268,7 +268,7 @@ router.post('/:id/members', async (req: AuthRequest, res: Response) => {
           { userId: req.user!.id, friendId: userId },
           { userId: userId, friendId: req.user!.id }
         ]
-      }
+      } as any
     });
 
     if (!friendship) {

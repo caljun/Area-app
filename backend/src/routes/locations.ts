@@ -115,7 +115,7 @@ router.get('/area/:areaId/friends', async (req: AuthRequest, res: Response) => {
           { userId: req.user!.id },
           { isPublic: true }
         ]
-      }
+      } as any
     });
 
     if (!area) {

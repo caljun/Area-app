@@ -31,7 +31,7 @@ export const authMiddleware = async (
       return res.status(500).json({ error: 'JWT secret not configured' });
     }
 
-    const decoded = jwt.verify(token, secret) as any;
+    const decoded = jwt.verify(token, secret) as { userId: string };
     
     // Verify user still exists in database
     const user = await prisma.user.findUnique({

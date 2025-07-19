@@ -70,12 +70,12 @@ app.use('/api/images', authMiddleware, imageRoutes);
 io.on('connection', (socket) => {
   console.log('User connected:', socket.id);
 
-  socket.on('join', (userId: string) => {
+  socket.on('join', (userId: any) => {
     socket.join(`user_${userId}`);
     console.log(`User ${userId} joined their room`);
   });
 
-  socket.on('updateLocation', (data: { userId: string; latitude: number; longitude: number }) => {
+  socket.on('updateLocation', (data: any) => {
     // Broadcast location update to friends
     socket.broadcast.to(`user_${data.userId}`).emit('locationUpdate', data);
   });

@@ -5,6 +5,12 @@ import { AuthRequest } from '../middleware/auth';
 import { uploadSingle, handleUploadError } from '../middleware/upload';
 import { v2 as cloudinary } from 'cloudinary';
 
+// Cloudinaryの型定義
+interface CloudinaryFile extends Express.Multer.File {
+  secure_url?: string;
+  public_id?: string;
+}
+
 const router = Router();
 
 // Validation schemas
@@ -22,7 +28,7 @@ router.post('/upload', uploadSingle, handleUploadError, async (req: AuthRequest,
     }
 
     // Cloudinaryからアップロード結果を取得
-    const result = req.file as any;
+    const result = req.file as CloudinaryFile;
 
     // データベースに画像情報を保存
     const image = await prisma.image.create({
@@ -30,7 +36,7 @@ router.post('/upload', uploadSingle, handleUploadError, async (req: AuthRequest,
         userId: req.user!.id,
         url: result.secure_url,
         publicId: result.public_id,
-        type: type as any
+        type: type
       }
     });
 
@@ -69,9 +75,9 @@ router.get('/', async (req: AuthRequest, res: Response) => {
   try {
     const { type } = req.query;
     
-    const where: any = { userId: req.user!.id };
+    const where: { userId: string; type?: string } = { userId: req.user!.id };
     if (type) {
-      where.type = type;
+      where.type = type as string;
     }
 
     const images = await prisma.image.findMany({
