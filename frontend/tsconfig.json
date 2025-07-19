@@ -6,6 +6,9 @@
     "skipLibCheck": true,
     "noImplicitAny": false,
     "noEmitOnError": false,
+    "noImplicitReturns": false,
+    "noUnusedLocals": false,
+    "noUnusedParameters": false,
     "paths": {
       "@/*": [
         "./*"

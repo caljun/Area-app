@@ -400,6 +400,7 @@ export default function FriendsScreen() {
                 styleURL={Mapbox.StyleURL.Street}
                 centerCoordinate={[showAreaMap.coordinates[0].longitude, showAreaMap.coordinates[0].latitude] as any}
                 zoomLevel={12}
+                {...({} as any)}
               >
                 <Mapbox.ShapeSource
                   id="areaPolygonSource"

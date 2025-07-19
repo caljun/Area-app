@@ -104,6 +104,7 @@ export default function AddAreaScreen() {
             centerCoordinate={[139.6503, 35.6762] as any}
             zoomLevel={10}
             onTouch={handleMapPress}
+            {...({} as any)}
           >
             {points.map((point, index) => (
               <Mapbox.PointAnnotation

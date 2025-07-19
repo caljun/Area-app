@@ -108,6 +108,7 @@ export default function HomeScreen() {
         styleURL={Mapbox.StyleURL.Street}
         centerCoordinate={[139.6503, 35.6762] as any}
         zoomLevel={10}
+        {...({} as any)}
       >
         {selectedArea && (
           <Mapbox.ShapeSource
