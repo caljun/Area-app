@@ -25,6 +25,10 @@ export default {
     ios: {
       supportsTablet: true,
       bundleIdentifier: "com.yourapp.areaapp",
+      deploymentTarget: "13.0",
+      infoPlist: {
+        ITSAppUsesNonExemptEncryption: false
+      }
     },
     android: {
       adaptiveIcon: {
