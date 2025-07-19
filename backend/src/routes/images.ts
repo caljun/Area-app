@@ -1,4 +1,4 @@
-import { Router, Response, Request, NextFunction } from 'express';
+import { Router, Response } from 'express';
 import { z } from 'zod';
 import { prisma } from '../index';
 import { AuthRequest } from '../middleware/auth';
@@ -13,12 +13,7 @@ const uploadImageSchema = z.object({
 });
 
 // Upload image
-router.post('/upload', 
-  (req: Request, res: Response, next: NextFunction) => {
-    uploadSingle(req, res, next);
-  },
-  handleUploadError, 
-  async (req: AuthRequest, res: Response) => {
+router.post('/upload', uploadSingle, handleUploadError, async (req: AuthRequest, res: Response) => {
   try {
     const { type } = uploadImageSchema.parse(req.body);
 

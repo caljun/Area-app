@@ -1,7 +1,14 @@
 import multer from 'multer';
 import { CloudinaryStorage } from 'multer-storage-cloudinary';
 import { v2 as cloudinary } from 'cloudinary';
-import { Request, Response, NextFunction } from 'express';
+
+// 型定義の競合を回避
+declare module 'multer-storage-cloudinary' {
+  interface CloudinaryStorageOptions {
+    cloudinary: any;
+    params: any;
+  }
+}
 
 // Cloudinary設定
 cloudinary.config({
@@ -25,11 +32,11 @@ const storage = new CloudinaryStorage({
 });
 
 // ファイルフィルター
-const fileFilter = (req: Request, file: Express.Multer.File, cb: multer.FileFilterCallback) => {
+const fileFilter = (req: any, file: any, cb: any) => {
   if (file.mimetype.startsWith('image/')) {
     cb(null, true);
   } else {
-    cb(new Error('Only image files are allowed!'), false);
+    cb(null, false); // Errorではなくnullを渡す
   }
 };
 
@@ -43,13 +50,13 @@ export const upload = multer({
 });
 
 // 単一画像アップロード
-export const uploadSingle = upload.single('image') as any;
+export const uploadSingle = upload.single('image');
 
 // 複数画像アップロード
-export const uploadMultiple = upload.array('images', 5) as any;
+export const uploadMultiple = upload.array('images', 5);
 
 // エラーハンドリング
-export const handleUploadError = (error: any, req: Request, res: Response, next: NextFunction) => {
+export const handleUploadError = (error: any, req: any, res: any, next: any) => {
   if (error instanceof multer.MulterError) {
     if (error.code === 'LIMIT_FILE_SIZE') {
       return res.status(400).json({ error: 'File too large. Maximum size is 5MB.' });
@@ -62,4 +69,5 @@ export const handleUploadError = (error: any, req: Request, res: Response, next:
   }
   
   next();
+  return; // 明示的にreturnを追加
 }; 
