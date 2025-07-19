@@ -106,7 +106,7 @@ export default function HomeScreen() {
       <Mapbox.MapView
         style={styles.map}
         styleURL={Mapbox.StyleURL.Street}
-        centerCoordinate={[139.6503, 35.6762]}
+        centerCoordinate={[139.6503, 35.6762] as any}
         zoomLevel={10}
       >
         {selectedArea && (

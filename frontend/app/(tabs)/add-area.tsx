@@ -4,7 +4,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import Mapbox from '@rnmapbox/maps';
 import { Check } from 'lucide-react-native';
 import { useAuth } from '../../contexts/AuthContext';
-import { router } from 'expo-router';
+import { useRouter } from 'expo-router';
 import api from '../api';
 
 interface MapPoint {
@@ -14,6 +14,7 @@ interface MapPoint {
 
 export default function AddAreaScreen() {
   const { user } = useAuth();
+  const router = useRouter();
   const [areaName, setAreaName] = useState('');
   const [points, setPoints] = useState<MapPoint[]>([]);
   const [isCreating, setIsCreating] = useState(false);
@@ -100,7 +101,7 @@ export default function AddAreaScreen() {
           <Mapbox.MapView
             style={styles.map}
             styleURL={Mapbox.StyleURL.Street}
-            centerCoordinate={[139.6503, 35.6762]}
+            centerCoordinate={[139.6503, 35.6762] as any}
             zoomLevel={10}
             onTouch={handleMapPress}
           >

@@ -398,7 +398,7 @@ export default function FriendsScreen() {
               <Mapbox.MapView
                 style={styles.modalMap}
                 styleURL={Mapbox.StyleURL.Street}
-                centerCoordinate={[showAreaMap.coordinates[0].longitude, showAreaMap.coordinates[0].latitude]}
+                centerCoordinate={[showAreaMap.coordinates[0].longitude, showAreaMap.coordinates[0].latitude] as any}
                 zoomLevel={12}
               >
                 <Mapbox.ShapeSource

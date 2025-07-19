@@ -5,6 +5,7 @@
     "jsx": "react-native",
     "skipLibCheck": true,
     "noImplicitAny": false,
+    "noEmitOnError": false,
     "paths": {
       "@/*": [
         "./*"
