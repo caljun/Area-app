@@ -8,17 +8,15 @@
     "scheme": "areaapp",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
-    
     "splash": {
       "image": "./assets/splash.png",
       "resizeMode": "contain",
       "backgroundColor": "#ffffff"
     },
-
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.yourapp.areaapp",
-      "buildNumber": "2",
+      "buildNumber": "3",
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false
       }
