@@ -8,8 +8,7 @@
       "distribution": "store",
       "ios": {
         "simulator": false,
-        "autoIncrement": "buildNumber",
-        "bundle": true
+        "autoIncrement": "buildNumber"
       }
     }
   }
