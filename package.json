@@ -3,10 +3,7 @@
   "version": "1.0.0",
   "description": "Area App - Location-based social app",
   "private": true,
-  "workspaces": [
-    "frontend",
-    "backend"
-  ],
+
   "scripts": {
     "dev:frontend": "cd frontend && npm run dev",
     "dev:backend": "cd backend && npm run dev",
