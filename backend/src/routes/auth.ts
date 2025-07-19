@@ -5,6 +5,11 @@ import { z } from 'zod';
 import { prisma } from '../index';
 import { createError } from '../middleware/errorHandler';
 
+// JWTの型定義
+interface JWTPayload {
+  userId: string;
+}
+
 const router = Router();
 
 // Validation schemas
@@ -63,9 +68,9 @@ router.post('/register', async (req: Request, res: Response) => {
 
     // Generate JWT token
     const token = jwt.sign(
-      { userId: user.id },
+      { userId: user.id } as JWTPayload,
       process.env.JWT_SECRET || 'fallback-secret',
-      { expiresIn: process.env.JWT_EXPIRES_IN || '7d' }
+      { expiresIn: process.env.JWT_EXPIRES_IN || '7d' } as any
     );
 
     return res.status(201).json({
@@ -109,9 +114,9 @@ router.post('/login', async (req: Request, res: Response) => {
 
     // Generate JWT token
     const token = jwt.sign(
-      { userId: user.id },
+      { userId: user.id } as JWTPayload,
       process.env.JWT_SECRET || 'fallback-secret',
-      { expiresIn: process.env.JWT_EXPIRES_IN || '7d' }
+      { expiresIn: process.env.JWT_EXPIRES_IN || '7d' } as any
     );
 
     return res.json({
@@ -147,7 +152,7 @@ router.get('/me', async (req: Request, res: Response) => {
     }
 
     const token = authHeader.substring(7);
-    const decoded = jwt.verify(token, process.env.JWT_SECRET || 'fallback-secret') as { userId: string };
+    const decoded = jwt.verify(token, process.env.JWT_SECRET || 'fallback-secret') as JWTPayload;
 
     const user = await prisma.user.findUnique({
       where: { id: decoded.userId },

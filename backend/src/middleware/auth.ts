@@ -2,6 +2,11 @@ import { Request, Response, NextFunction } from 'express';
 import jwt from 'jsonwebtoken';
 import { prisma } from '../index';
 
+// JWTの型定義
+interface JWTPayload {
+  userId: string;
+}
+
 export interface AuthRequest extends Request {
   user?: {
     id: string;
@@ -31,7 +36,7 @@ export const authMiddleware = async (
       return res.status(500).json({ error: 'JWT secret not configured' });
     }
 
-    const decoded = jwt.verify(token, secret) as { userId: string };
+    const decoded = jwt.verify(token, secret) as JWTPayload;
     
     // Verify user still exists in database
     const user = await prisma.user.findUnique({
