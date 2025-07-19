@@ -6,7 +6,7 @@
   "build": {
     "production": {
       "developmentClient": false,
-      "distribution": "app-store",
+      "distribution": "store",
       "ios": {
         "simulator": false,
         "autoIncrement": false,

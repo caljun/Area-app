@@ -32,7 +32,10 @@ export default {
     },
     extra: {
       apiUrl: process.env.EXPO_PUBLIC_API_URL,
-      expoRouterRoot: process.env.EXPO_ROUTER_APP_ROOT ?? 'app', 
+      expoRouterRoot: process.env.EXPO_ROUTER_APP_ROOT ?? 'app',
+      eas: {
+        projectId: "b1b20e10-b45e-4f5f-a0c5-3e2bdab5b2c7"
+      }
     },
     plugins: [
       "expo-router"
