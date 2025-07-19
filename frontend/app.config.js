@@ -20,6 +20,7 @@ export default {
     assetBundlePatterns: ['**/*'],
     ios: {
       supportsTablet: true,
+      bundleIdentifier: "com.yourapp.areaapp",
     },
     android: {
       adaptiveIcon: {
