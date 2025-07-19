@@ -35,12 +35,7 @@ export default {
       expoRouterRoot: process.env.EXPO_ROUTER_APP_ROOT ?? 'app', 
     },
     plugins: [
-      [
-        "expo-router",
-        {
-          root: process.env.EXPO_ROUTER_APP_ROOT ?? "app"
-        }
-      ]
+      "expo-router"
     ]
   },
 };

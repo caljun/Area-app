@@ -12,7 +12,12 @@
     "dev:backend": "cd backend && npm run dev",
     "install:all": "npm install && cd frontend && npm install && cd ../backend && npm install"
   },
-  "keywords": ["react-native", "expo", "location", "social"],
+  "keywords": [
+    "react-native",
+    "expo",
+    "location",
+    "social"
+  ],
   "author": "",
   "license": "MIT"
 }
