@@ -50,7 +50,7 @@ export default {
         "expo-build-properties",
         {
           ios: {
-            deploymentTarget: "13.0"
+            deploymentTarget: "14.0"
           }
         }
       ]
