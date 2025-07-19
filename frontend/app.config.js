@@ -42,9 +42,7 @@ export default {
         projectId: "b1b20e10-b45e-4f5f-a0c5-3e2bdab5b2c7"
       }
     },
-    plugins: [
-      "expo-router"
-    ]
+
   },
 };
 
