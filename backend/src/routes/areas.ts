@@ -91,10 +91,10 @@ router.get('/:id', async (req: AuthRequest, res: Response) => {
       return res.status(404).json({ error: 'Area not found' });
     }
 
-    res.json({ area });
+    return res.json({ area });
   } catch (error) {
     console.error('Get area error:', error);
-    res.status(500).json({ error: 'Internal server error' });
+    return res.status(500).json({ error: 'Internal server error' });
   }
 });
 
@@ -112,7 +112,7 @@ router.post('/', async (req: AuthRequest, res: Response) => {
       }
     });
 
-    res.status(201).json({
+    return res.status(201).json({
       message: 'Area created successfully',
       area
     });
@@ -125,7 +125,7 @@ router.post('/', async (req: AuthRequest, res: Response) => {
     }
     
     console.error('Create area error:', error);
-    res.status(500).json({ error: 'Internal server error' });
+    return res.status(500).json({ error: 'Internal server error' });
   }
 });
 
@@ -152,7 +152,7 @@ router.put('/:id', async (req: AuthRequest, res: Response) => {
       data: updateData
     });
 
-    res.json({
+    return res.json({
       message: 'Area updated successfully',
       area
     });
@@ -165,7 +165,7 @@ router.put('/:id', async (req: AuthRequest, res: Response) => {
     }
     
     console.error('Update area error:', error);
-    res.status(500).json({ error: 'Internal server error' });
+    return res.status(500).json({ error: 'Internal server error' });
   }
 });
 
@@ -190,10 +190,10 @@ router.delete('/:id', async (req: AuthRequest, res: Response) => {
       where: { id }
     });
 
-    res.json({ message: 'Area deleted successfully' });
+    return res.json({ message: 'Area deleted successfully' });
   } catch (error) {
     console.error('Delete area error:', error);
-    res.status(500).json({ error: 'Internal server error' });
+    return res.status(500).json({ error: 'Internal server error' });
   }
 });
 
@@ -232,10 +232,10 @@ router.get('/:id/members', async (req: AuthRequest, res: Response) => {
       orderBy: { createdAt: 'asc' }
     });
 
-    res.json({ members });
+    return res.json({ members });
   } catch (error) {
     console.error('Get area members error:', error);
-    res.status(500).json({ error: 'Internal server error' });
+    return res.status(500).json({ error: 'Internal server error' });
   }
 });
 
@@ -305,13 +305,13 @@ router.post('/:id/members', async (req: AuthRequest, res: Response) => {
       }
     });
 
-    res.status(201).json({
+    return res.status(201).json({
       message: 'Member added successfully',
       member
     });
   } catch (error) {
     console.error('Add area member error:', error);
-    res.status(500).json({ error: 'Internal server error' });
+    return res.status(500).json({ error: 'Internal server error' });
   }
 });
 
@@ -348,10 +348,10 @@ router.delete('/:id/members/:userId', async (req: AuthRequest, res: Response) =>
       where: { id: member.id }
     });
 
-    res.json({ message: 'Member removed successfully' });
+    return res.json({ message: 'Member removed successfully' });
   } catch (error) {
     console.error('Remove area member error:', error);
-    res.status(500).json({ error: 'Internal server error' });
+    return res.status(500).json({ error: 'Internal server error' });
   }
 });
 
@@ -376,10 +376,10 @@ router.get('/memberships', async (req: AuthRequest, res: Response) => {
       orderBy: { createdAt: 'desc' }
     });
 
-    res.json({ memberships });
+    return res.json({ memberships });
   } catch (error) {
     console.error('Get area memberships error:', error);
-    res.status(500).json({ error: 'Internal server error' });
+    return res.status(500).json({ error: 'Internal server error' });
   }
 });
 
