@@ -60,7 +60,7 @@
       [
         "@rnmapbox/maps",
         {
-          "mapboxPublicKey": "YOUR_MAPBOX_PUBLIC_KEY"
+          "mapboxPublicKey": "pk.eyJ1IjoiY2FsanVuIiwiYSI6ImNtZDlzaTZ0eDA5MWEybHNiYXB0N2J2bDcifQ._goEiKRsfnDMImATZniUtQ"
         }
       ]
     ],
