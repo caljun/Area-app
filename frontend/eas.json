@@ -1,7 +1,7 @@
 {
   "cli": {
     "version": ">= 5.9.1",
-    "appVersionSource": "app.json"
+    "appVersionSource": "local"
   },
   "build": {
     "production": {
@@ -10,8 +10,7 @@
       "ios": {
         "simulator": false,
         "autoIncrement": false
-      },
-      "buildCommand": "npx expo export --dev --output-dir=./dist"
+      }
     }
   }
 }
