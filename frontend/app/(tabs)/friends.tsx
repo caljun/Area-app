@@ -1,8 +1,10 @@
-import React, { useState } from 'react';
-import { View, Text, StyleSheet, TextInput, TouchableOpacity, FlatList, Modal, ScrollView } from 'react-native';
+import React, { useState, useEffect } from 'react';
+import { View, Text, StyleSheet, TextInput, TouchableOpacity, FlatList, Modal, ScrollView, ActivityIndicator, Alert } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import MapView, { Polygon } from 'react-native-maps';
 import { UserPlus, Check, X, Plus } from 'lucide-react-native';
+import { useAuth } from '../../contexts/AuthContext';
+import api from '../api';
 
 interface Friend {
   id: string;
@@ -30,96 +32,190 @@ interface Area {
   coordinates: Array<{ latitude: number; longitude: number }>;
 }
 
-const mockFriends: Friend[] = [
-  { id: '1', name: '田中さん', nowId: 'tanaka123', isOnline: true },
-  { id: '2', name: '佐藤さん', nowId: 'sato456', isOnline: false },
-  { id: '3', name: '山田さん', nowId: 'yamada789', isOnline: true },
-];
+const mockFriends: Friend[] = [];
 
-const mockFriendRequests: FriendRequest[] = [
-  { id: '1', name: '鈴木さん', nowId: 'suzuki999' },
-];
+const mockFriendRequests: FriendRequest[] = [];
 
-const mockAreaRequests: AreaRequest[] = [
-  {
-    id: '1',
-    friendName: '田中さん',
-    areaName: '渋谷エリア',
-    coordinates: [
-      { latitude: 35.6580, longitude: 139.6980 },
-      { latitude: 35.6580, longitude: 139.7080 },
-      { latitude: 35.6680, longitude: 139.7080 },
-      { latitude: 35.6680, longitude: 139.6980 },
-    ],
-  },
-];
+const mockAreaRequests: AreaRequest[] = [];
 
-const mockMyAreas: Area[] = [
-  {
-    id: '1',
-    name: '渋谷エリア',
-    coordinates: [
-      { latitude: 35.6580, longitude: 139.6980 },
-      { latitude: 35.6580, longitude: 139.7080 },
-      { latitude: 35.6680, longitude: 139.7080 },
-      { latitude: 35.6680, longitude: 139.6980 },
-    ],
-  },
-  {
-    id: '2',
-    name: '新宿エリア',
-    coordinates: [
-      { latitude: 35.6900, longitude: 139.6900 },
-      { latitude: 35.6900, longitude: 139.7000 },
-      { latitude: 35.7000, longitude: 139.7000 },
-      { latitude: 35.7000, longitude: 139.6900 },
-    ],
-  },
-];
+const mockMyAreas: Area[] = [];
 
 export default function FriendsScreen() {
+  const { user } = useAuth();
   const [nowId, setNowId] = useState('');
-  const [friendRequests, setFriendRequests] = useState(mockFriendRequests);
-  const [areaRequests, setAreaRequests] = useState(mockAreaRequests);
-  const [friends, setFriends] = useState(mockFriends);
+  const [friendRequests, setFriendRequests] = useState<FriendRequest[]>([]);
+  const [areaRequests, setAreaRequests] = useState<AreaRequest[]>([]);
+  const [friends, setFriends] = useState<Friend[]>([]);
+  const [myAreas, setMyAreas] = useState<Area[]>([]);
   const [showAreaMap, setShowAreaMap] = useState<AreaRequest | null>(null);
   const [showAreaSelector, setShowAreaSelector] = useState<Friend | null>(null);
   const [showAreaMembers, setShowAreaMembers] = useState<Area | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isLoadingRequests, setIsLoadingRequests] = useState(false);
 
-  const sendFriendRequest = () => {
-    if (nowId.trim()) {
-      console.log('Friend request sent to:', nowId);
+  // 友達リストとリクエストを取得
+  useEffect(() => {
+    const fetchData = async () => {
+      if (!user) return;
+      
+      setIsLoading(true);
+      try {
+        // 友達リスト取得
+        const friendsResponse = await api.get('/api/friends');
+        const fetchedFriends = friendsResponse.data.friends.map((friend: any) => ({
+          id: friend.friend.id,
+          name: friend.friend.name,
+          nowId: friend.friend.nowId,
+          isOnline: true // オンライン状態は別途実装
+        }));
+        setFriends(fetchedFriends);
+
+        // 友達リクエスト取得
+        const requestsResponse = await api.get('/api/friends/requests');
+        const fetchedRequests = requestsResponse.data.requests.map((req: any) => ({
+          id: req.id,
+          name: req.sender.name,
+          nowId: req.sender.nowId
+        }));
+        setFriendRequests(fetchedRequests);
+
+        // エリア招待リクエスト取得
+        const areaRequestsResponse = await api.get('/api/friends/area-requests');
+        const fetchedAreaRequests = areaRequestsResponse.data.requests.map((req: any) => ({
+          id: req.id,
+          friendName: req.sender.name,
+          areaName: req.area.name,
+          coordinates: req.area.coordinates
+        }));
+        setAreaRequests(fetchedAreaRequests);
+
+        // 自分のエリア取得
+        const areasResponse = await api.get('/api/areas');
+        const fetchedAreas = areasResponse.data.areas.map((area: any) => ({
+          id: area.id,
+          name: area.name,
+          coordinates: area.coordinates
+        }));
+        setMyAreas(fetchedAreas);
+
+      } catch (error) {
+        console.error('Failed to fetch friends data:', error);
+        // エラー時はモックデータを使用
+        setFriends(mockFriends);
+        setFriendRequests(mockFriendRequests);
+        setAreaRequests(mockAreaRequests);
+        setMyAreas(mockMyAreas);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchData();
+  }, [user]);
+
+  const sendFriendRequest = async () => {
+    if (!nowId.trim()) return;
+    
+    setIsLoadingRequests(true);
+    try {
+      // ユーザー検索APIを呼び出してユーザーIDを取得
+      const searchResponse = await api.get(`/api/users/search/${nowId}`);
+      const targetUserId = searchResponse.data.user.id;
+      
+      // 友達リクエスト送信
+      await api.post('/api/friends/request', { receiverId: targetUserId });
+      Alert.alert('成功', '友達リクエストを送信しました');
       setNowId('');
+    } catch (error: any) {
+      Alert.alert('エラー', error.response?.data?.error || 'リクエストの送信に失敗しました');
+    } finally {
+      setIsLoadingRequests(false);
     }
   };
 
-  const handleFriendRequest = (requestId: string, accept: boolean) => {
-    setFriendRequests(prev => prev.filter(req => req.id !== requestId));
-    if (accept) {
-      console.log('Friend request accepted');
+  const handleFriendRequest = async (requestId: string, accept: boolean) => {
+    setIsLoadingRequests(true);
+    try {
+      await api.put(`/api/friends/request/${requestId}`, { 
+        status: accept ? 'ACCEPTED' : 'REJECTED' 
+      });
+      setFriendRequests(prev => prev.filter(req => req.id !== requestId));
+      if (accept) {
+        // 友達リストを再取得
+        const friendsResponse = await api.get('/api/friends');
+        const fetchedFriends = friendsResponse.data.friends.map((friend: any) => ({
+          id: friend.friend.id,
+          name: friend.friend.name,
+          nowId: friend.friend.nowId,
+          isOnline: true
+        }));
+        setFriends(fetchedFriends);
+      }
+    } catch (error: any) {
+      Alert.alert('エラー', error.response?.data?.error || 'リクエストの処理に失敗しました');
+    } finally {
+      setIsLoadingRequests(false);
     }
   };
 
-  const handleAreaRequest = (requestId: string, accept: boolean) => {
-    setAreaRequests(prev => prev.filter(req => req.id !== requestId));
-    console.log(`Area request ${accept ? 'accepted' : 'rejected'}`);
+  const handleAreaRequest = async (requestId: string, accept: boolean) => {
+    setIsLoadingRequests(true);
+    try {
+      await api.put(`/api/friends/area-request/${requestId}`, { 
+        status: accept ? 'ACCEPTED' : 'REJECTED' 
+      });
+      setAreaRequests(prev => prev.filter(req => req.id !== requestId));
+    } catch (error: any) {
+      Alert.alert('エラー', error.response?.data?.error || 'リクエストの処理に失敗しました');
+    } finally {
+      setIsLoadingRequests(false);
+    }
   };
 
-  const sendAreaRequest = (friend: Friend, area: Area) => {
-    console.log(`Area request sent to ${friend.name} for ${area.name}`);
-    setShowAreaSelector(null);
+  const sendAreaRequest = async (friend: Friend, area: Area) => {
+    try {
+      await api.post('/api/friends/area-request', {
+        receiverId: friend.id,
+        areaId: area.id
+      });
+      Alert.alert('成功', `${friend.name}にエリア招待を送信しました`);
+      setShowAreaSelector(null);
+    } catch (error: any) {
+      Alert.alert('エラー', error.response?.data?.error || 'エリア招待の送信に失敗しました');
+    }
   };
 
-  const addFriendToArea = (friend: Friend, area: Area) => {
-    console.log(`${friend.name} を ${area.name} に追加しました`);
-    // 実際のAPIではここでPOST /api/areas/:id/members を呼び出す
-    setShowAreaSelector(null);
+  const addFriendToArea = async (friend: Friend, area: Area) => {
+    try {
+      await api.post(`/api/areas/${area.id}/members`, {
+        userId: friend.id
+      });
+      Alert.alert('成功', `${friend.name}を${area.name}に追加しました`);
+      setShowAreaSelector(null);
+    } catch (error: any) {
+      Alert.alert('エラー', error.response?.data?.error || 'エリアへの追加に失敗しました');
+    }
   };
 
-  const removeFriendFromArea = (friendId: string, areaId: string) => {
-    console.log(`友達をエリアから削除しました`);
-    // 実際のAPIではここでDELETE /api/areas/:id/members/:userId を呼び出す
+  const removeFriendFromArea = async (friendId: string, areaId: string) => {
+    try {
+      await api.delete(`/api/areas/${areaId}/members/${friendId}`);
+      Alert.alert('成功', '友達をエリアから削除しました');
+    } catch (error: any) {
+      Alert.alert('エラー', error.response?.data?.error || 'エリアからの削除に失敗しました');
+    }
   };
+
+  if (isLoading) {
+    return (
+      <SafeAreaView style={styles.container}>
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color="#000" />
+          <Text style={styles.loadingText}>友達情報を読み込み中...</Text>
+        </View>
+      </SafeAreaView>
+    );
+  }
 
   const renderFriendRequest = ({ item }: { item: FriendRequest }) => (
     <View style={styles.requestItem}>
@@ -338,7 +434,7 @@ export default function FriendsScreen() {
               </TouchableOpacity>
             </View>
             <FlatList
-              data={mockMyAreas}
+              data={myAreas}
               keyExtractor={(item) => item.id}
               renderItem={({ item }) => (
                 <TouchableOpacity
@@ -620,5 +716,19 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: '#000',
     textAlign: 'center',
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: '#fff',
+  },
+  loadingText: {
+    marginTop: 10,
+    fontSize: 16,
+    color: '#666',
+  },
+  sendButtonDisabled: {
+    backgroundColor: '#999',
   },
 });

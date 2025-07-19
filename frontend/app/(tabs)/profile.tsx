@@ -1,7 +1,9 @@
-import React, { useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, FlatList, TextInput, Modal, Image } from 'react-native';
+import React, { useState, useEffect } from 'react';
+import { View, Text, StyleSheet, TouchableOpacity, FlatList, TextInput, Modal, Image, ActivityIndicator, Alert } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { CreditCard as Edit2, MapPin, Users, Eye, X, Camera } from 'lucide-react-native';
+import { useAuth } from '../../contexts/AuthContext';
+import api from '../api';
 
 interface Area {
   id: string;
@@ -12,60 +14,7 @@ interface Area {
   coordinates: Array<{ latitude: number; longitude: number }>;
 }
 
-const mockAreas: Area[] = [
-  {
-    id: '1',
-    name: '渋谷エリア',
-    friendCount: 5,
-    onlineCount: 3,
-    imageUrl: 'https://images.pexels.com/photos/2662116/pexels-photo-2662116.jpeg?auto=compress&cs=tinysrgb&w=400',
-    coordinates: [
-      { latitude: 35.6580, longitude: 139.6980 },
-      { latitude: 35.6580, longitude: 139.7080 },
-      { latitude: 35.6680, longitude: 139.7080 },
-      { latitude: 35.6680, longitude: 139.6980 },
-    ],
-  },
-  {
-    id: '2',
-    name: '新宿エリア',
-    friendCount: 8,
-    onlineCount: 2,
-    imageUrl: 'https://images.pexels.com/photos/2339009/pexels-photo-2339009.jpeg?auto=compress&cs=tinysrgb&w=400',
-    coordinates: [
-      { latitude: 35.6900, longitude: 139.6900 },
-      { latitude: 35.6900, longitude: 139.7000 },
-      { latitude: 35.7000, longitude: 139.7000 },
-      { latitude: 35.7000, longitude: 139.6900 },
-    ],
-  },
-  {
-    id: '3',
-    name: '池袋エリア',
-    friendCount: 3,
-    onlineCount: 1,
-    imageUrl: 'https://images.pexels.com/photos/1525041/pexels-photo-1525041.jpeg?auto=compress&cs=tinysrgb&w=400',
-    coordinates: [
-      { latitude: 35.7295, longitude: 139.7109 },
-      { latitude: 35.7295, longitude: 139.7209 },
-      { latitude: 35.7395, longitude: 139.7209 },
-      { latitude: 35.7395, longitude: 139.7109 },
-    ],
-  },
-  {
-    id: '4',
-    name: '原宿エリア',
-    friendCount: 6,
-    onlineCount: 4,
-    imageUrl: 'https://images.pexels.com/photos/2339009/pexels-photo-2339009.jpeg?auto=compress&cs=tinysrgb&w=400',
-    coordinates: [
-      { latitude: 35.6702, longitude: 139.7026 },
-      { latitude: 35.6702, longitude: 139.7126 },
-      { latitude: 35.6802, longitude: 139.7126 },
-      { latitude: 35.6802, longitude: 139.7026 },
-    ],
-  },
-];
+const mockAreas: Area[] = [];
 
 interface UserProfile {
   name: string;
@@ -74,22 +23,82 @@ interface UserProfile {
 }
 
 const initialProfile: UserProfile = {
-  name: 'あなたの名前',
-  profileImage: 'https://images.pexels.com/photos/2379004/pexels-photo-2379004.jpeg?auto=compress&cs=tinysrgb&w=400',
-  friendCount: 12,
+  name: '',
+  profileImage: '',
+  friendCount: 0,
 };
 
 export default function ProfileScreen() {
+  const { user, updateUser } = useAuth();
   const [profile, setProfile] = useState<UserProfile>(initialProfile);
+  const [areas, setAreas] = useState<Area[]>([]);
   const [isEditingName, setIsEditingName] = useState(false);
   const [tempName, setTempName] = useState(profile.name);
   const [selectedArea, setSelectedArea] = useState<Area | null>(null);
   const [showAreaMembers, setShowAreaMembers] = useState<Area | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isSaving, setIsSaving] = useState(false);
 
-  const saveName = () => {
-    if (tempName.trim()) {
+  // ユーザー情報とエリア一覧を取得
+  useEffect(() => {
+    const fetchData = async () => {
+      if (!user) return;
+      
+      setIsLoading(true);
+      try {
+        // ユーザー情報を更新
+        setProfile({
+          name: user.name,
+          profileImage: initialProfile.profileImage, // プロフィール画像は別途実装
+          friendCount: 0 // 友達数は別途取得
+        });
+
+        // エリア一覧取得
+        const areasResponse = await api.get('/api/areas');
+        const fetchedAreas = areasResponse.data.areas.map((area: any) => ({
+          id: area.id,
+          name: area.name,
+          friendCount: 0, // エリアメンバー数は別途取得
+          onlineCount: 0, // オンライン数は別途実装
+          imageUrl: area.imageUrl || mockAreas[0].imageUrl,
+          coordinates: area.coordinates
+        }));
+        setAreas(fetchedAreas);
+
+        // 友達数取得
+        const friendsResponse = await api.get('/api/friends');
+        setProfile(prev => ({
+          ...prev,
+          friendCount: friendsResponse.data.friends.length
+        }));
+
+      } catch (error) {
+        console.error('Failed to fetch profile data:', error);
+        // エラー時はモックデータを使用
+        setAreas(mockAreas);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchData();
+  }, [user]);
+
+  const saveName = async () => {
+    if (!tempName.trim()) return;
+    
+    setIsSaving(true);
+    try {
+      // ユーザー名更新APIを呼び出し
+      await api.put('/api/users/profile', { name: tempName.trim() });
       setProfile({ ...profile, name: tempName.trim() });
+      updateUser({ name: tempName.trim() });
       setIsEditingName(false);
+      Alert.alert('成功', '名前を更新しました');
+    } catch (error: any) {
+      Alert.alert('エラー', error.response?.data?.error || '名前の更新に失敗しました');
+    } finally {
+      setIsSaving(false);
     }
   };
 
@@ -98,10 +107,21 @@ export default function ProfileScreen() {
     setIsEditingName(false);
   };
 
-  const changeProfileImage = () => {
-    // In a real app, this would open image picker
-    console.log('Change profile image');
+  const changeProfileImage = async () => {
+    // 画像アップロード機能は別途実装
+    Alert.alert('情報', '画像アップロード機能は準備中です');
   };
+
+  if (isLoading) {
+    return (
+      <SafeAreaView style={styles.container}>
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color="#000" />
+          <Text style={styles.loadingText}>プロフィール情報を読み込み中...</Text>
+        </View>
+      </SafeAreaView>
+    );
+  }
 
   const renderAreaCard = ({ item }: { item: Area }) => (
     <TouchableOpacity
@@ -208,7 +228,7 @@ export default function ProfileScreen() {
         </View>
 
         <FlatList
-          data={mockAreas}
+          data={areas}
           keyExtractor={(item) => item.id}
           renderItem={renderAreaCard}
           showsVerticalScrollIndicator={false}
@@ -599,5 +619,16 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontSize: 14,
     fontWeight: '600',
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: '#fff',
+  },
+  loadingText: {
+    marginTop: 10,
+    fontSize: 16,
+    color: '#666',
   },
 });

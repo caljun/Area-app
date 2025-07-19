@@ -1,8 +1,11 @@
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, TextInput, TouchableOpacity, Alert, ScrollView } from 'react-native';
+import { View, Text, StyleSheet, TextInput, TouchableOpacity, Alert, ScrollView, ActivityIndicator } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import MapView, { Marker, Polygon } from 'react-native-maps';
 import { Check } from 'lucide-react-native';
+import { useAuth } from '../../contexts/AuthContext';
+import { router } from 'expo-router';
+import api from '../api';
 
 interface MapPoint {
   latitude: number;
@@ -10,8 +13,10 @@ interface MapPoint {
 }
 
 export default function AddAreaScreen() {
+  const { user } = useAuth();
   const [areaName, setAreaName] = useState('');
   const [points, setPoints] = useState<MapPoint[]>([]);
+  const [isCreating, setIsCreating] = useState(false);
 
   const handleMapPress = (event: any) => {
     const { coordinate } = event.nativeEvent;
@@ -24,7 +29,7 @@ export default function AddAreaScreen() {
     }
   };
 
-  const createArea = () => {
+  const createArea = async () => {
     if (!areaName.trim()) {
       Alert.alert('エラー', 'エリア名を入力してください');
       return;
@@ -33,15 +38,30 @@ export default function AddAreaScreen() {
       Alert.alert('エラー', '最低3つのポイントが必要です');
       return;
     }
-    Alert.alert('成功', `「${areaName}」エリアが作成されました`, [
-      {
-        text: 'OK',
-        onPress: () => {
-          setAreaName('');
-          setPoints([]);
+
+    setIsCreating(true);
+    try {
+      const response = await api.post('/api/areas', {
+        name: areaName.trim(),
+        coordinates: points,
+        isPublic: false // デフォルトは非公開
+      });
+
+      Alert.alert('成功', `「${areaName}」エリアが作成されました`, [
+        {
+          text: 'OK',
+          onPress: () => {
+            setAreaName('');
+            setPoints([]);
+            router.back(); // 前の画面に戻る
+          },
         },
-      },
-    ]);
+      ]);
+    } catch (error: any) {
+      Alert.alert('エラー', error.response?.data?.error || 'エリアの作成に失敗しました');
+    } finally {
+      setIsCreating(false);
+    }
   };
 
   const canCreateArea = areaName.trim() && points.length >= 3;
@@ -130,17 +150,22 @@ export default function AddAreaScreen() {
               style={[
                 styles.button,
                 styles.createButton,
-                canCreateArea && styles.createButtonEnabled
+                canCreateArea && styles.createButtonEnabled,
+                isCreating && styles.createButtonDisabled
               ]}
               onPress={createArea}
-              disabled={!canCreateArea}
+              disabled={!canCreateArea || isCreating}
             >
-              <Check size={20} color={canCreateArea ? '#fff' : '#999'} />
+              {isCreating ? (
+                <ActivityIndicator size="small" color="#fff" />
+              ) : (
+                <Check size={20} color={canCreateArea ? '#fff' : '#999'} />
+              )}
               <Text style={[
                 styles.buttonText,
                 canCreateArea ? styles.enabledButtonText : styles.disabledButtonText
               ]}>
-                エリア作成
+                {isCreating ? '作成中...' : 'エリア作成'}
               </Text>
             </TouchableOpacity>
           </View>
@@ -269,5 +294,9 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontSize: 12,
     fontWeight: 'bold',
+  },
+  createButtonDisabled: {
+    backgroundColor: '#999',
+    borderColor: '#999',
   },
 });

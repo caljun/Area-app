@@ -1,8 +1,10 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Modal, FlatList, ScrollView } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, Modal, FlatList, ScrollView, ActivityIndicator } from 'react-native';
 import MapView, { Marker, Polygon } from 'react-native-maps';
 import { ChevronDown, X } from 'lucide-react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { useAuth } from '../../contexts/AuthContext';
+import api from '../api';
 
 interface Friend {
   id: string;
@@ -19,51 +21,85 @@ interface Area {
 }
 
 // エリアごとの友達データ（実際のAPIでは動的に取得）
-const mockAreaFriends: { [areaId: string]: Friend[] } = {
-  1: [
-    { id: '1', name: '田中さん', latitude: 35.6762, longitude: 139.653 },
-    { id: '2', name: '佐藤さん', latitude: 35.6800, longitude: 139.6569 },
-  ],
-  2: [
-    { id: '3', name: '山田さん', latitude: 35.6735, longitude: 139.6585 },
-  ],
-};
+const mockAreaFriends: { [areaId: string]: Friend[] } = {};
 
-const mockAreas: Area[] = [
-  {
-    id: '1',
-    name: '渋谷エリア',
-    coordinates: [
-      { latitude: 35.6580, longitude: 139.698 },
-      { latitude: 35.6580, longitude: 139.708 },
-      { latitude: 35.6680, longitude: 139.708 },
-      { latitude: 35.6680, longitude: 139.698 },
-    ],
-  },
-  {
-    id: '2',
-    name: '新宿エリア',
-    coordinates: [
-      { latitude: 35.6900, longitude: 139.69 },
-      { latitude: 35.6900, longitude: 139.7 },
-      { latitude: 35.700, longitude: 139.7 },
-      { latitude: 35.700, longitude: 139.69 },
-    ],
-  },
-];
+const mockAreas: Area[] = [];
 
 export default function HomeScreen() {
-  const [selectedArea, setSelectedArea] = useState<Area | null>(mockAreas[0]);
+  const { user } = useAuth();
+  const [selectedArea, setSelectedArea] = useState<Area | null>(null);
   const [showAreaSelector, setShowAreaSelector] = useState(false);
   const [areaFriends, setAreaFriends] = useState<Friend[]>([]);
+  const [areas, setAreas] = useState<Area[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isLoadingFriends, setIsLoadingFriends] = useState(false);
+
+  // エリア一覧を取得
+  useEffect(() => {
+    const fetchAreas = async () => {
+      try {
+        const response = await api.get('/api/areas');
+        const fetchedAreas = response.data.areas.map((area: any) => ({
+          id: area.id,
+          name: area.name,
+          coordinates: area.coordinates
+        }));
+        setAreas(fetchedAreas);
+        if (fetchedAreas.length > 0) {
+          setSelectedArea(fetchedAreas[0]);
+        }
+      } catch (error) {
+        console.error('Failed to fetch areas:', error);
+        // エラー時はモックデータを使用
+        setAreas(mockAreas);
+        setSelectedArea(mockAreas[0]);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    if (user) {
+      fetchAreas();
+    }
+  }, [user]);
 
   // エリアが変更されたときに友達リストを更新
   useEffect(() => {
-    if (selectedArea) {
-      const friends = mockAreaFriends[selectedArea.id] || [];
-      setAreaFriends(friends);
-    }
+    const fetchAreaFriends = async () => {
+      if (!selectedArea) return;
+      
+      setIsLoadingFriends(true);
+      try {
+        const response = await api.get(`/api/locations/area/${selectedArea.id}/friends`);
+        const friends = response.data.friends.map((friend: any) => ({
+          id: friend.id,
+          name: friend.name,
+          latitude: friend.location?.latitude || 0,
+          longitude: friend.location?.longitude || 0,
+          profileImage: friend.profileImage
+        }));
+        setAreaFriends(friends);
+      } catch (error) {
+        console.error('Failed to fetch area friends:', error);
+        // エラー時はモックデータを使用
+        const friends = mockAreaFriends[selectedArea.id] || [];
+        setAreaFriends(friends);
+      } finally {
+        setIsLoadingFriends(false);
+      }
+    };
+
+    fetchAreaFriends();
   }, [selectedArea]);
+
+  if (isLoading) {
+    return (
+      <View style={styles.loadingContainer}>
+        <ActivityIndicator size="large" color="#000" />
+        <Text style={styles.loadingText}>エリアを読み込み中...</Text>
+      </View>
+    );
+  }
 
   return (
     <View style={styles.container}>
@@ -147,7 +183,7 @@ export default function HomeScreen() {
             </View>
 
             <ScrollView style={styles.areaList}>
-              {mockAreas.map((area) => (
+              {areas.map((area) => (
                 <TouchableOpacity
                   key={area.id}
                   style={[
@@ -184,6 +220,17 @@ export default function HomeScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: '#fff',
+  },
+  loadingText: {
+    marginTop: 10,
+    fontSize: 16,
+    color: '#666',
   },
   map: {
     flex: 1,
