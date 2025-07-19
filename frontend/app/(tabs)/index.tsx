@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Modal, FlatList, ScrollView, ActivityIndicator } from 'react-native';
-import MapView, { Marker, Polygon } from 'react-native-maps';
+import MapView from '@rnmapbox/maps';
 import { ChevronDown, X } from 'lucide-react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useAuth } from '../../contexts/AuthContext';
@@ -112,6 +112,7 @@ export default function HomeScreen() {
           longitudeDelta: 0.0421,
         }}
       >
+        {/* Polygon and Marker temporarily disabled for Mapbox compatibility
         {selectedArea && (
           <Polygon
             coordinates={selectedArea.coordinates}
@@ -140,6 +141,7 @@ export default function HomeScreen() {
             </View>
           </Marker>
         ))}
+        */}
       </MapView>
 
       {/* ▼ オーバーレイ（タイトル＋エリア選択） */}

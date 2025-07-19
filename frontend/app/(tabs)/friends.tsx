@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, TextInput, TouchableOpacity, FlatList, Modal, ScrollView, ActivityIndicator, Alert } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import MapView, { Polygon } from 'react-native-maps';
+import MapView from '@rnmapbox/maps';
 import { UserPlus, Check, X, Plus } from 'lucide-react-native';
 import { useAuth } from '../../contexts/AuthContext';
 import api from '../api';
@@ -404,12 +404,14 @@ export default function FriendsScreen() {
                   longitudeDelta: 0.01,
                 }}
               >
+                {/* Polygon temporarily disabled for Mapbox compatibility
                 <Polygon
                   coordinates={showAreaMap.coordinates}
                   fillColor="rgba(0, 0, 0, 0.1)"
                   strokeColor="#000"
                   strokeWidth={2}
                 />
+                */}
               </MapView>
             )}
           </View>
