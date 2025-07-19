@@ -6,7 +6,8 @@
     "production": {
       "distribution": "store",
       "ios": {
-        "simulator": false
+        "simulator": false,
+        "autoIncrement": "buildNumber"
       }
     }
   }
