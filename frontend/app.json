@@ -58,7 +58,8 @@
         {
           "mapboxPublicKey": "pk.eyJ1IjoiY2FsanVuIiwiYSI6ImNtZDlzaTZ0eDA5MWEybHNiYXB0N2J2bDcifQ._goEiKRsfnDMImATZniUtQ"
         }
-      ]
+      ],
+      "expo-build-properties"
     ],
     "experiments": {
       "typedRoutes": false
