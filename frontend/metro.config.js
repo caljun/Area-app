@@ -1,7 +1,7 @@
 // metro.config.js
-const { createMetroConfiguration } = require('@expo/metro-config');
+const { getDefaultConfig } = require('@expo/metro-config');
 
-const config = createMetroConfiguration(__dirname);
+const config = getDefaultConfig(__dirname);
 
 config.resolver.platforms = ['ios', 'android', 'native', 'web'];
 config.transformer.minifierConfig = {
