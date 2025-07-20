@@ -12,6 +12,11 @@
         "autoIncrement": false,
         "buildConfiguration": "Release",
         "resourceClass": "m-medium"
+      },
+      "env":{
+        "EXPO-PUBLIC_API_URL": "https://area-app.onrender.com/api",
+        "EXPO-ROUTER-APP-ROOT": "app",
+        "MAPBOX_ACCESS_TOKEN": "pk.eyJ1IjoiY2FsanVuIiwiYSI6ImNtZDlzaTZ0eDA5MWEybHNiYXB0N2J2bDcifQ._goEiKRsfnDMImATZniUtQ"
       }
     },
     "preview": {
