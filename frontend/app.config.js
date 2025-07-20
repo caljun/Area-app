@@ -31,6 +31,7 @@ export default {
       }
     },
     android: {
+    package: "com.yourapp.areaapp",
       adaptiveIcon: {
         foregroundImage: './assets/images/icon.png',
         backgroundColor: '#FFFFFF',
