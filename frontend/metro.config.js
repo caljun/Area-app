@@ -1,8 +1,9 @@
-const { getDefaultConfig } = require('expo/metro-config');
+// metro.config.js
+const { getDefaultConfig } = require('@expo/metro-config');
 
 const config = getDefaultConfig(__dirname);
 
-// Ensure proper bundle generation
+// 必要に応じて設定を追加
 config.resolver.platforms = ['ios', 'android', 'native', 'web'];
 config.transformer.minifierConfig = {
   keep_fnames: true,
@@ -11,4 +12,4 @@ config.transformer.minifierConfig = {
   },
 };
 
-module.exports = config; 
+module.exports = config;
