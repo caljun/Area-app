@@ -1,16 +1,15 @@
 // metro.config.js
-const { getDefaultConfig } = require('@expo/metro-config');
+const { createMetroConfiguration } = require('@expo/metro-config');
 
-module.exports = (async () => {
-  const config = await getDefaultConfig(__dirname);
+const config = createMetroConfiguration(__dirname);
 
-  config.resolver.platforms = ['ios', 'android', 'native', 'web'];
-  config.transformer.minifierConfig = {
+// 必要に応じてカスタマイズ
+config.resolver.platforms = ['ios', 'android', 'native', 'web'];
+config.transformer.minifierConfig = {
+  keep_fnames: true,
+  mangle: {
     keep_fnames: true,
-    mangle: {
-      keep_fnames: true,
-    },
-  };
+  },
+};
 
-  return config;
-})();
+module.exports = config;
