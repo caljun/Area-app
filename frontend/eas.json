@@ -11,7 +11,8 @@
         "simulator": false,
         "autoIncrement": false,
         "buildConfiguration": "Release",
-        "resourceClass": "m-medium"
+        "resourceClass": "m-medium",
+        "image":"latest"
       },
       "env":{
         "EXPO_PUBLIC_API_URL": "https://area-app.onrender.com/api",
