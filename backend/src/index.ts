@@ -45,6 +45,7 @@ declare global {
 dotenv.config();
 
 const app = express();
+app.set('trust proxy', true);
 const server = createServer(app);
 const io = new Server(server, {
   cors: {
