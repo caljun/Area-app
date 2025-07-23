@@ -11,13 +11,13 @@ export default function StartScreen() {
         <Text style={styles.subtitle}>友達と場所を共有しよう</Text>
         
         <View style={styles.buttonContainer}>
-          <Link href={"register" as any} asChild>
+          <Link href={"(auth)/register" as any} asChild>
             <TouchableOpacity style={[styles.button, styles.registerButton]}>
               <Text style={styles.buttonText}>新規登録</Text>
             </TouchableOpacity>
           </Link>
           
-          <Link href={"login" as any} asChild>
+          <Link href={"(auth)/login" as any} asChild>
             <TouchableOpacity style={[styles.button, styles.loginButton]}>
               <Text style={[styles.buttonText, styles.loginButtonText]}>ログイン</Text>
             </TouchableOpacity>

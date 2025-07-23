@@ -33,6 +33,7 @@ export default function RootLayout() {
       <AuthGuard>
         <Stack screenOptions={{ headerShown: false }}>
           <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+          <Stack.Screen name="(auth)" options={{ headerShown: false }} />
           <Stack.Screen name="login" />
           <Stack.Screen name="register" />
           <Stack.Screen name="+not-found" />
