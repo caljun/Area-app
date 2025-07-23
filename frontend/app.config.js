@@ -25,7 +25,7 @@ export default {
     ios: {
       supportsTablet: true,
       bundleIdentifier: "com.yourapp.areaapp",
-      buildNumber: "11",
+      buildNumber: "12",
       infoPlist: {
         ITSAppUsesNonExemptEncryption: false
       }
