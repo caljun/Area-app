@@ -4,6 +4,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import * as ImagePicker from 'expo-image-picker';
 import { useState } from 'react';
 import api from '../api';
+import { lookup, extension } from 'mime-types';
 
 export default function AvatarScreen({ onImageUploaded }: { onImageUploaded?: (url: string) => void }) {
   const router = useRouter();
@@ -24,27 +25,32 @@ export default function AvatarScreen({ onImageUploaded }: { onImageUploaded?: (u
     }
   };
 
-  const uploadToCloudinary = async (uri: string) => {
-    setUploading(true);
-    const formData = new FormData();
-    formData.append('image', {
-      uri,
-      name: 'profile.jpg',
-      type: 'image/jpeg',
-    } as any);
-    formData.append('type', 'PROFILE');
-    try {
-      const res = await api.post('/api/images/upload', formData, {
-        headers: { 'Content-Type': 'multipart/form-data' },
-      });
-      setUploadedUrl(res.data.image.url);
-      if (onImageUploaded) onImageUploaded(res.data.image.url);
-    } catch (e) {
-      alert('画像アップロードに失敗しました');
-    } finally {
-      setUploading(false);
-    }
-  };
+const uploadToCloudinary = async (uri: string) => {
+  setUploading(true);
+
+  const mimeType = lookup(uri) || 'image/jpeg';
+  const fileExtension = extension(mimeType as string) || 'jpg';
+
+  const formData = new FormData();
+  formData.append('image', {
+    uri,
+    name: `profile.${fileExtension}`,
+    type: mimeType as string,
+  } as any);
+  formData.append('type', 'PROFILE');
+
+  try {
+    const res = await api.post('/api/images/upload', formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    });
+    setUploadedUrl(res.data.image.url);
+    if (onImageUploaded) onImageUploaded(res.data.image.url);
+  } catch (e) {
+    alert('画像アップロードに失敗しました');
+  } finally {
+    setUploading(false);
+  }
+};
 
   return (
     <SafeAreaView style={styles.container}>
