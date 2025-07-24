@@ -5,12 +5,18 @@ import * as ImagePicker from 'expo-image-picker';
 import { useState } from 'react';
 import api from '../api';
 import { lookup, extension } from 'mime-types';
+import { useAuth } from '../../contexts/AuthContext';
 
-export default function AvatarScreen({ onImageUploaded }: { onImageUploaded?: (url: string) => void }) {
+export default function AvatarScreen() {
   const router = useRouter();
+  const { updateUser } = useAuth();
   const [image, setImage] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
   const [uploadedUrl, setUploadedUrl] = useState<string | null>(null);
+
+  // returnTo取得
+  const urlParams = new URLSearchParams(window.location.search);
+  const returnTo = urlParams.get('returnTo') || '/profile';
 
   const pickImage = async () => {
     const result = await ImagePicker.launchImageLibraryAsync({
@@ -44,7 +50,10 @@ const uploadToCloudinary = async (uri: string) => {
       headers: { 'Content-Type': 'multipart/form-data' },
     });
     setUploadedUrl(res.data.image.url);
-    if (onImageUploaded) onImageUploaded(res.data.image.url);
+    // 画像アップロード後にAuthContextのupdateUserを呼ぶ
+    updateUser({ profileImage: res.data.image.url });
+    // 戻り先へreplace遷移
+    router.replace(returnTo);
   } catch (e) {
     alert('画像アップロードに失敗しました');
   } finally {

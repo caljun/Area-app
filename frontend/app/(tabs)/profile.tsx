@@ -86,13 +86,14 @@ export default function ProfileScreen() {
     fetchData();
   }, [user]);
 
+  // useEffect: user変更時のsetProfileをprevベースに修正
   useEffect(() => {
     if (user) {
-      setProfile({
+      setProfile((prev) => ({
+        ...prev,
         name: user.name,
-        profileImage: user.profileImage || '', // ← 修正
-        friendCount: profile.friendCount,
-      });
+        profileImage: user.profileImage || '',
+      }));
     }
   }, [user]);
 
@@ -124,20 +125,12 @@ export default function ProfileScreen() {
     setIsEditingName(false);
   };
 
+  // changeProfileImage関数を修正
   const changeProfileImage = () => {
-    router.push({ pathname: '/start/avatar', params: { from: 'profile' } });
+    router.push({ pathname: '/start/avatar', params: { returnTo: '/profile' } });
   };
 
-  // AvatarScreenから戻ってきたときに画像URLを受け取る処理（例: useEffectでクエリパラメータ監視）
-  useEffect(() => {
-    const urlParams = new URLSearchParams(window.location.search);
-    const uploadedUrl = urlParams.get('uploadedUrl');
-    if (uploadedUrl) {
-      handleImageUploaded(uploadedUrl);
-      // パラメータを消す（必要なら）
-      window.history.replaceState({}, document.title, window.location.pathname);
-    }
-  }, []);
+  // onImageUploadedコールバック関連の記述は削除（avatar.tsxでupdateUserを直接呼ぶ設計に統一）
 
   if (isLoading) {
     return (
