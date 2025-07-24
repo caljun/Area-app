@@ -11,16 +11,12 @@ function AuthGuard({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     if (!isLoading) {
-      // 未ログインかつ今がlogin/register画面でなければloginに飛ばす
-      if (!user &&
-         segments[0] !== 'login' &&
-         segments[0] !== 'register' &&
-         segments[0] !== 'start'
-        ) {
-        router.replace('/login');
+      // 未ログイン時は必ずonboarding（新UI）に飛ばす
+      if (!user && segments[0] !== 'start') {
+        router.replace('/start/onboarding');
       }
-      // ログイン済みでlogin/register画面にいる場合はtabsに飛ばす
-      if (user && (segments[0] === 'login' || segments[0] === 'register')) {
+      // ログイン済みでstart配下にいる場合はtabsに飛ばす
+      if (user && segments[0] === 'start') {
         router.replace('/(tabs)');
       }
     }
@@ -37,10 +33,6 @@ export default function RootLayout() {
       <AuthGuard>
         <Stack screenOptions={{ headerShown: false }}>
           <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-          <Stack.Screen name="(auth)" options={{ headerShown: false }} />
-          <Stack.Screen name="login" />
-          <Stack.Screen name="register" />
-          <Stack.Screen name="start" />
           <Stack.Screen name="+not-found" />
         </Stack>
         <StatusBar style="auto" />
