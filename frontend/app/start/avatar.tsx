@@ -3,10 +3,13 @@ import { useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import * as ImagePicker from 'expo-image-picker';
 import { useState } from 'react';
+import api from '../api';
 
-export default function AvatarScreen() {
+export default function AvatarScreen({ onImageUploaded }: { onImageUploaded?: (url: string) => void }) {
   const router = useRouter();
   const [image, setImage] = useState<string | null>(null);
+  const [uploading, setUploading] = useState(false);
+  const [uploadedUrl, setUploadedUrl] = useState<string | null>(null);
 
   const pickImage = async () => {
     const result = await ImagePicker.launchImageLibraryAsync({
@@ -17,6 +20,29 @@ export default function AvatarScreen() {
     });
     if (!result.canceled && result.assets.length > 0) {
       setImage(result.assets[0].uri);
+      await uploadToCloudinary(result.assets[0].uri);
+    }
+  };
+
+  const uploadToCloudinary = async (uri: string) => {
+    setUploading(true);
+    const formData = new FormData();
+    formData.append('image', {
+      uri,
+      name: 'profile.jpg',
+      type: 'image/jpeg',
+    } as any);
+    formData.append('type', 'PROFILE');
+    try {
+      const res = await api.post('/api/images/upload', formData, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+      });
+      setUploadedUrl(res.data.image.url);
+      if (onImageUploaded) onImageUploaded(res.data.image.url);
+    } catch (e) {
+      alert('画像アップロードに失敗しました');
+    } finally {
+      setUploading(false);
     }
   };
 
@@ -32,11 +58,13 @@ export default function AvatarScreen() {
           )}
         </TouchableOpacity>
         <TouchableOpacity
-          style={[styles.button, !image && styles.buttonDisabled]}
-          onPress={() => router.push('/start/location')}
-          disabled={!image}
+          style={[styles.button, !uploadedUrl && styles.buttonDisabled]}
+          onPress={() => {
+            if (uploadedUrl) router.push('/start/location');
+          }}
+          disabled={!uploadedUrl || uploading}
         >
-          <Text style={styles.buttonText}>次へ</Text>
+          <Text style={styles.buttonText}>{uploading ? 'アップロード中...' : '次へ'}</Text>
         </TouchableOpacity>
         <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
           <Text style={styles.backButtonText}>戻る</Text>

@@ -17,7 +17,8 @@ const registerSchema = z.object({
   email: z.string().email('Invalid email format'),
   nowId: z.string().min(3, 'Now ID must be at least 3 characters'),
   name: z.string().min(1, 'Name is required'),
-  password: z.string().min(6, 'Password must be at least 6 characters')
+  password: z.string().min(6, 'Password must be at least 6 characters'),
+  profileImage: z.string().url('Profile image URL is required')
 });
 
 const loginSchema = z.object({
@@ -28,7 +29,7 @@ const loginSchema = z.object({
 // Register
 router.post('/register', async (req: Request, res: Response) => {
   try {
-    const { email, nowId, name, password } = registerSchema.parse(req.body);
+    const { email, nowId, name, password, profileImage } = registerSchema.parse(req.body);
 
     // Check if user already exists
     const existingUser = await prisma.user.findFirst({
@@ -55,13 +56,15 @@ router.post('/register', async (req: Request, res: Response) => {
         email,
         nowId,
         name,
-        password: hashedPassword
+        password: hashedPassword,
+        profileImage
       },
       select: {
         id: true,
         email: true,
         nowId: true,
         name: true,
+        profileImage: true,
         createdAt: true
       }
     });
