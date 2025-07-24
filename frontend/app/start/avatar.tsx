@@ -52,6 +52,7 @@ const uploadToCloudinary = async (uri: string) => {
     setUploadedUrl(res.data.image.url);
     // 画像アップロード後にAuthContextのupdateUserを呼ぶ
     updateUser({ profileImage: res.data.image.url });
+    await api.put('/api/users/profile', { profileImage: res.data.image.url });
     // 戻り先へreplace遷移
     router.replace(returnTo);
   } catch (e) {
