@@ -4,6 +4,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { CreditCard as Edit2, MapPin, Users, Eye, X, Camera } from 'lucide-react-native';
 import { useAuth } from '../../contexts/AuthContext';
 import api from '../api';
+import { useRouter } from 'expo-router';
 
 interface Area {
   id: string;
@@ -38,6 +39,7 @@ export default function ProfileScreen() {
   const [showAreaMembers, setShowAreaMembers] = useState<Area | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
+  const router = useRouter();
 
   // ユーザー情報とエリア一覧を取得
   useEffect(() => {
@@ -49,8 +51,8 @@ export default function ProfileScreen() {
         // ユーザー情報を更新
         setProfile({
           name: user.name,
-          profileImage: initialProfile.profileImage, // プロフィール画像は別途実装
-          friendCount: 0 // 友達数は別途取得
+          profileImage: user.profileImage || '', // ← 修正
+          friendCount: profile.friendCount,
         });
 
         // エリア一覧取得
@@ -84,6 +86,21 @@ export default function ProfileScreen() {
     fetchData();
   }, [user]);
 
+  useEffect(() => {
+    if (user) {
+      setProfile({
+        name: user.name,
+        profileImage: user.profileImage || '', // ← 修正
+        friendCount: profile.friendCount,
+      });
+    }
+  }, [user]);
+
+  const handleImageUploaded = (url: string) => {
+    setProfile((prev) => ({ ...prev, profileImage: url }));
+    updateUser({ profileImage: url });
+  };
+
   const saveName = async () => {
     if (!tempName.trim()) return;
     
@@ -107,10 +124,20 @@ export default function ProfileScreen() {
     setIsEditingName(false);
   };
 
-  const changeProfileImage = async () => {
-    // 画像アップロード機能は別途実装
-    Alert.alert('情報', '画像アップロード機能は準備中です');
+  const changeProfileImage = () => {
+    router.push({ pathname: '/start/avatar', params: { from: 'profile' } });
   };
+
+  // AvatarScreenから戻ってきたときに画像URLを受け取る処理（例: useEffectでクエリパラメータ監視）
+  useEffect(() => {
+    const urlParams = new URLSearchParams(window.location.search);
+    const uploadedUrl = urlParams.get('uploadedUrl');
+    if (uploadedUrl) {
+      handleImageUploaded(uploadedUrl);
+      // パラメータを消す（必要なら）
+      window.history.replaceState({}, document.title, window.location.pathname);
+    }
+  }, []);
 
   if (isLoading) {
     return (

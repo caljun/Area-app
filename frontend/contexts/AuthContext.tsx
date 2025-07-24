@@ -7,6 +7,7 @@ interface User {
   email: string;
   nowId: string;
   name: string;
+  profileImage: string;
 }
 
 interface AuthContextType {
