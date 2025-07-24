@@ -10,19 +10,20 @@ declare module 'multer-storage-cloudinary' {
   }
 }
 
-// Cloudinary設定
+// ✅ Cloudinary設定
 cloudinary.config({
   cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
   api_key: process.env.CLOUDINARY_API_KEY,
   api_secret: process.env.CLOUDINARY_API_SECRET,
 });
 
-// Cloudinaryストレージ設定
+// ✅ Cloudinaryストレージ設定（すべてJPEGで保存）
 const storage = new CloudinaryStorage({
   cloudinary: cloudinary,
   params: {
     folder: 'area-app',
-    allowed_formats: ['jpg', 'jpeg', 'png', 'gif', 'webp'],
+    format: 'jpg', // ← 常にJPEG形式で保存
+    allowed_formats: ['jpg', 'jpeg', 'png', 'gif', 'webp', 'heic', 'heif'],
     transformation: [
       { width: 800, height: 600, crop: 'limit' },
       { quality: 'auto' },
@@ -31,43 +32,52 @@ const storage = new CloudinaryStorage({
   } as any,
 });
 
-// ファイルフィルター
+// ✅ 明示的なファイル形式の制限
+const allowedTypes = [
+  'image/jpeg',
+  'image/jpg',
+  'image/png',
+  'image/gif',
+  'image/webp',
+  'image/heic',
+  'image/heif',
+];
+
 const fileFilter = (req: any, file: any, cb: any) => {
-  if (file.mimetype.startsWith('image/')) {
+  if (allowedTypes.includes(file.mimetype)) {
     cb(null, true);
   } else {
-    cb(null, false); // Errorではなくnullを渡す
+    cb(new Error('対応していない画像形式です。JPEG・PNG・HEIC等をお使いください。'), false);
   }
 };
 
-// アップロード設定
+// ✅ アップロード設定
 export const upload = multer({
   storage: storage as any,
   fileFilter: fileFilter,
   limits: {
-    fileSize: 5 * 1024 * 1024, // 5MB
+    fileSize: 5 * 1024 * 1024, // 最大5MB
   },
 });
 
-// 単一画像アップロード
+// ✅ 単一画像アップロード
 export const uploadSingle = upload.single('image');
 
-// 複数画像アップロード
+// ✅ 複数画像アップロード
 export const uploadMultiple = upload.array('images', 5);
 
-// エラーハンドリング
+// ✅ エラーハンドリング
 export const handleUploadError = (error: any, req: any, res: any, next: any) => {
   if (error instanceof multer.MulterError) {
     if (error.code === 'LIMIT_FILE_SIZE') {
-      return res.status(400).json({ error: 'File too large. Maximum size is 5MB.' });
+      return res.status(400).json({ error: 'ファイルサイズが大きすぎます（最大5MB）' });
     }
     return res.status(400).json({ error: error.message });
   }
-  
+
   if (error) {
     return res.status(400).json({ error: error.message });
   }
-  
+
   next();
-  return; // 明示的にreturnを追加
-}; 
+};
