@@ -22,7 +22,7 @@ console.log('🔧 Cloudinary config:', {
 
 const storage = new CloudinaryStorage({
   cloudinary,
-  params: async (req, file) => ({
+  params: {
     folder: 'area-app',
     format: 'jpg',
     allowed_formats: ['jpg', 'jpeg', 'png', 'gif', 'webp', 'heic', 'heif'],
@@ -31,7 +31,7 @@ const storage = new CloudinaryStorage({
       { quality: 'auto' },
       { fetch_format: 'auto' },
     ],
-  }),
+  } as any,
 });
 
 const allowedTypes = [
@@ -44,7 +44,7 @@ const allowedTypes = [
   'image/heif',
 ];
 
-const fileFilter = (req: Request, file: Express.Multer.File, cb: multer.FileFilterCallback) => {
+const fileFilter = (req: any, file: any, cb: any) => {
   if (allowedTypes.includes(file.mimetype)) {
     cb(null, true);
   } else {
