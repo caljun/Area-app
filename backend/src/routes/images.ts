@@ -32,7 +32,7 @@ router.post('/upload',
     const { type } = uploadImageSchema.parse(req.body);
 
     if (!req.file) {
-      return res.status(400).json({ error: 'No image file provided' });
+      return res.status(400).json({ error: '画像ファイルが選択されていません' });
     }
 
     // Cloudinaryからアップロード結果を取得
@@ -57,7 +57,7 @@ router.post('/upload',
     }
 
     return res.status(201).json({
-      message: 'Image uploaded successfully',
+      message: '画像のアップロードが完了しました',
       image: {
         id: image.id,
         url: image.url,
@@ -68,13 +68,13 @@ router.post('/upload',
   } catch (error) {
     if (error instanceof z.ZodError) {
       return res.status(400).json({
-        error: 'Validation error',
+        error: '入力内容に問題があります',
         details: error.errors
       });
     }
     
     console.error('Upload image error:', error);
-    return res.status(500).json({ error: 'Internal server error' });
+    return res.status(500).json({ error: '画像のアップロードに失敗しました' });
   }
 });
 

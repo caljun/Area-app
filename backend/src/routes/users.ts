@@ -22,7 +22,7 @@ router.get('/profile', async (req: AuthRequest, res: Response) => {
     return res.json({ user });
   } catch (error) {
     console.error('Get profile error:', error);
-    return res.status(500).json({ error: 'Internal server error' });
+    return res.status(500).json({ error: 'プロフィールの取得に失敗しました' });
   }
 });
 
@@ -32,7 +32,7 @@ router.put('/profile', async (req: AuthRequest, res: Response) => {
     const { profileImage } = req.body;
 
     if (!profileImage) {
-      return res.status(400).json({ error: 'profileImage is required' });
+      return res.status(400).json({ error: 'プロフィール画像は必須です' });
     }
 
     const updatedUser = await prisma.user.update({
@@ -51,7 +51,7 @@ router.put('/profile', async (req: AuthRequest, res: Response) => {
     return res.json({ user: updatedUser });
   } catch (error) {
     console.error('Update profile error:', error);
-    return res.status(500).json({ error: 'Internal server error' });
+    return res.status(500).json({ error: 'プロフィールの更新に失敗しました' });
   }
 });
 

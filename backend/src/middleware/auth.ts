@@ -26,14 +26,14 @@ export const authMiddleware = async (
     const authHeader = req.headers.authorization;
     
     if (!authHeader || !authHeader.startsWith('Bearer ')) {
-      return res.status(401).json({ error: 'Access token required' });
+      return res.status(401).json({ error: '認証が必要です' });
     }
 
     const token = authHeader.substring(7);
     const secret = process.env.JWT_SECRET;
 
     if (!secret) {
-      return res.status(500).json({ error: 'JWT secret not configured' });
+      return res.status(500).json({ error: 'サーバー設定エラー' });
     }
 
     const decoded = jwt.verify(token, secret) as JWTPayload;
@@ -50,20 +50,20 @@ export const authMiddleware = async (
     });
 
     if (!user) {
-      return res.status(401).json({ error: 'User not found' });
+      return res.status(401).json({ error: 'ユーザーが見つかりません' });
     }
 
     req.user = user;
     return next();
   } catch (error) {
     if (error instanceof jwt.JsonWebTokenError) {
-      return res.status(401).json({ error: 'Invalid token' });
+      return res.status(401).json({ error: '認証トークンが無効です' });
     }
     if (error instanceof jwt.TokenExpiredError) {
-      return res.status(401).json({ error: 'Token expired' });
+      return res.status(401).json({ error: '認証トークンの有効期限が切れています' });
     }
     
     console.error('Auth middleware error:', error);
-    return res.status(500).json({ error: 'Internal server error' });
+    return res.status(500).json({ error: 'サーバーエラーが発生しました' });
   }
 }; 

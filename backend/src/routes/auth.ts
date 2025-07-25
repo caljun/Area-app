@@ -15,16 +15,16 @@ const router = Router();
 
 // Validation schemas
 const registerSchema = z.object({
-  email: z.string().email('Invalid email format'),
-  nowId: z.string().min(3, 'Now ID must be at least 3 characters'),
-  name: z.string().min(1, 'Name is required'),
-  password: z.string().min(6, 'Password must be at least 6 characters'),
-  profileImage: z.string().url('Profile image URL is required').optional()
+  email: z.string().email('メールアドレスの形式が正しくありません'),
+  nowId: z.string().min(3, 'Now IDは3文字以上で入力してください'),
+  name: z.string().min(1, 'ユーザー名は必須です'),
+  password: z.string().min(6, 'パスワードは6文字以上で入力してください'),
+  profileImage: z.string().url('プロフィール画像のURLが正しくありません').optional()
 });
 
 const loginSchema = z.object({
-  email: z.string().email('Invalid email format'),
-  password: z.string().min(1, 'Password is required')
+  email: z.string().email('メールアドレスの形式が正しくありません'),
+  password: z.string().min(1, 'パスワードは必須です')
 });
 
 // Register
@@ -44,7 +44,7 @@ router.post('/register', async (req: Request, res: Response) => {
 
     if (existingUser) {
       return res.status(400).json({
-        error: existingUser.email === email ? 'Email already registered' : 'Now ID already taken'
+        error: existingUser.email === email ? 'このメールアドレスは既に登録されています' : 'このNow IDは既に使用されています'
       });
     }
 
@@ -85,13 +85,13 @@ router.post('/register', async (req: Request, res: Response) => {
   } catch (error) {
     if (error instanceof z.ZodError) {
       return res.status(400).json({
-        error: 'Validation error',
+        error: '入力内容に問題があります',
         details: error.errors
       });
     }
     
     console.error('Register error:', error);
-    return res.status(500).json({ error: 'Internal server error' });
+    return res.status(500).json({ error: 'サーバーエラーが発生しました' });
   }
 });
 
@@ -106,14 +106,14 @@ router.post('/login', async (req: Request, res: Response) => {
     });
 
     if (!user) {
-      return res.status(401).json({ error: 'Invalid credentials' });
+      return res.status(401).json({ error: 'メールアドレスまたはパスワードが正しくありません' });
     }
 
     // Check password
     const isPasswordValid = await bcrypt.compare(password, user.password);
 
     if (!isPasswordValid) {
-      return res.status(401).json({ error: 'Invalid credentials' });
+      return res.status(401).json({ error: 'メールアドレスまたはパスワードが正しくありません' });
     }
 
     // Generate JWT token
@@ -129,20 +129,21 @@ router.post('/login', async (req: Request, res: Response) => {
         id: user.id,
         email: user.email,
         nowId: user.nowId,
-        name: user.name
+        name: user.name,
+        profileImage: user.profileImage
       },
       token
     });
   } catch (error) {
     if (error instanceof z.ZodError) {
       return res.status(400).json({
-        error: 'Validation error',
+        error: '入力内容に問題があります',
         details: error.errors
       });
     }
     
     console.error('Login error:', error);
-    return res.status(500).json({ error: 'Internal server error' });
+    return res.status(500).json({ error: 'サーバーエラーが発生しました' });
   }
 });
 

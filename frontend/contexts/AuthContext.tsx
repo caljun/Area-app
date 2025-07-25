@@ -78,7 +78,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       setToken(authToken);
       await AsyncStorage.setItem('authToken', authToken);
     } catch (error: any) {
-      throw new Error(error.response?.data?.error || 'ログインに失敗しました');
+      if (error.response?.status === 401) {
+        throw new Error('メールアドレスまたはパスワードが正しくありません');
+      } else if (error.response?.status === 0 || error.message?.includes('Network Error')) {
+        throw new Error('ネットワークエラーが発生しました。インターネット接続を確認してください');
+      } else {
+        throw new Error(error.response?.data?.error || 'ログインに失敗しました');
+      }
     }
   };
 
@@ -97,7 +103,20 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       setToken(authToken);
       await AsyncStorage.setItem('authToken', authToken);
     } catch (error: any) {
-      throw new Error(error.response?.data?.error || '登録に失敗しました');
+      if (error.response?.status === 400) {
+        const errorMessage = error.response?.data?.error;
+        if (errorMessage?.includes('Email already registered')) {
+          throw new Error('このメールアドレスは既に登録されています');
+        } else if (errorMessage?.includes('Now ID already taken')) {
+          throw new Error('このNow IDは既に使用されています');
+        } else {
+          throw new Error(errorMessage || '入力内容に問題があります');
+        }
+      } else if (error.response?.status === 0 || error.message?.includes('Network Error')) {
+        throw new Error('ネットワークエラーが発生しました。インターネット接続を確認してください');
+      } else {
+        throw new Error(error.response?.data?.error || '登録に失敗しました');
+      }
     }
   };
 
