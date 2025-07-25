@@ -38,7 +38,7 @@ export default function HomeScreen() {
   useEffect(() => {
     const fetchAreas = async () => {
       try {
-        const response = await api.get('/api/areas');
+        const response = await api.get('/areas');
         const fetchedAreas = response.data.areas.map((area: any) => ({
           id: area.id,
           name: area.name,
