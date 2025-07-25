@@ -45,15 +45,14 @@ export default function AvatarScreen() {
     formData.append('type', 'PROFILE');
 
     try {
-      const res = await api.post('/api/images/upload', formData, {
-        headers: { 'Content-Type': 'multipart/form-data' },
-      });
+      const res = await api.post('/api/images/upload', formData);
       setUploadedUrl(res.data.image.url);
       updateUser({ profileImage: res.data.image.url });
       await api.put('/api/users/profile', { profileImage: res.data.image.url });
       router.replace(backPath);
-    } catch (e) {
-      alert('画像アップロードに失敗しました');
+    } catch (e: any) {
+      console.error('Upload failed:', e?.response?.data || e.message || e);
+      alert(`画像アップロードに失敗しました。\n${e?.response?.data?.error || e.message || '原因不明のエラー'}`);
     } finally {
       setUploading(false);
     }
