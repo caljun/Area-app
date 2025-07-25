@@ -13,6 +13,7 @@ import areaRoutes from './routes/areas';
 import friendRoutes from './routes/friends';
 import locationRoutes from './routes/locations';
 import imageRoutes from './routes/images';
+import uploadRoutes from './routes/upload'; 
 
 // Import middleware
 import { errorHandler } from './middleware/errorHandler';
@@ -85,7 +86,8 @@ app.use('/api/users', authMiddleware, userRoutes);
 app.use('/api/areas', authMiddleware, areaRoutes);
 app.use('/api/friends', authMiddleware, friendRoutes);
 app.use('/api/locations', authMiddleware, locationRoutes);
-app.use('/api/images', authMiddleware, imageRoutes);
+app.use('/api/images', authMiddleware, imageRoutes); 
+app.use('/api/image-upload', authMiddleware, uploadRoutes); 
 
 // WebSocket connection handling
 io.on('connection', (socket) => {
