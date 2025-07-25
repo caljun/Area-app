@@ -78,7 +78,7 @@ router.post('/register', async (req: Request, res: Response) => {
     );
 
     return res.status(201).json({
-      message: 'User registered successfully',
+      message: 'ユーザー登録が完了しました',
       user,
       token
     });
@@ -124,7 +124,7 @@ router.post('/login', async (req: Request, res: Response) => {
     );
 
     return res.json({
-      message: 'Login successful',
+      message: 'ログインに成功しました',
       user: {
         id: user.id,
         email: user.email,
@@ -166,7 +166,7 @@ router.get('/me', authMiddleware, async (req: AuthRequest, res: Response) => {
     return res.json({ user });
   } catch (error) {
     console.error('Get current user error:', error);
-    return res.status(500).json({ error: 'Internal server error' });
+    return res.status(500).json({ error: 'ユーザー情報の取得に失敗しました' });
   }
 });
 

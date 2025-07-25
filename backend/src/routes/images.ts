@@ -96,7 +96,7 @@ router.get('/', async (req: AuthRequest, res: Response) => {
     return res.json({ images });
   } catch (error) {
     console.error('Get images error:', error);
-    return res.status(500).json({ error: 'Internal server error' });
+    return res.status(500).json({ error: '画像の取得に失敗しました' });
   }
 });
 
@@ -113,7 +113,7 @@ router.delete('/:id', async (req: AuthRequest, res: Response) => {
     });
 
     if (!image) {
-      return res.status(404).json({ error: 'Image not found' });
+      return res.status(404).json({ error: '画像が見つかりません' });
     }
 
     // Cloudinaryから画像を削除
@@ -137,10 +137,10 @@ router.delete('/:id', async (req: AuthRequest, res: Response) => {
       });
     }
 
-    return res.json({ message: 'Image deleted successfully' });
+    return res.json({ message: '画像の削除が完了しました' });
   } catch (error) {
     console.error('Delete image error:', error);
-    return res.status(500).json({ error: 'Internal server error' });
+    return res.status(500).json({ error: '画像の削除に失敗しました' });
   }
 });
 
@@ -157,13 +157,13 @@ router.get('/:id', async (req: AuthRequest, res: Response) => {
     });
 
     if (!image) {
-      return res.status(404).json({ error: 'Image not found' });
+      return res.status(404).json({ error: '画像が見つかりません' });
     }
 
     return res.json({ image });
   } catch (error) {
     console.error('Get image error:', error);
-    return res.status(500).json({ error: 'Internal server error' });
+    return res.status(500).json({ error: '画像の取得に失敗しました' });
   }
 });
 

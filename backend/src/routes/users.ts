@@ -70,18 +70,18 @@ router.get('/search/:nowId', async (req: AuthRequest, res: Response) => {
     });
 
     if (!user) {
-      return res.status(404).json({ error: 'User not found' });
+      return res.status(404).json({ error: 'ユーザーが見つかりません' });
     }
 
     // Don't return the current user
     if (user.id === req.user!.id) {
-      return res.status(400).json({ error: 'Cannot search for yourself' });
+      return res.status(400).json({ error: '自分自身を検索することはできません' });
     }
 
     return res.json({ user });
   } catch (error) {
     console.error('Search user error:', error);
-    return res.status(500).json({ error: 'Internal server error' });
+    return res.status(500).json({ error: 'ユーザー検索に失敗しました' });
   }
 });
 

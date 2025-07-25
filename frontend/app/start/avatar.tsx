@@ -1,14 +1,17 @@
-import { View, Text, TouchableOpacity, Image, StyleSheet } from 'react-native';
+import { View, Text, TouchableOpacity, Image, StyleSheet, Alert } from 'react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import * as ImagePicker from 'expo-image-picker';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import api from '../api';
 import { useAuth } from '../../contexts/AuthContext';
+import { useRegistration } from '../../contexts/RegistrationContext';
+import ProgressBar from '../../components/ProgressBar';
 
 export default function AvatarScreen() {
   const router = useRouter();
   const { updateUser, token } = useAuth();
+  const { updateRegistrationData } = useRegistration();
   const [image, setImage] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
   const [uploadedUrl, setUploadedUrl] = useState<string | null>(null);
@@ -27,6 +30,15 @@ export default function AvatarScreen() {
     if (!result.canceled && result.assets.length > 0) {
       setImage(result.assets[0].uri);
       await uploadToCloudinary(result.assets[0].uri);
+    }
+  };
+
+  const handleNext = () => {
+    if (uploadedUrl) {
+      updateRegistrationData({ profileImage: uploadedUrl });
+      router.push('/start/location');
+    } else {
+      Alert.alert('エラー', 'プロフィール画像を選択してください');
     }
   };
 
@@ -89,8 +101,16 @@ export default function AvatarScreen() {
 
   return (
     <SafeAreaView style={styles.container}>
+      <ProgressBar 
+        currentStep={5} 
+        totalSteps={6} 
+        stepNames={['ユーザー名', 'Now ID', 'メールアドレス', 'パスワード', 'プロフィール画像', '位置情報']}
+      />
+      
       <View style={styles.content}>
         <Text style={styles.title}>プロフィール画像を選択</Text>
+        <Text style={styles.subtitle}>友達に表示される画像を選択してください</Text>
+        
         <TouchableOpacity style={styles.avatarWrapper} onPress={pickImage}>
           {image ? (
             <Image source={{ uri: image }} style={styles.avatar} />
@@ -100,9 +120,7 @@ export default function AvatarScreen() {
         </TouchableOpacity>
         <TouchableOpacity
           style={[styles.button, !uploadedUrl && styles.buttonDisabled]}
-          onPress={() => {
-            if (uploadedUrl) router.push('/start/location');
-          }}
+          onPress={handleNext}
           disabled={!uploadedUrl || uploading}
         >
           <Text style={styles.buttonText}>{uploading ? 'アップロード中...' : '次へ'}</Text>
@@ -118,7 +136,8 @@ export default function AvatarScreen() {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#fff' },
   content: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: 24 },
-  title: { fontSize: 24, fontWeight: 'bold', color: '#000', marginBottom: 32 },
+  title: { fontSize: 24, fontWeight: 'bold', color: '#000', marginBottom: 16 },
+  subtitle: { fontSize: 16, color: '#666', marginBottom: 32, textAlign: 'center' },
   avatarWrapper: {
     width: 120,
     height: 120,
