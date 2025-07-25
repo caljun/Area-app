@@ -51,8 +51,24 @@ export default function AvatarScreen() {
       await api.put('/api/users/profile', { profileImage: res.data.image.url });
       router.replace(backPath);
     } catch (e: any) {
-      console.error('Upload failed:', e?.response?.data || e.message || e);
-      alert(`画像アップロードに失敗しました。\n${e?.response?.data?.error || e.message || '原因不明のエラー'}`);
+      console.error('Upload failed:', e);
+      console.error('Response data:', e?.response?.data);
+      console.error('Response status:', e?.response?.status);
+      console.error('Network error:', e?.message);
+      
+      let errorMessage = '画像アップロードに失敗しました。\n';
+      
+      if (e?.response?.status === 0 || e?.message?.includes('Network Error')) {
+        errorMessage += 'Network Error\nサーバーに接続できません。\nインターネット接続を確認してください。';
+      } else if (e?.response?.data?.error) {
+        errorMessage += e.response.data.error;
+      } else if (e?.message) {
+        errorMessage += e.message;
+      } else {
+        errorMessage += '原因不明のエラー';
+      }
+      
+      alert(errorMessage);
     } finally {
       setUploading(false);
     }
