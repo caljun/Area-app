@@ -34,8 +34,8 @@ export default function AvatarScreen() {
 const uploadToCloudinary = async (uri: string) => {
   setUploading(true);
 
-  const mimeType = lookup(uri) || 'image/jpeg';
-  const fileExtension = extension(mimeType as string) || 'jpg';
+  const mimeType = 'image/jpeg';
+  const fileExtension = 'jpg';
 
   const formData = new FormData();
   formData.append('image', {
