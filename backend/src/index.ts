@@ -45,6 +45,12 @@ declare global {
 // Load environment variables
 dotenv.config();
 
+// デバッグ用：環境変数の確認
+console.log('🔍 Environment variables check:');
+console.log('CLOUDINARY_CLOUD_NAME:', process.env.CLOUDINARY_CLOUD_NAME);
+console.log('CLOUDINARY_API_KEY:', process.env.CLOUDINARY_API_KEY);
+console.log('CLOUDINARY_API_SECRET:', !!process.env.CLOUDINARY_API_SECRET);
+
 const app = express();
 app.set('trust proxy', true);
 const server = createServer(app);
