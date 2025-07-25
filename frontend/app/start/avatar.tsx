@@ -8,7 +8,7 @@ import { useAuth } from '../../contexts/AuthContext';
 
 export default function AvatarScreen() {
   const router = useRouter();
-  const { updateUser } = useAuth();
+  const { updateUser, token } = useAuth();
   const [image, setImage] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
   const [uploadedUrl, setUploadedUrl] = useState<string | null>(null);
@@ -31,6 +31,11 @@ export default function AvatarScreen() {
   };
 
   const uploadToCloudinary = async (uri: string) => {
+    if (!token) {
+      alert('認証トークンが見つかりません。ログインし直してください。');
+      return;
+    }
+    
     setUploading(true);
 
     const mimeType = 'image/jpeg';
@@ -45,7 +50,13 @@ export default function AvatarScreen() {
     formData.append('type', 'PROFILE');
 
     try {
-      const res = await api.post('/images/upload', formData);
+      // 認証ヘッダーを明示的に設定
+      const headers = {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'multipart/form-data',
+      };
+      
+      const res = await api.post('/images/upload', formData, { headers });
       setUploadedUrl(res.data.image.url);
       updateUser({ profileImage: res.data.image.url });
       await api.put('/users/profile', { profileImage: res.data.image.url });
@@ -58,7 +69,9 @@ export default function AvatarScreen() {
       
       let errorMessage = '画像アップロードに失敗しました。\n';
       
-      if (e?.response?.status === 0 || e?.message?.includes('Network Error')) {
+      if (e?.response?.status === 401) {
+        errorMessage += '認証エラー\nログインし直してください。';
+      } else if (e?.response?.status === 0 || e?.message?.includes('Network Error')) {
         errorMessage += 'Network Error\nサーバーに接続できません。\nインターネット接続を確認してください。';
       } else if (e?.response?.data?.error) {
         errorMessage += e.response.data.error;

@@ -4,6 +4,7 @@ import jwt from 'jsonwebtoken';
 import { z } from 'zod';
 import { prisma } from '../index';
 import { createError } from '../middleware/errorHandler';
+import { authMiddleware, AuthRequest } from '../middleware/auth';
 
 // JWTの型定義
 interface JWTPayload {
@@ -18,7 +19,7 @@ const registerSchema = z.object({
   nowId: z.string().min(3, 'Now ID must be at least 3 characters'),
   name: z.string().min(1, 'Name is required'),
   password: z.string().min(6, 'Password must be at least 6 characters'),
-  profileImage: z.string().url('Profile image URL is required')
+  profileImage: z.string().url('Profile image URL is required').optional()
 });
 
 const loginSchema = z.object({
@@ -57,7 +58,7 @@ router.post('/register', async (req: Request, res: Response) => {
         nowId,
         name,
         password: hashedPassword,
-        profileImage
+        profileImage: profileImage || null
       },
       select: {
         id: true,
@@ -146,32 +147,21 @@ router.post('/login', async (req: Request, res: Response) => {
 });
 
 // Get current user
-router.get('/me', async (req: Request, res: Response) => {
+router.get('/me', authMiddleware, async (req: AuthRequest, res: Response) => {
   try {
-    const authHeader = req.headers.authorization;
-    
-    if (!authHeader || !authHeader.startsWith('Bearer ')) {
-      return res.status(401).json({ error: 'Access token required' });
-    }
-
-    const token = authHeader.substring(7);
-    const decoded = jwt.verify(token, process.env.JWT_SECRET || 'fallback-secret') as JWTPayload;
-
+    // 最新のユーザー情報を取得（profileImageを含む）
     const user = await prisma.user.findUnique({
-      where: { id: decoded.userId },
+      where: { id: req.user!.id },
       select: {
         id: true,
         email: true,
         nowId: true,
         name: true,
+        profileImage: true,
         createdAt: true
       }
     });
-
-    if (!user) {
-      return res.status(401).json({ error: 'User not found' });
-    }
-
+    
     return res.json({ user });
   } catch (error) {
     console.error('Get current user error:', error);

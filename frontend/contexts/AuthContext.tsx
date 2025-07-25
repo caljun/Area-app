@@ -57,7 +57,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         }
       } catch (error) {
         console.error('Token restoration failed:', error);
+        // トークンが無効な場合は削除
         await AsyncStorage.removeItem('authToken');
+        setToken(null);
+        setUser(null);
       } finally {
         setIsLoading(false);
       }
