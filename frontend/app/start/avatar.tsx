@@ -1,10 +1,9 @@
 import { View, Text, TouchableOpacity, Image, StyleSheet } from 'react-native';
-import { useRouter } from 'expo-router';
+import { useRouter, useLocalSearchParams } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import * as ImagePicker from 'expo-image-picker';
 import { useState } from 'react';
 import api from '../api';
-import { lookup, extension } from 'mime-types';
 import { useAuth } from '../../contexts/AuthContext';
 
 export default function AvatarScreen() {
@@ -14,9 +13,9 @@ export default function AvatarScreen() {
   const [uploading, setUploading] = useState(false);
   const [uploadedUrl, setUploadedUrl] = useState<string | null>(null);
 
-  // returnTo取得
-  const urlParams = new URLSearchParams(window.location.search);
-  const returnTo = urlParams.get('returnTo') || '/profile';
+  // パラメータ取得（正規の方法）
+  const { returnTo } = useLocalSearchParams();
+  const backPath = typeof returnTo === 'string' ? returnTo : '/profile';
 
   const pickImage = async () => {
     const result = await ImagePicker.launchImageLibraryAsync({
@@ -31,36 +30,34 @@ export default function AvatarScreen() {
     }
   };
 
-const uploadToCloudinary = async (uri: string) => {
-  setUploading(true);
+  const uploadToCloudinary = async (uri: string) => {
+    setUploading(true);
 
-  const mimeType = 'image/jpeg';
-  const fileExtension = 'jpg';
+    const mimeType = 'image/jpeg';
+    const fileExtension = 'jpg';
 
-  const formData = new FormData();
-  formData.append('image', {
-    uri,
-    name: `profile.${fileExtension}`,
-    type: mimeType as string,
-  } as any);
-  formData.append('type', 'PROFILE');
+    const formData = new FormData();
+    formData.append('image', {
+      uri,
+      name: `profile.${fileExtension}`,
+      type: mimeType as string,
+    } as any);
+    formData.append('type', 'PROFILE');
 
-  try {
-    const res = await api.post('/api/images/upload', formData, {
-      headers: { 'Content-Type': 'multipart/form-data' },
-    });
-    setUploadedUrl(res.data.image.url);
-    // 画像アップロード後にAuthContextのupdateUserを呼ぶ
-    updateUser({ profileImage: res.data.image.url });
-    await api.put('/api/users/profile', { profileImage: res.data.image.url });
-    // 戻り先へreplace遷移
-    router.replace(returnTo);
-  } catch (e) {
-    alert('画像アップロードに失敗しました');
-  } finally {
-    setUploading(false);
-  }
-};
+    try {
+      const res = await api.post('/api/images/upload', formData, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+      });
+      setUploadedUrl(res.data.image.url);
+      updateUser({ profileImage: res.data.image.url });
+      await api.put('/api/users/profile', { profileImage: res.data.image.url });
+      router.replace(backPath);
+    } catch (e) {
+      alert('画像アップロードに失敗しました');
+    } finally {
+      setUploading(false);
+    }
+  };
 
   return (
     <SafeAreaView style={styles.container}>
@@ -117,4 +114,4 @@ const styles = StyleSheet.create({
   buttonText: { color: '#fff', fontSize: 18, fontWeight: 'bold' },
   backButton: { marginTop: 8 },
   backButtonText: { color: '#000', fontSize: 16 },
-}); 
+});
