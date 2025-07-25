@@ -18,9 +18,9 @@ router.post(
         });
       }
 
+      console.log('📥 req.file:', req.file);
+      console.log('🧾 req.body:', req.body);
       console.log('✅ Cloudinaryアップロード成功');
-      console.log('📂 受信ファイル情報:', req.file);
-      console.log('📝 リクエストbody:', req.body);
 
       const imageUrl = (req.file as any).path;
 
@@ -28,7 +28,7 @@ router.post(
         image: { url: imageUrl },
       });
     } catch (err: any) {
-      console.error('❌ アップロード後処理でエラー:', err?.message || err);
+      console.error('❌ Cloudinary upload failed:', err);
       return res.status(503).json({
         error: 'アップロード後の処理に失敗しました',
         message: err?.message || 'Unknown error',
