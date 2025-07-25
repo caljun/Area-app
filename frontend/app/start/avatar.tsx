@@ -44,7 +44,7 @@ export default function AvatarScreen() {
 
   const uploadToCloudinary = async (uri: string) => {
     if (!token) {
-      alert('認証トークンが見つかりません。ログインし直してください。');
+      Alert.alert('エラー', '認証トークンが見つかりません。ログインし直してください。');
       return;
     }
     
@@ -70,9 +70,16 @@ export default function AvatarScreen() {
       
       const res = await api.post('/images/upload', formData, { headers });
       setUploadedUrl(res.data.image.url);
-      updateUser({ profileImage: res.data.image.url });
-      await api.put('/users/profile', { profileImage: res.data.image.url });
-      router.replace(backPath);
+      
+      // 登録フローの場合はRegistrationContextに保存、プロフィール編集の場合はAuthContextを更新
+      if (backPath === '/profile') {
+        updateUser({ profileImage: res.data.image.url });
+        await api.put('/users/profile', { profileImage: res.data.image.url });
+        router.replace(backPath);
+      } else {
+        // 登録フローの場合は次の画面に進む
+        updateRegistrationData({ profileImage: res.data.image.url });
+      }
     } catch (e: any) {
       console.error('Upload failed:', e);
       console.error('Response data:', e?.response?.data);
@@ -93,7 +100,7 @@ export default function AvatarScreen() {
         errorMessage += '原因不明のエラー';
       }
       
-      alert(errorMessage);
+      Alert.alert('アップロードエラー', errorMessage);
     } finally {
       setUploading(false);
     }

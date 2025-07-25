@@ -296,13 +296,13 @@ router.post('/area-request', async (req: AuthRequest, res: Response) => {
   } catch (error) {
     if (error instanceof z.ZodError) {
       return res.status(400).json({
-        error: 'Validation error',
+        error: '入力内容に問題があります',
         details: error.errors
       });
     }
     
     console.error('Send area request error:', error);
-    return res.status(500).json({ error: 'Internal server error' });
+    return res.status(500).json({ error: 'エリアリクエストの送信に失敗しました' });
   }
 });
 

@@ -2,6 +2,7 @@ import { View, Text, TouchableOpacity, StyleSheet, Alert } from 'react-native';
 import { useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import * as Location from 'expo-location';
+import ProgressBar from '../../components/ProgressBar';
 
 export default function LocationScreen() {
   const router = useRouter();
@@ -17,6 +18,12 @@ export default function LocationScreen() {
 
   return (
     <SafeAreaView style={styles.container}>
+      <ProgressBar 
+        currentStep={6} 
+        totalSteps={6} 
+        stepNames={['ユーザー名', 'Now ID', 'メールアドレス', 'パスワード', 'プロフィール画像', '位置情報']}
+      />
+      
       <View style={styles.content}>
         <Text style={styles.title}>位置情報の許可</Text>
         <Text style={styles.subtitle}>友達と場所を共有するために位置情報の許可が必要です。</Text>

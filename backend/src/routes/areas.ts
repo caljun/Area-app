@@ -113,19 +113,19 @@ router.post('/', async (req: AuthRequest, res: Response) => {
     });
 
     return res.status(201).json({
-      message: 'Area created successfully',
+      message: 'エリアの作成が完了しました',
       area
     });
   } catch (error) {
     if (error instanceof z.ZodError) {
       return res.status(400).json({
-        error: 'Validation error',
+        error: '入力内容に問題があります',
         details: error.errors
       });
     }
     
     console.error('Create area error:', error);
-    return res.status(500).json({ error: 'Internal server error' });
+    return res.status(500).json({ error: 'エリアの作成に失敗しました' });
   }
 });
 
@@ -144,7 +144,7 @@ router.put('/:id', async (req: AuthRequest, res: Response) => {
     });
 
     if (!existingArea) {
-      return res.status(404).json({ error: 'Area not found' });
+      return res.status(404).json({ error: 'エリアが見つかりません' });
     }
 
     const area = await prisma.area.update({
@@ -153,19 +153,19 @@ router.put('/:id', async (req: AuthRequest, res: Response) => {
     });
 
     return res.json({
-      message: 'Area updated successfully',
+      message: 'エリアの更新が完了しました',
       area
     });
   } catch (error) {
     if (error instanceof z.ZodError) {
       return res.status(400).json({
-        error: 'Validation error',
+        error: '入力内容に問題があります',
         details: error.errors
       });
     }
     
     console.error('Update area error:', error);
-    return res.status(500).json({ error: 'Internal server error' });
+    return res.status(500).json({ error: 'エリアの更新に失敗しました' });
   }
 });
 

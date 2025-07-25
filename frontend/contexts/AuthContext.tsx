@@ -58,7 +58,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       } catch (error) {
         console.error('Token restoration failed:', error);
         // トークンが無効な場合は削除
-        await AsyncStorage.removeItem('authToken');
+        try {
+          await AsyncStorage.removeItem('authToken');
+        } catch (storageError) {
+          console.error('Failed to remove invalid token:', storageError);
+        }
         setToken(null);
         setUser(null);
       } finally {
@@ -121,9 +125,16 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   const logout = async () => {
-    setUser(null);
-    setToken(null);
-    await AsyncStorage.removeItem('authToken');
+    try {
+      setUser(null);
+      setToken(null);
+      await AsyncStorage.removeItem('authToken');
+    } catch (error) {
+      console.error('Logout error:', error);
+      // エラーが発生しても状態はクリアする
+      setUser(null);
+      setToken(null);
+    }
   };
 
   const updateUser = (userData: Partial<User>) => {
