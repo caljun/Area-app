@@ -56,7 +56,7 @@ export default function ProfileScreen() {
         });
 
         // エリア一覧取得
-        const areasResponse = await api.get('/api/areas');
+        const areasResponse = await api.get('/areas');
         const fetchedAreas = areasResponse.data.areas.map((area: any) => ({
           id: area.id,
           name: area.name,
@@ -68,7 +68,7 @@ export default function ProfileScreen() {
         setAreas(fetchedAreas);
 
         // 友達数取得
-        const friendsResponse = await api.get('/api/friends');
+        const friendsResponse = await api.get('/friends');
         setProfile(prev => ({
           ...prev,
           friendCount: friendsResponse.data.friends.length
@@ -108,7 +108,7 @@ export default function ProfileScreen() {
     setIsSaving(true);
     try {
       // ユーザー名更新APIを呼び出し
-      await api.put('/api/users/profile', { name: tempName.trim() });
+      await api.put('/users/profile', { name: tempName.trim() });
       setProfile({ ...profile, name: tempName.trim() });
       updateUser({ name: tempName.trim() });
       setIsEditingName(false);

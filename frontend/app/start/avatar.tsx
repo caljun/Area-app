@@ -45,10 +45,10 @@ export default function AvatarScreen() {
     formData.append('type', 'PROFILE');
 
     try {
-      const res = await api.post('/api/images/upload', formData);
+      const res = await api.post('/images/upload', formData);
       setUploadedUrl(res.data.image.url);
       updateUser({ profileImage: res.data.image.url });
-      await api.put('/api/users/profile', { profileImage: res.data.image.url });
+      await api.put('/users/profile', { profileImage: res.data.image.url });
       router.replace(backPath);
     } catch (e: any) {
       console.error('Upload failed:', e);

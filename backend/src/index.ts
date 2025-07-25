@@ -52,7 +52,8 @@ console.log('CLOUDINARY_API_KEY:', process.env.CLOUDINARY_API_KEY);
 console.log('CLOUDINARY_API_SECRET:', !!process.env.CLOUDINARY_API_SECRET);
 
 const app = express();
-app.set('trust proxy', true);
+// プロキシ設定をより安全に設定
+app.set('trust proxy', 1); // または特定のプロキシIPを指定
 const server = createServer(app);
 const io = new Server(server, {
   cors: {
