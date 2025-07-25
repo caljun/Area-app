@@ -128,6 +128,11 @@ server.listen(PORT, () => {
   console.log(`🚀 Server running on port ${PORT}`);
   console.log(`📱 CORS origin: ${process.env.CORS_ORIGIN || "http://localhost:8081"}`);
   console.log(`🌍 Environment: ${process.env.NODE_ENV || 'development'}`);
+  console.log(`☁️ Cloudinary config check:`, {
+    cloud_name: process.env.CLOUDINARY_CLOUD_NAME ? '✅' : '❌',
+    api_key: process.env.CLOUDINARY_API_KEY ? '✅' : '❌',
+    api_secret: process.env.CLOUDINARY_API_SECRET ? '✅' : '❌'
+  });
 });
 
 // Graceful shutdown
