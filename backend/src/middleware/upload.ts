@@ -2,6 +2,10 @@ import multer from 'multer';
 import { CloudinaryStorage } from 'multer-storage-cloudinary';
 import { v2 as cloudinary } from 'cloudinary';
 import { Request, Response, NextFunction } from 'express';
+import dotenv from 'dotenv';
+
+// Load environment variables
+dotenv.config();
 
 cloudinary.config({
   cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
