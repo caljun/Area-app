@@ -53,12 +53,12 @@ const fileFilter = (req: any, file: any, cb: any) => {
 };
 
 export const upload = multer({
-  storage,
+  storage: storage as any,
   fileFilter,
   limits: {
     fileSize: 5 * 1024 * 1024,
   },
-});
+}) as any;
 
 export const uploadSingle = upload.single('image');
 
