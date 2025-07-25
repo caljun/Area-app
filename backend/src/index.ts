@@ -87,7 +87,7 @@ app.use('/api/areas', authMiddleware, areaRoutes);
 app.use('/api/friends', authMiddleware, friendRoutes);
 app.use('/api/locations', authMiddleware, locationRoutes);
 app.use('/api/images', authMiddleware, imageRoutes); 
-app.use('/api/image-upload', authMiddleware, uploadRoutes); 
+app.use('/api/images/upload', authMiddleware, uploadRoutes); 
 
 // WebSocket connection handling
 io.on('connection', (socket) => {
