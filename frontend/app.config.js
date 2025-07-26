@@ -14,11 +14,14 @@ module.exports = {
     assetBundlePatterns: [
       "**/*"
     ],
-    ios: {
-      supportsTablet: true,
-      bundleIdentifier: "com.areaapp.app",
-      buildNumber: "22"
-    },
+              ios: {
+            supportsTablet: true,
+            bundleIdentifier: "com.areaapp.app",
+            buildNumber: "22",
+            infoPlist: {
+              ITSAppUsesNonExemptEncryption: false
+            }
+          },
     android: {
       adaptiveIcon: {
         foregroundImage: "./assets/images/icon.png",
