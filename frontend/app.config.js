@@ -1,7 +1,7 @@
 module.exports = {
   expo: {
-    name: "Area App",
-    slug: "area-app",
+    name: "Area",
+    slug: "area",
     version: "1.0.0",
     orientation: "portrait",
     icon: "./assets/images/icon.png",
