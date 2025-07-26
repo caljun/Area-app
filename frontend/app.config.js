@@ -17,7 +17,7 @@ module.exports = {
     ios: {
       supportsTablet: true,
       bundleIdentifier: "com.areaapp.app",
-      buildNumber: "2"
+      buildNumber: "22"
     },
     android: {
       adaptiveIcon: {
