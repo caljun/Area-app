@@ -1,7 +1,7 @@
-import { Router, Response } from 'express';
+import { Router, Response, Request } from 'express';
 import { z } from 'zod';
 import { prisma } from '../index';
-import { AuthRequest } from '../middleware/auth';
+import { AuthRequest, authMiddleware } from '../middleware/auth';
 import { uploadSingle, handleUploadError } from '../middleware/upload';
 import { v2 as cloudinary } from 'cloudinary';
 
@@ -21,8 +21,9 @@ const uploadImageSchema = z.object({
   type: z.enum(['PROFILE', 'AREA', 'GENERAL'])
 });
 
-// Upload image
+// Upload image (requires authentication)
 router.post('/upload', 
+  authMiddleware,
   (req: any, res: any, next: any) => {
     uploadSingle(req, res, next);
   },
@@ -78,8 +79,49 @@ router.post('/upload',
   }
 });
 
+// Upload image for registration (no authentication required)
+router.post('/upload-registration', 
+  (req: any, res: any, next: any) => {
+    uploadSingle(req, res, next);
+  },
+  handleUploadError, 
+  async (req: any, res: Response) => {
+  try {
+    const { type } = uploadImageSchema.parse(req.body);
+
+    if (!req.file) {
+      return res.status(400).json({ error: '画像ファイルが選択されていません' });
+    }
+
+    // Cloudinaryからアップロード結果を取得
+    const result = req.file as CloudinaryFile;
+
+    // 登録用の画像アップロードなので、データベースには保存しない
+    // ユーザー登録時にprofileImageとして使用される
+
+    return res.status(201).json({
+      message: '画像のアップロードが完了しました',
+      image: {
+        url: result.secure_url,
+        type: type,
+        createdAt: new Date()
+      }
+    });
+  } catch (error) {
+    if (error instanceof z.ZodError) {
+      return res.status(400).json({
+        error: '入力内容に問題があります',
+        details: error.errors
+      });
+    }
+    
+    console.error('Upload registration image error:', error);
+    return res.status(500).json({ error: '画像のアップロードに失敗しました' });
+  }
+});
+
 // Get user images
-router.get('/', async (req: AuthRequest, res: Response) => {
+router.get('/', authMiddleware, async (req: AuthRequest, res: Response) => {
   try {
     const { type } = req.query;
     
@@ -101,7 +143,7 @@ router.get('/', async (req: AuthRequest, res: Response) => {
 });
 
 // Delete image
-router.delete('/:id', async (req: AuthRequest, res: Response) => {
+router.delete('/:id', authMiddleware, async (req: AuthRequest, res: Response) => {
   try {
     const { id } = req.params;
 
@@ -145,7 +187,7 @@ router.delete('/:id', async (req: AuthRequest, res: Response) => {
 });
 
 // Get image by ID
-router.get('/:id', async (req: AuthRequest, res: Response) => {
+router.get('/:id', authMiddleware, async (req: AuthRequest, res: Response) => {
   try {
     const { id } = req.params;
 

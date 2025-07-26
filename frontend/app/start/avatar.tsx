@@ -43,11 +43,6 @@ export default function AvatarScreen() {
   };
 
   const uploadToCloudinary = async (uri: string) => {
-    if (!token) {
-      Alert.alert('エラー', '認証トークンが見つかりません。ログインし直してください。');
-      return;
-    }
-    
     setUploading(true);
 
     const mimeType = 'image/jpeg';
@@ -62,24 +57,34 @@ export default function AvatarScreen() {
     formData.append('type', 'PROFILE');
 
     try {
-      // 認証ヘッダーを明示的に設定
-      const headers = {
-        'Authorization': `Bearer ${token}`,
-        'Content-Type': 'multipart/form-data',
-      };
+      let res;
       
-      const res = await api.post('/images/upload', formData, { headers });
-      setUploadedUrl(res.data.image.url);
-      
-      // 登録フローの場合はRegistrationContextに保存、プロフィール編集の場合はAuthContextを更新
+      // 登録フローかプロフィール編集かを判定
       if (backPath === '/profile') {
+        // プロフィール編集の場合（認証が必要）
+        if (!token) {
+          Alert.alert('エラー', '認証トークンが見つかりません。ログインし直してください。');
+          return;
+        }
+        
+        const headers = {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'multipart/form-data',
+        };
+        
+        res = await api.post('/images/upload', formData, { headers });
         updateUser({ profileImage: res.data.image.url });
         await api.put('/users/profile', { profileImage: res.data.image.url });
         router.replace(backPath);
       } else {
-        // 登録フローの場合は次の画面に進む
+        // 新規登録の場合（認証不要）
+        res = await api.post('/images/upload-registration', formData, {
+          headers: { 'Content-Type': 'multipart/form-data' }
+        });
         updateRegistrationData({ profileImage: res.data.image.url });
       }
+      
+      setUploadedUrl(res.data.image.url);
     } catch (e: any) {
       console.error('Upload failed:', e);
       console.error('Response data:', e?.response?.data);

@@ -136,7 +136,7 @@ app.use('/api/users', authMiddleware, userRoutes);
 app.use('/api/areas', authMiddleware, areaRoutes);
 app.use('/api/friends', authMiddleware, friendRoutes);
 app.use('/api/locations', authMiddleware, locationRoutes);
-app.use('/api/images', authMiddleware, imageRoutes); 
+app.use('/api/images', imageRoutes); // 認証不要なエンドポイントがあるため、authMiddlewareを削除 
 // app.use('/api/images/upload', authMiddleware, uploadRoutes); 
 
 // WebSocket connection handling
