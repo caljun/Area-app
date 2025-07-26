@@ -6,6 +6,7 @@ import { useState, useEffect } from 'react';
 import api from '../api';
 import { useAuth } from '../../contexts/AuthContext';
 import { useRegistration } from '../../contexts/RegistrationContext';
+import { handleApiError } from '../../utils/apiHelpers';
 import ProgressBar from '../../components/ProgressBar';
 
 export default function AvatarScreen() {
@@ -86,26 +87,7 @@ export default function AvatarScreen() {
       
       setUploadedUrl(res.data.image.url);
     } catch (e: any) {
-      console.error('Upload failed:', e);
-      console.error('Response data:', e?.response?.data);
-      console.error('Response status:', e?.response?.status);
-      console.error('Network error:', e?.message);
-      
-      let errorMessage = '画像アップロードに失敗しました。\n';
-      
-      if (e?.response?.status === 401) {
-        errorMessage += '認証エラー\nログインし直してください。';
-      } else if (e?.response?.status === 0 || e?.message?.includes('Network Error')) {
-        errorMessage += 'Network Error\nサーバーに接続できません。\nインターネット接続を確認してください。';
-      } else if (e?.response?.data?.error) {
-        errorMessage += e.response.data.error;
-      } else if (e?.message) {
-        errorMessage += e.message;
-      } else {
-        errorMessage += '原因不明のエラー';
-      }
-      
-      Alert.alert('アップロードエラー', errorMessage);
+      handleApiError(e, null);
     } finally {
       setUploading(false);
     }

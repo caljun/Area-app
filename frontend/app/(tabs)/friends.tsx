@@ -4,6 +4,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import Mapbox from '@rnmapbox/maps';
 import { UserPlus, Check, X, Plus } from 'lucide-react-native';
 import { useAuth } from '../../contexts/AuthContext';
+import { handleApiError } from '../../utils/apiHelpers';
 import api from '../api';
 
 interface Friend {
@@ -61,7 +62,7 @@ export default function FriendsScreen() {
       setIsLoading(true);
       try {
         // 友達リスト取得
-        const friendsResponse = await api.get('/api/friends');
+        const friendsResponse = await api.get('/friends');
         const fetchedFriends = friendsResponse.data.friends.map((friend: any) => ({
           id: friend.friend.id,
           name: friend.friend.name,
@@ -71,7 +72,7 @@ export default function FriendsScreen() {
         setFriends(fetchedFriends);
 
         // 友達リクエスト取得
-        const requestsResponse = await api.get('/api/friends/requests');
+        const requestsResponse = await api.get('/friends/requests');
         const fetchedRequests = requestsResponse.data.requests.map((req: any) => ({
           id: req.id,
           name: req.sender.name,
@@ -80,7 +81,7 @@ export default function FriendsScreen() {
         setFriendRequests(fetchedRequests);
 
         // エリア招待リクエスト取得
-        const areaRequestsResponse = await api.get('/api/friends/area-requests');
+        const areaRequestsResponse = await api.get('/friends/area-requests');
         const fetchedAreaRequests = areaRequestsResponse.data.requests.map((req: any) => ({
           id: req.id,
           friendName: req.sender.name,
@@ -90,7 +91,7 @@ export default function FriendsScreen() {
         setAreaRequests(fetchedAreaRequests);
 
         // 自分のエリア取得
-        const areasResponse = await api.get('/api/areas');
+        const areasResponse = await api.get('/areas');
         const fetchedAreas = areasResponse.data.areas.map((area: any) => ({
           id: area.id,
           name: area.name,
@@ -100,11 +101,16 @@ export default function FriendsScreen() {
 
       } catch (error) {
         console.error('Failed to fetch friends data:', error);
-        // エラー時はモックデータを使用
-        setFriends(mockFriends);
-        setFriendRequests(mockFriendRequests);
-        setAreaRequests(mockAreaRequests);
-        setMyAreas(mockMyAreas);
+        // エラーハンドリングを改善
+        const fallbackFriends = handleApiError(error, mockFriends);
+        const fallbackRequests = handleApiError(error, mockFriendRequests);
+        const fallbackAreaRequests = handleApiError(error, mockAreaRequests);
+        const fallbackAreas = handleApiError(error, mockMyAreas);
+        
+        setFriends(fallbackFriends);
+        setFriendRequests(fallbackRequests);
+        setAreaRequests(fallbackAreaRequests);
+        setMyAreas(fallbackAreas);
       } finally {
         setIsLoading(false);
       }
@@ -119,11 +125,11 @@ export default function FriendsScreen() {
     setIsLoadingRequests(true);
     try {
       // ユーザー検索APIを呼び出してユーザーIDを取得
-      const searchResponse = await api.get(`/api/users/search/${nowId}`);
+      const searchResponse = await api.get(`/users/search/${nowId}`);
       const targetUserId = searchResponse.data.user.id;
       
       // 友達リクエスト送信
-      await api.post('/api/friends/request', { receiverId: targetUserId });
+      await api.post('/friends/request', { receiverId: targetUserId });
       Alert.alert('成功', '友達リクエストを送信しました');
       setNowId('');
     } catch (error: any) {
@@ -136,13 +142,13 @@ export default function FriendsScreen() {
   const handleFriendRequest = async (requestId: string, accept: boolean) => {
     setIsLoadingRequests(true);
     try {
-      await api.put(`/api/friends/request/${requestId}`, { 
+      await api.put(`/friends/request/${requestId}`, { 
         status: accept ? 'ACCEPTED' : 'REJECTED' 
       });
       setFriendRequests(prev => prev.filter(req => req.id !== requestId));
       if (accept) {
         // 友達リストを再取得
-        const friendsResponse = await api.get('/api/friends');
+        const friendsResponse = await api.get('/friends');
         const fetchedFriends = friendsResponse.data.friends.map((friend: any) => ({
           id: friend.friend.id,
           name: friend.friend.name,
@@ -161,7 +167,7 @@ export default function FriendsScreen() {
   const handleAreaRequest = async (requestId: string, accept: boolean) => {
     setIsLoadingRequests(true);
     try {
-      await api.put(`/api/friends/area-request/${requestId}`, { 
+      await api.put(`/friends/area-request/${requestId}`, { 
         status: accept ? 'ACCEPTED' : 'REJECTED' 
       });
       setAreaRequests(prev => prev.filter(req => req.id !== requestId));
@@ -174,7 +180,7 @@ export default function FriendsScreen() {
 
   const sendAreaRequest = async (friend: Friend, area: Area) => {
     try {
-      await api.post('/api/friends/area-request', {
+      await api.post('/friends/area-request', {
         receiverId: friend.id,
         areaId: area.id
       });
@@ -187,7 +193,7 @@ export default function FriendsScreen() {
 
   const addFriendToArea = async (friend: Friend, area: Area) => {
     try {
-      await api.post(`/api/areas/${area.id}/members`, {
+      await api.post(`/areas/${area.id}/members`, {
         userId: friend.id
       });
       Alert.alert('成功', `${friend.name}を${area.name}に追加しました`);
@@ -199,7 +205,7 @@ export default function FriendsScreen() {
 
   const removeFriendFromArea = async (friendId: string, areaId: string) => {
     try {
-      await api.delete(`/api/areas/${areaId}/members/${friendId}`);
+      await api.delete(`/areas/${areaId}/members/${friendId}`);
       Alert.alert('成功', '友達をエリアから削除しました');
     } catch (error: any) {
       Alert.alert('エラー', error.response?.data?.error || 'エリアからの削除に失敗しました');

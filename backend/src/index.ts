@@ -5,6 +5,7 @@ import dotenv from 'dotenv';
 import { createServer } from 'http';
 import { Server } from 'socket.io';
 import rateLimit from 'express-rate-limit';
+import jwt from 'jsonwebtoken';
 
 // Import routes
 import authRoutes from './routes/auth';
@@ -40,6 +41,11 @@ declare global {
       MAPBOX_ACCESS_TOKEN?: string;
     }
   }
+}
+
+// JWTの型定義
+interface JWTPayload {
+  userId: string;
 }
 
 // Load environment variables
@@ -143,18 +149,85 @@ app.use('/api/images', imageRoutes); // 認証不要なエンドポイントが�
 io.on('connection', (socket) => {
   console.log('User connected:', socket.id);
 
-  socket.on('join', (userId: any) => {
-    socket.join(`user_${userId}`);
-    console.log(`User ${userId} joined their room`);
+  // 認証処理
+  socket.on('authenticate', async (token: string) => {
+    try {
+      const decoded = jwt.verify(token, process.env.JWT_SECRET || 'fallback-secret') as JWTPayload;
+      const user = await prisma.user.findUnique({
+        where: { id: decoded.userId },
+        select: { id: true, name: true }
+      });
+      
+      if (user) {
+        socket.data.userId = user.id;
+        socket.data.userName = user.name;
+        socket.emit('authenticated', { userId: user.id });
+        console.log(`User ${user.name} (${user.id}) authenticated`);
+      } else {
+        socket.emit('auth_error', { message: 'Invalid user' });
+      }
+    } catch (error) {
+      socket.emit('auth_error', { message: 'Invalid token' });
+    }
   });
 
-  socket.on('updateLocation', (data: any) => {
-    // Broadcast location update to friends
-    socket.broadcast.to(`user_${data.userId}`).emit('locationUpdate', data);
+  socket.on('join', (userId: string) => {
+    if (socket.data.userId === userId) {
+      socket.join(`user_${userId}`);
+      console.log(`User ${userId} joined their room`);
+      
+      // オンライン状態を友達に通知
+      socket.broadcast.emit('friendStatusUpdate', {
+        userId: userId,
+        isOnline: true,
+        lastSeen: new Date()
+      });
+    }
+  });
+
+  socket.on('updateLocation', async (data: any) => {
+    if (socket.data.userId === data.userId) {
+      try {
+        // データベースに位置情報を保存
+        await prisma.location.create({
+          data: {
+            userId: data.userId,
+            latitude: data.latitude,
+            longitude: data.longitude
+          }
+        });
+
+        // 友達に位置情報をブロードキャスト
+        socket.broadcast.emit('locationUpdate', {
+          ...data,
+          timestamp: new Date()
+        });
+      } catch (error) {
+        console.error('Failed to save location:', error);
+      }
+    }
+  });
+
+  socket.on('updateStatus', (data: any) => {
+    if (socket.data.userId === data.userId) {
+      socket.broadcast.emit('friendStatusUpdate', {
+        userId: data.userId,
+        isOnline: data.isOnline,
+        lastSeen: data.lastSeen
+      });
+    }
   });
 
   socket.on('disconnect', () => {
-    console.log('User disconnected:', socket.id);
+    if (socket.data.userId) {
+      // オフライン状態を友達に通知
+      socket.broadcast.emit('friendStatusUpdate', {
+        userId: socket.data.userId,
+        isOnline: false,
+        lastSeen: new Date()
+      });
+      console.log(`User ${socket.data.userName} (${socket.data.userId}) disconnected`);
+    }
   });
 });
 

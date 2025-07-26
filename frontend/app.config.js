@@ -1,69 +1,60 @@
-try {
-  require('dotenv/config');
-} catch (error) {
-  // dotenv is not available in EAS build environment
-}
+import 'react-native-url-polyfill/auto';
 
 export default {
   expo: {
-    name: 'Area',
-    slug: 'area',
-    version: '1.0.0',
-    orientation: 'portrait',
-    scheme: 'area',
-    userInterfaceStyle: 'light',
-    icon: './assets/images/icon.png',
+    name: "Area App",
+    slug: "area-app",
+    version: "1.0.0",
+    orientation: "portrait",
+    icon: "./assets/icon.png",
+    userInterfaceStyle: "light",
     splash: {
-      image: './assets/splash.png',
-      resizeMode: 'contain',
-      backgroundColor: '#ffffff',
+      image: "./assets/splash.png",
+      resizeMode: "contain",
+      backgroundColor: "#ffffff"
     },
-    updates: {
-      fallbackToCacheTimeout: 0,
-    },
-    assetBundlePatterns: ['**/*'],
+    assetBundlePatterns: [
+      "**/*"
+    ],
     ios: {
       supportsTablet: true,
-      bundleIdentifier: "com.yourapp.areaapp",
-      buildNumber: "21",
-      infoPlist: {
-        ITSAppUsesNonExemptEncryption: false
-      }
+      bundleIdentifier: "com.areaapp.app"
     },
     android: {
-    package: "com.yourapp.areaapp",
       adaptiveIcon: {
-        foregroundImage: './assets/images/icon.png',
-        backgroundColor: '#FFFFFF',
+        foregroundImage: "./assets/adaptive-icon.png",
+        backgroundColor: "#FFFFFF"
       },
+      package: "com.areaapp.app",
+      permissions: [
+        "ACCESS_FINE_LOCATION",
+        "ACCESS_COARSE_LOCATION",
+        "CAMERA",
+        "READ_EXTERNAL_STORAGE",
+        "WRITE_EXTERNAL_STORAGE"
+      ]
     },
     web: {
-      favicon: './assets/images/favicon.png',
-    },
-    extra: {
-      apiUrl: process.env.EXPO_PUBLIC_API_URL || "https://area-app.onrender.com/api",
-      expoRouterRoot: process.env.EXPO_ROUTER_APP_ROOT ?? 'app',
-      eas: {
-        projectId: "b1b20e10-b45e-4f5f-a0c5-3e2bdab5b2c7"
-      }
+      favicon: "./assets/favicon.png"
     },
     plugins: [
       [
-        "expo-build-properties",
+        "expo-location",
         {
-          ios: {
-            useFrameworks: "static",
-            deploymentTarget: "14.0"
-          }
+          locationAlwaysAndWhenInUsePermission: "Allow $(PRODUCT_NAME) to use your location."
         }
       ],
       [
-        "@rnmapbox/maps",
+        "expo-camera",
         {
-          mapboxPublicKey: process.env.MAPBOX_ACCESS_TOKEN || "pk.eyJ1IjoiY2FsanVuIiwiYSI6ImNtZDlzaTZ0eDA5MWEybHNiYXB0N2J2bDcifQ._goEiKRsfnDMImATZniUtQ"
+          cameraPermission: "Allow $(PRODUCT_NAME) to access your camera."
         }
       ]
-    ]
-  },
+    ],
+    extra: {
+      apiUrl: process.env.EXPO_PUBLIC_API_URL || "http://localhost:3000",
+      wsUrl: process.env.EXPO_PUBLIC_WS_URL || "http://localhost:3000"
+    }
+  }
 };
 

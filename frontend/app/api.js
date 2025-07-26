@@ -2,7 +2,7 @@ import axios from 'axios';
 import Constants from 'expo-constants';
 
 const api = axios.create({
-  baseURL: Constants.expoConfig.extra.apiUrl,
+  baseURL: Constants.expoConfig.extra.apiUrl + '/api',
   timeout: 10000, // 10秒タイムアウト
   headers: {
     'Content-Type': 'application/json',

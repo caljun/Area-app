@@ -46,7 +46,7 @@ export default function AddAreaScreen() {
 
     setIsCreating(true);
     try {
-      const response = await api.post('/api/areas', {
+      const response = await api.post('/areas', {
         name: areaName.trim(),
         coordinates: points,
         isPublic: false // デフォルトは非公開

@@ -4,6 +4,8 @@ import Mapbox from '@rnmapbox/maps';
 import { ChevronDown, X } from 'lucide-react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useAuth } from '../../contexts/AuthContext';
+import { useLocationTracking } from '../../hooks/useLocationTracking';
+import { handleApiError } from '../../utils/apiHelpers';
 import api from '../api';
 
 interface Friend {
@@ -27,6 +29,7 @@ const mockAreas: Area[] = [];
 
 export default function HomeScreen() {
   const { user } = useAuth();
+  const { location, isTracking, error: locationError } = useLocationTracking();
   const [selectedArea, setSelectedArea] = useState<Area | null>(null);
   const [showAreaSelector, setShowAreaSelector] = useState(false);
   const [areaFriends, setAreaFriends] = useState<Friend[]>([]);
@@ -50,9 +53,10 @@ export default function HomeScreen() {
         }
       } catch (error) {
         console.error('Failed to fetch areas:', error);
-        // エラー時はモックデータを使用
-        setAreas(mockAreas);
-        setSelectedArea(mockAreas[0]);
+        // エラーハンドリングを改善
+        const fallbackAreas = handleApiError(error, mockAreas);
+        setAreas(fallbackAreas);
+        setSelectedArea(fallbackAreas[0] || null);
       } finally {
         setIsLoading(false);
       }
@@ -70,7 +74,7 @@ export default function HomeScreen() {
       
       setIsLoadingFriends(true);
       try {
-        const response = await api.get(`/api/locations/area/${selectedArea.id}/friends`);
+        const response = await api.get(`/locations/area/${selectedArea.id}/friends`);
         const friends = response.data.friends.map((friend: any) => ({
           id: friend.id,
           name: friend.name,
@@ -81,9 +85,9 @@ export default function HomeScreen() {
         setAreaFriends(friends);
       } catch (error) {
         console.error('Failed to fetch area friends:', error);
-        // エラー時はモックデータを使用
-        const friends = mockAreaFriends[selectedArea.id] || [];
-        setAreaFriends(friends);
+        // エラーハンドリングを改善
+        const fallbackFriends = handleApiError(error, mockAreaFriends[selectedArea.id] || []);
+        setAreaFriends(fallbackFriends);
       } finally {
         setIsLoadingFriends(false);
       }

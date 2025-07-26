@@ -3,6 +3,7 @@ import { View, Text, StyleSheet, TouchableOpacity, FlatList, TextInput, Modal, I
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { CreditCard as Edit2, MapPin, Users, Eye, X, Camera } from 'lucide-react-native';
 import { useAuth } from '../../contexts/AuthContext';
+import { handleApiError } from '../../utils/apiHelpers';
 import api from '../api';
 import { useRouter } from 'expo-router';
 
@@ -76,8 +77,9 @@ export default function ProfileScreen() {
 
       } catch (error) {
         console.error('Failed to fetch profile data:', error);
-        // エラー時はモックデータを使用
-        setAreas(mockAreas);
+        // エラーハンドリングを改善
+        const fallbackAreas = handleApiError(error, mockAreas);
+        setAreas(fallbackAreas);
       } finally {
         setIsLoading(false);
       }
