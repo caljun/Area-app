@@ -4,6 +4,10 @@ import { StatusBar } from 'expo-status-bar';
 import { useFrameworkReady } from '@/hooks/useFrameworkReady';
 import { AuthProvider, useAuth } from '../contexts/AuthContext';
 import { RegistrationProvider } from '../contexts/RegistrationContext';
+import * as SplashScreen from 'expo-splash-screen';
+
+// スプラッシュ画面を手動で制御
+SplashScreen.preventAutoHideAsync();
 
 function AuthGuard({ children }: { children: React.ReactNode }) {
   const { user, isLoading } = useAuth();
@@ -28,6 +32,16 @@ function AuthGuard({ children }: { children: React.ReactNode }) {
 
 export default function RootLayout() {
   useFrameworkReady();
+
+  useEffect(() => {
+    // スプラッシュ画面を2秒間表示
+    const hideSplash = async () => {
+      await new Promise(resolve => setTimeout(resolve, 2000)); // 2秒待機
+      await SplashScreen.hideAsync();
+    };
+    
+    hideSplash();
+  }, []);
 
   return (
     <AuthProvider>

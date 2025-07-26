@@ -4,7 +4,7 @@ module.exports = {
     slug: "area-app",
     version: "1.0.0",
     orientation: "portrait",
-    icon: "./assets/icon.png",
+    icon: "./assets/images/icon.png",
     userInterfaceStyle: "light",
     splash: {
       image: "./assets/splash.png",
@@ -21,7 +21,7 @@ module.exports = {
     },
     android: {
       adaptiveIcon: {
-        foregroundImage: "./assets/adaptive-icon.png",
+        foregroundImage: "./assets/images/icon.png",
         backgroundColor: "#FFFFFF"
       },
       package: "com.areaapp.app",
@@ -35,7 +35,7 @@ module.exports = {
       ]
     },
     web: {
-      favicon: "./assets/favicon.png"
+      favicon: "./assets/images/favicon.png"
     },
     plugins: [
       [
@@ -53,7 +53,10 @@ module.exports = {
     ],
     extra: {
       apiUrl: process.env.EXPO_PUBLIC_API_URL || "http://localhost:3000",
-      wsUrl: process.env.EXPO_PUBLIC_WS_URL || "http://localhost:3000"
+      wsUrl: process.env.EXPO_PUBLIC_WS_URL || "http://localhost:3000",
+      eas: {
+        projectId: "d1eaed32-8321-4c8a-b844-be599661a423"
+      }
     }
   }
 };
