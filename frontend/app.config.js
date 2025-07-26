@@ -1,6 +1,4 @@
-import 'react-native-url-polyfill/auto';
-
-export default {
+module.exports = {
   expo: {
     name: "Area App",
     slug: "area-app",
