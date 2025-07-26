@@ -16,7 +16,8 @@ module.exports = {
     ],
     ios: {
       supportsTablet: true,
-      bundleIdentifier: "com.areaapp.app"
+      bundleIdentifier: "com.areaapp.app",
+      buildNumber: "2"
     },
     android: {
       adaptiveIcon: {
@@ -24,6 +25,7 @@ module.exports = {
         backgroundColor: "#FFFFFF"
       },
       package: "com.areaapp.app",
+      versionCode: 2,
       permissions: [
         "ACCESS_FINE_LOCATION",
         "ACCESS_COARSE_LOCATION",
