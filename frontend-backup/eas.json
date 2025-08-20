@@ -1,0 +1,42 @@
+{
+  "cli": {
+    "version": ">= 5.9.1",
+    "appVersionSource": "local"
+  },
+  "build": {
+    "production": {
+      "developmentClient": false,
+      "distribution": "store",
+      "ios": {
+        "simulator": false,
+        "autoIncrement": false,
+        "buildConfiguration": "Release",
+        "resourceClass": "m-medium",
+        "image":"latest"
+      },
+      "env":{
+        "EXPO_PUBLIC_API_URL": "https://area-app.onrender.com/api",
+        "EXPO_ROUTER_APP_ROOT": "app",
+        "MAPBOX_ACCESS_TOKEN": "pk.eyJ1IjoiY2FsanVuIiwiYSI6ImNtZDlzaTZ0eDA5MWEybHNiYXB0N2J2bDcifQ._goEiKRsfnDMImATZniUtQ"
+      }
+    },
+    "preview": {
+      "developmentClient": false,
+      "distribution": "internal",
+      "ios": {
+        "simulator": false,
+        "autoIncrement": false,
+        "buildConfiguration": "Release"
+      }
+    }
+  },
+  "submit": {
+    "production": {
+      "ios": {
+        "appleId": "cjunya0602@icloud.com",
+        "ascAppId": "6748724177",
+        "appleTeamId": "8SXZ435352"
+      }
+    }
+  }
+}
