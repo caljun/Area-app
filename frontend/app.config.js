@@ -14,14 +14,16 @@ module.exports = {
     assetBundlePatterns: [
       "**/*"
     ],
-              ios: {
-            supportsTablet: true,
-            bundleIdentifier: "com.areaapp.app",
-            buildNumber: "22",
-            infoPlist: {
-              ITSAppUsesNonExemptEncryption: false
-            }
-          },
+    ios: {
+      supportsTablet: true,
+      bundleIdentifier: "com.areaapp.app",
+      buildNumber: "22",
+      infoPlist: {
+        ITSAppUsesNonExemptEncryption: false
+      },
+      // ローカルビルド用の設定
+      deploymentTarget: "15.1"
+    },
     android: {
       adaptiveIcon: {
         foregroundImage: "./assets/images/icon.png",
@@ -56,10 +58,7 @@ module.exports = {
     ],
     extra: {
       apiUrl: process.env.EXPO_PUBLIC_API_URL || "http://localhost:3000",
-      wsUrl: process.env.EXPO_PUBLIC_WS_URL || "http://localhost:3000",
-      eas: {
-        projectId: "d1eaed32-8321-4c8a-b844-be599661a423"
-      }
+      wsUrl: process.env.EXPO_PUBLIC_WS_URL || "http://localhost:3000"
     }
   }
 };

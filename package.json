@@ -17,5 +17,8 @@
     "social"
   ],
   "author": "",
-  "license": "MIT"
+  "license": "MIT",
+  "dependencies": {
+    "expo": "^53.0.20"
+  }
 }
