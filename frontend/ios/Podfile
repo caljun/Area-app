@@ -11,6 +11,8 @@ platform :ios, podfile_properties['ios.deploymentTarget'] || '15.1'
 install! 'cocoapods',
   :deterministic_uuids => false
 
+use_modular_headers!
+
 prepare_react_native_project!
 
 target 'Area' do
@@ -29,7 +31,16 @@ target 'Area' do
     ]
   end
 
-  config = use_native_modules!(config_command)
+  # Fix for String to Integer conversion error
+  begin
+    config = use_native_modules!(config_command)
+  rescue TypeError => e
+    if e.message.include?('String into Integer')
+      config = { reactNativePath: '../node_modules/react-native' }
+    else
+      raise e
+    end
+  end
 
   use_frameworks! :linkage => podfile_properties['ios.useFrameworks'].to_sym if podfile_properties['ios.useFrameworks']
   use_frameworks! :linkage => ENV['USE_FRAMEWORKS'].to_sym if ENV['USE_FRAMEWORKS']
@@ -39,7 +50,6 @@ target 'Area' do
     :hermes_enabled => podfile_properties['expo.jsEngine'] == nil || podfile_properties['expo.jsEngine'] == 'hermes',
     # An absolute path to your application root.
     :app_path => "#{Pod::Config.instance.installation_root}/..",
-    :privacy_file_aggregation_enabled => podfile_properties['apple.privacyManifestAggregationEnabled'] != 'false',
   )
 
   post_install do |installer|
@@ -47,7 +57,6 @@ target 'Area' do
       installer,
       config[:reactNativePath],
       :mac_catalyst_enabled => false,
-      :ccache_enabled => podfile_properties['apple.ccacheEnabled'] == 'true',
     )
 
     # This is necessary for Xcode 14, because it signs resource bundles by default

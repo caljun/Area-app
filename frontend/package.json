@@ -18,7 +18,7 @@
     "@react-navigation/native-stack": "^6.9.17",
     "@rnmapbox/maps": "^10.1.39",
     "axios": "^1.10.0",
-    "expo": "^53.0.20",
+    "expo": "^52.0.47",
     "expo-camera": "~16.1.11",
     "expo-location": "~18.1.6",
     "lucide-react-native": "^0.525.0",
