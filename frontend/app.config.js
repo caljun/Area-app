@@ -21,8 +21,8 @@ module.exports = {
       infoPlist: {
         ITSAppUsesNonExemptEncryption: false
       },
-      // ローカルビルド用の設定
-      deploymentTarget: "15.1"
+      // 安定版用の設定
+      deploymentTarget: "14.0"
     },
     android: {
       adaptiveIcon: {
