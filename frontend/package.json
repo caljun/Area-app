@@ -28,6 +28,7 @@
     "expo": "^52.0.47",
     "expo-camera": "~16.0.18",
     "expo-location": "~18.0.10",
+    "expo-router": "^5.1.4",
     "lucide-react-native": "^0.525.0",
     "metro": "^0.81.0",
     "metro-core": "^0.83.1",
