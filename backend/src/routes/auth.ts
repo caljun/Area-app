@@ -331,8 +331,48 @@ router.post('/apple', async (req: Request, res: Response) => {
 
     console.log('Apple ID認証リクエスト:', { userID, name, areaId });
 
-    // 注意: 実際の実装では、Apple IDのidentityTokenを検証する必要があります
-    // ここでは簡略化しています
+    // Apple IDのidentityTokenを検証
+    try {
+      // Appleの公開鍵を取得
+      const appleKeysResponse = await fetch('https://appleid.apple.com/auth/keys');
+      if (!appleKeysResponse.ok) {
+        throw new Error('Apple公開鍵の取得に失敗しました');
+      }
+      
+      const appleKeys = await appleKeysResponse.json() as { keys: Array<{ kid: string; n: string; e: string; alg: string }> };
+      
+      // identityTokenのヘッダーを解析してkid（Key ID）を取得
+      const tokenHeader = JSON.parse(Buffer.from(identityToken.split('.')[0], 'base64').toString());
+      const kid = tokenHeader.kid;
+      
+      // 対応する公開鍵を探す
+      const publicKey = appleKeys.keys.find((key) => key.kid === kid);
+      if (!publicKey) {
+        throw new Error('対応するApple公開鍵が見つかりません');
+      }
+      
+      // Apple公開鍵をJWT検証用の形式に変換
+      const jwkToPem = require('jwk-to-pem');
+      const pemPublicKey = jwkToPem(publicKey);
+      
+      // JWTを検証
+      const decoded = jwt.verify(identityToken, pemPublicKey, {
+        algorithms: ['RS256'],
+        audience: 'com.junya.area', // あなたのBundle ID
+        issuer: 'https://appleid.apple.com'
+      }) as any;
+      
+      console.log('Apple IDトークン検証成功:', { sub: decoded.sub, aud: decoded.aud });
+      
+      // userIDが一致するかチェック
+      if (decoded.sub !== userID) {
+        return res.status(401).json({ error: 'Apple IDトークンが無効です' });
+      }
+      
+    } catch (jwtError) {
+      console.error('Apple IDトークン検証エラー:', jwtError);
+      return res.status(401).json({ error: 'Apple IDトークンの検証に失敗しました' });
+    }
 
     // areaIdが提供されていない場合、userIDをareaIdとして使用
     const finalAreaId = areaId || userID;
@@ -385,7 +425,7 @@ router.post('/apple', async (req: Request, res: Response) => {
           email: `apple_${userID}@temp.com`, // Apple IDユーザー用の一時メール
           areaId: finalAreaId,
           name,
-          password: '', // Apple IDユーザーはパスワードなし
+          password: null, // Apple IDユーザーはパスワードなし
           profileImage: null
         },
         select: {
