@@ -56,7 +56,7 @@ router.get('/requests', async (req: AuthRequest, res: Response) => {
           select: {
             id: true,
             name: true,
-            nowId: true
+            areaId: true
           }
         }
       },
@@ -114,7 +114,7 @@ router.post('/request', async (req: AuthRequest, res: Response) => {
           select: {
             id: true,
             name: true,
-            nowId: true
+            areaId: true
           }
         }
       }
@@ -221,7 +221,7 @@ router.get('/area-requests', async (req: AuthRequest, res: Response) => {
           select: {
             id: true,
             name: true,
-            nowId: true
+            areaId: true
           }
         },
         area: {

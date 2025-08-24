@@ -89,7 +89,6 @@ router.get('/friends', async (req: AuthRequest, res: Response) => {
           select: {
             id: true,
             name: true,
-            nowId: true,
             profileImage: true
           }
         }
