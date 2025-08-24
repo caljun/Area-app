@@ -16,7 +16,7 @@ const router = Router();
 // Validation schemas
 const registerSchema = z.object({
   email: z.string().email('メールアドレスの形式が正しくありません'),
-  nowId: z.string().min(3, 'Now IDは3文字以上で入力してください'),
+  areaId: z.string().min(3, 'Area IDは3文字以上で入力してください'),
   name: z.string().min(1, 'ユーザー名は必須です'),
   password: z.string().min(6, 'パスワードは6文字以上で入力してください'),
   profileImage: z.string().url('プロフィール画像のURLが正しくありません').optional()
@@ -29,25 +29,25 @@ const step1Schema = z.object({
 
 const step2Schema = z.object({
   email: z.string().email('メールアドレスの形式が正しくありません'),
-  nowId: z.string().min(3, 'Now IDは3文字以上で入力してください')
+  areaId: z.string().min(3, 'Area IDは3文字以上で入力してください')
 });
 
 const step3Schema = z.object({
   email: z.string().email('メールアドレスの形式が正しくありません'),
-  nowId: z.string().min(3, 'Now IDは3文字以上で入力してください'),
+  areaId: z.string().min(3, 'Area IDは3文字以上で入力してください'),
   name: z.string().min(1, 'ユーザー名は必須です')
 });
 
 const step4Schema = z.object({
   email: z.string().email('メールアドレスの形式が正しくありません'),
-  nowId: z.string().min(3, 'Now IDは3文字以上で入力してください'),
+  areaId: z.string().min(3, 'Area IDは3文字以上で入力してください'),
   name: z.string().min(1, 'ユーザー名は必須です'),
   password: z.string().min(6, 'パスワードは6文字以上で入力してください')
 });
 
 const step5Schema = z.object({
   email: z.string().email('メールアドレスの形式が正しくありません'),
-  nowId: z.string().min(3, 'Now IDは3文字以上で入力してください'),
+  areaId: z.string().min(3, 'Area IDは3文字以上で入力してください'),
   name: z.string().min(1, 'ユーザー名は必須です'),
   password: z.string().min(6, 'パスワードは6文字以上で入力してください'),
   profileImage: z.string().url('プロフィール画像のURLが正しくありません').optional()
@@ -63,7 +63,7 @@ const appleAuthSchema = z.object({
   identityToken: z.string().min(1, 'Apple IDトークンは必須です'),
   email: z.string().email('メールアドレスの形式が正しくありません').optional(),
   name: z.string().min(1, 'ユーザー名は必須です'),
-  nowId: z.string().min(3, 'Now IDは3文字以上で入力してください').optional()
+  areaId: z.string().min(3, 'Area IDは3文字以上で入力してください').optional()
 });
 
 // Step 1: メールアドレス確認
@@ -104,11 +104,11 @@ router.post('/register/step1', async (req: Request, res: Response) => {
 // Step 2: Now ID確認
 router.post('/register/step2', async (req: Request, res: Response) => {
   try {
-    const { email, nowId } = step2Schema.parse(req.body);
+    const { email, areaId } = step2Schema.parse(req.body);
 
     // Now IDの重複チェック
     const existingUser = await prisma.user.findUnique({
-      where: { nowId }
+      where: { areaId }
     });
 
     if (existingUser) {
@@ -120,7 +120,7 @@ router.post('/register/step2', async (req: Request, res: Response) => {
     return res.status(200).json({
       message: 'Now IDが確認されました',
       email,
-      nowId,
+      areaId,
       nextStep: 'step3'
     });
   } catch (error) {
@@ -139,12 +139,12 @@ router.post('/register/step2', async (req: Request, res: Response) => {
 // Step 3: ユーザー名確認
 router.post('/register/step3', async (req: Request, res: Response) => {
   try {
-    const { email, nowId, name } = step3Schema.parse(req.body);
+    const { email, areaId, name } = step3Schema.parse(req.body);
 
     return res.status(200).json({
       message: 'ユーザー名が確認されました',
       email,
-      nowId,
+      areaId,
       name,
       nextStep: 'step4'
     });
@@ -164,12 +164,12 @@ router.post('/register/step3', async (req: Request, res: Response) => {
 // Step 4: パスワード確認
 router.post('/register/step4', async (req: Request, res: Response) => {
   try {
-    const { email, nowId, name, password } = step4Schema.parse(req.body);
+    const { email, areaId, name, password } = step4Schema.parse(req.body);
 
     return res.status(200).json({
       message: 'パスワードが確認されました',
       email,
-      nowId,
+      areaId,
       name,
       nextStep: 'step5'
     });
@@ -189,14 +189,14 @@ router.post('/register/step4', async (req: Request, res: Response) => {
 // Step 5: プロフィール画像設定とユーザー作成
 router.post('/register/step5', async (req: Request, res: Response) => {
   try {
-    const { email, nowId, name, password, profileImage } = step5Schema.parse(req.body);
+    const { email, areaId, name, password, profileImage } = step5Schema.parse(req.body);
 
     // 最終的な重複チェック
     const existingUser = await prisma.user.findFirst({
       where: {
         OR: [
           { email },
-          { nowId }
+          { areaId }
         ]
       }
     });
@@ -214,7 +214,7 @@ router.post('/register/step5', async (req: Request, res: Response) => {
     const user = await prisma.user.create({
       data: {
         email,
-        nowId,
+        areaId,
         name,
         password: hashedPassword,
         profileImage: profileImage || null
@@ -222,7 +222,7 @@ router.post('/register/step5', async (req: Request, res: Response) => {
       select: {
         id: true,
         email: true,
-        nowId: true,
+        areaId: true,
         name: true,
         profileImage: true,
         createdAt: true
@@ -258,21 +258,21 @@ router.post('/register/step5', async (req: Request, res: Response) => {
 // 従来の登録エンドポイント（後方互換性のため）
 router.post('/register', async (req: Request, res: Response) => {
   try {
-    const { email, nowId, name, password, profileImage } = registerSchema.parse(req.body);
+    const { email, areaId, name, password, profileImage } = registerSchema.parse(req.body);
 
     // Check if user already exists
     const existingUser = await prisma.user.findFirst({
       where: {
         OR: [
           { email },
-          { nowId }
+          { areaId }
         ]
       }
     });
 
     if (existingUser) {
       return res.status(400).json({
-        error: existingUser.email === email ? 'このメールアドレスは既に登録されています' : 'このNow IDは既に使用されています'
+        error: existingUser.email === email ? 'このメールアドレスは既に登録されています' : 'このArea IDは既に使用されています'
       });
     }
 
@@ -283,7 +283,7 @@ router.post('/register', async (req: Request, res: Response) => {
     const user = await prisma.user.create({
       data: {
         email,
-        nowId,
+        areaId,
         name,
         password: hashedPassword,
         profileImage: profileImage || null
@@ -291,7 +291,7 @@ router.post('/register', async (req: Request, res: Response) => {
       select: {
         id: true,
         email: true,
-        nowId: true,
+        areaId: true,
         name: true,
         profileImage: true,
         createdAt: true
@@ -326,7 +326,7 @@ router.post('/register', async (req: Request, res: Response) => {
 // Apple ID認証
 router.post('/apple', async (req: Request, res: Response) => {
   try {
-    const { identityToken, email, name, nowId } = appleAuthSchema.parse(req.body);
+    const { identityToken, email, name, areaId } = appleAuthSchema.parse(req.body);
 
     // 注意: 実際の実装では、Apple IDのidentityTokenを検証する必要があります
     // ここでは簡略化しています
@@ -352,7 +352,7 @@ router.post('/apple', async (req: Request, res: Response) => {
         user: {
           id: user.id,
           email: user.email,
-          nowId: user.nowId,
+          areaId: user.areaId,
           name: user.name,
           profileImage: user.profileImage
         },
@@ -361,18 +361,18 @@ router.post('/apple', async (req: Request, res: Response) => {
       });
     } else {
       // 新規ユーザーの場合、Now IDが必要
-      if (!nowId) {
+      if (!areaId) {
         return res.status(400).json({
           error: '新規ユーザーの場合、Now IDが必要です'
         });
       }
 
       // Now IDの重複チェック
-      const existingNowId = await prisma.user.findUnique({
-        where: { nowId }
+      const existingAreaId = await prisma.user.findUnique({
+        where: { areaId }
       });
 
-      if (existingNowId) {
+      if (existingAreaId) {
         return res.status(400).json({
           error: 'このNow IDは既に使用されています'
         });
@@ -382,7 +382,7 @@ router.post('/apple', async (req: Request, res: Response) => {
       const newUser = await prisma.user.create({
         data: {
           email: email || `apple_${Date.now()}@temp.com`, // 一時的なメールアドレス
-          nowId,
+          areaId,
           name,
           password: '', // Apple IDユーザーはパスワードなし
           profileImage: null
@@ -390,7 +390,7 @@ router.post('/apple', async (req: Request, res: Response) => {
         select: {
           id: true,
           email: true,
-          nowId: true,
+          areaId: true,
           name: true,
           profileImage: true,
           createdAt: true
@@ -456,7 +456,7 @@ router.post('/login', async (req: Request, res: Response) => {
       user: {
         id: user.id,
         email: user.email,
-        nowId: user.nowId,
+        areaId: user.areaId,
         name: user.name,
         profileImage: user.profileImage
       },
@@ -484,7 +484,7 @@ router.get('/me', authMiddleware, async (req: AuthRequest, res: Response) => {
       select: {
         id: true,
         email: true,
-        nowId: true,
+        areaId: true,
         name: true,
         profileImage: true,
         createdAt: true
