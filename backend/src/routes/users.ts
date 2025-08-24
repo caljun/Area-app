@@ -12,10 +12,10 @@ router.get('/profile', async (req: AuthRequest, res: Response) => {
       select: {
         id: true,
         email: true,
-        nowId: true,
+        areaId: true,
         name: true,
         createdAt: true,
-        profileImage: true // ← 追加
+        profileImage: true
       }
     });
 
@@ -41,7 +41,7 @@ router.put('/profile', async (req: AuthRequest, res: Response) => {
       select: {
         id: true,
         email: true,
-        nowId: true,
+        areaId: true,
         name: true,
         profileImage: true,
         createdAt: true
@@ -55,17 +55,17 @@ router.put('/profile', async (req: AuthRequest, res: Response) => {
   }
 });
 
-// Search users by Now ID
-router.get('/search/:nowId', async (req: AuthRequest, res: Response) => {
+// Search users by Area ID
+router.get('/search/:areaId', async (req: AuthRequest, res: Response) => {
   try {
-    const { nowId } = req.params;
+    const { areaId } = req.params;
 
     const user = await prisma.user.findUnique({
-      where: { nowId },
+      where: { areaId },
       select: {
         id: true,
         name: true,
-        nowId: true
+        areaId: true
       }
     });
 
