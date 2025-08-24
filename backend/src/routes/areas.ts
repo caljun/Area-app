@@ -49,7 +49,7 @@ router.get('/public', async (req: Request, res: Response) => {
           select: {
             id: true,
             name: true,
-            nowId: true
+            areaId: true
           }
         }
       },
@@ -81,7 +81,7 @@ router.get('/:id', async (req: AuthRequest, res: Response) => {
           select: {
             id: true,
             name: true,
-            nowId: true
+            areaId: true
           }
         }
       }
@@ -224,7 +224,7 @@ router.get('/:id/members', async (req: AuthRequest, res: Response) => {
           select: {
             id: true,
             name: true,
-            nowId: true,
+            areaId: true,
             profileImage: true
           }
         }
@@ -298,7 +298,7 @@ router.post('/:id/members', async (req: AuthRequest, res: Response) => {
           select: {
             id: true,
             name: true,
-            nowId: true,
+            areaId: true,
             profileImage: true
           }
         }
@@ -367,7 +367,7 @@ router.get('/memberships', async (req: AuthRequest, res: Response) => {
               select: {
                 id: true,
                 name: true,
-                nowId: true
+                areaId: true
               }
             }
           }

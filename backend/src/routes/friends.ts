@@ -30,7 +30,7 @@ router.get('/', async (req: AuthRequest, res: Response) => {
           select: {
             id: true,
             name: true,
-            nowId: true
+            areaId: true
           }
         }
       }
@@ -131,7 +131,7 @@ router.post('/request', async (req: AuthRequest, res: Response) => {
             requestId: request.id,
             senderId: req.user!.id,
             senderName: req.user!.name,
-            senderNowId: req.user!.nowId
+            senderAreaId: req.user!.areaId
           },
           recipientId: receiverId,
           senderId: req.user!.id
@@ -298,7 +298,7 @@ router.post('/area-request', async (req: AuthRequest, res: Response) => {
           select: {
             id: true,
             name: true,
-            nowId: true
+            areaId: true
           }
         },
         area: {
@@ -324,7 +324,7 @@ router.post('/area-request', async (req: AuthRequest, res: Response) => {
             areaName: area.name,
             senderId: req.user!.id,
             senderName: req.user!.name,
-            senderNowId: req.user!.nowId
+            senderAreaId: req.user!.areaId
           },
           recipientId: receiverId,
           senderId: req.user!.id
