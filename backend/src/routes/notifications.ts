@@ -47,7 +47,6 @@ router.post('/', async (req: AuthRequest, res: Response) => {
           select: {
             id: true,
             name: true,
-            nowId: true,
             profileImage: true
           }
         }
@@ -95,7 +94,6 @@ router.get('/', async (req: AuthRequest, res: Response) => {
           select: {
             id: true,
             name: true,
-            nowId: true,
             profileImage: true
           }
         }
@@ -149,7 +147,6 @@ router.get('/:id', async (req: AuthRequest, res: Response) => {
           select: {
             id: true,
             name: true,
-            nowId: true,
             profileImage: true
           }
         }
@@ -192,7 +189,6 @@ router.put('/:id/read', async (req: AuthRequest, res: Response) => {
           select: {
             id: true,
             name: true,
-            nowId: true,
             profileImage: true
           }
         }
@@ -235,7 +231,6 @@ router.put('/:id', async (req: AuthRequest, res: Response) => {
           select: {
             id: true,
             name: true,
-            nowId: true,
             profileImage: true
           }
         }
