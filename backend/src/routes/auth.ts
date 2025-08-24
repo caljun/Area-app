@@ -384,6 +384,14 @@ router.post('/apple', async (req: Request, res: Response) => {
           { email: `apple_${userID}@temp.com` }, // Apple IDユーザー用の一時メール
           { areaId: finalAreaId } // 指定されたArea IDまたはUser ID
         ]
+      },
+      select: {
+        id: true,
+        email: true,
+        areaId: true,
+        name: true,
+        profileImage: true,
+        createdAt: true
       }
     });
 
@@ -402,7 +410,8 @@ router.post('/apple', async (req: Request, res: Response) => {
           email: user.email,
           areaId: user.areaId,
           name: user.name,
-          profileImage: user.profileImage
+          profileImage: user.profileImage,
+          createdAt: user.createdAt
         },
         token,
         isNewUser: false
@@ -446,7 +455,14 @@ router.post('/apple', async (req: Request, res: Response) => {
 
       return res.status(201).json({
         message: 'Apple IDでユーザー登録が完了しました',
-        user: newUser,
+        user: {
+          id: newUser.id,
+          email: newUser.email,
+          areaId: newUser.areaId,
+          name: newUser.name,
+          profileImage: newUser.profileImage,
+          createdAt: newUser.createdAt
+        },
         token,
         isNewUser: true
       });
@@ -493,17 +509,17 @@ router.post('/login', async (req: Request, res: Response) => {
       { expiresIn: process.env.JWT_EXPIRES_IN || '7d' } as any
     );
 
-    return res.json({
-      message: 'ログインに成功しました',
-      user: {
-        id: user.id,
-        email: user.email,
-        areaId: user.areaId,
-        name: user.name,
-        profileImage: user.profileImage
-      },
-      token
-    });
+      return res.json({
+        message: 'ログインに成功しました',
+        user: {
+          id: user.id,
+          email: user.email,
+          areaId: user.areaId,
+          name: user.name,
+          profileImage: user.profileImage
+        },
+        token
+      });
   } catch (error) {
     if (error instanceof z.ZodError) {
       return res.status(400).json({
@@ -533,7 +549,16 @@ router.get('/me', authMiddleware, async (req: AuthRequest, res: Response) => {
       }
     });
     
-    return res.json({ user });
+    return res.json({
+      user: {
+        id: user.id,
+        email: user.email,
+        areaId: user.areaId,
+        name: user.name,
+        profileImage: user.profileImage,
+        createdAt: user.createdAt
+      }
+    });
   } catch (error) {
     console.error('Get current user error:', error);
     return res.status(500).json({ error: 'ユーザー情報の取得に失敗しました' });
