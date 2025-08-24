@@ -60,9 +60,10 @@ const loginSchema = z.object({
 
 // Apple ID認証用のスキーマ
 const appleAuthSchema = z.object({
-  identityToken: z.string().min(1, 'Apple IDトークンは必須です'),
-  email: z.string().email('メールアドレスの形式が正しくありません').optional(),
+  userID: z.string().min(1, 'Apple User IDは必須です'),
   name: z.string().min(1, 'ユーザー名は必須です'),
+  token: z.string().optional(), // フロントエンドから送信されるが使用しない
+  identityToken: z.string().min(1, 'Apple IDトークンは必須です'),
   areaId: z.string().min(3, 'Area IDは3文字以上で入力してください').optional()
 });
 
@@ -326,18 +327,25 @@ router.post('/register', async (req: Request, res: Response) => {
 // Apple ID認証
 router.post('/apple', async (req: Request, res: Response) => {
   try {
-    const { identityToken, email, name, areaId } = appleAuthSchema.parse(req.body);
+    const { userID, name, identityToken, areaId } = appleAuthSchema.parse(req.body);
+
+    console.log('Apple ID認証リクエスト:', { userID, name, areaId });
 
     // 注意: 実際の実装では、Apple IDのidentityTokenを検証する必要があります
     // ここでは簡略化しています
 
-    // メールアドレスが提供されている場合、既存ユーザーを検索
-    let user;
-    if (email) {
-      user = await prisma.user.findUnique({
-        where: { email }
-      });
-    }
+    // areaIdが提供されていない場合、userIDをareaIdとして使用
+    const finalAreaId = areaId || userID;
+
+    // Apple User IDまたはArea IDで既存ユーザーを検索
+    let user = await prisma.user.findFirst({
+      where: {
+        OR: [
+          { email: `apple_${userID}@temp.com` }, // Apple IDユーザー用の一時メール
+          { areaId: finalAreaId } // 指定されたArea IDまたはUser ID
+        ]
+      }
+    });
 
     if (user) {
       // 既存ユーザーの場合、ログイン
@@ -360,29 +368,22 @@ router.post('/apple', async (req: Request, res: Response) => {
         isNewUser: false
       });
     } else {
-      // 新規ユーザーの場合、Now IDが必要
-      if (!areaId) {
-        return res.status(400).json({
-          error: '新規ユーザーの場合、Now IDが必要です'
-        });
-      }
-
-      // Now IDの重複チェック
+      // 新規ユーザーの場合、Area IDの重複チェック
       const existingAreaId = await prisma.user.findUnique({
-        where: { areaId }
+        where: { areaId: finalAreaId }
       });
 
       if (existingAreaId) {
         return res.status(400).json({
-          error: 'このNow IDは既に使用されています'
+          error: 'このArea IDは既に使用されています'
         });
       }
 
       // 新規ユーザー作成（パスワードなし）
       const newUser = await prisma.user.create({
         data: {
-          email: email || `apple_${Date.now()}@temp.com`, // 一時的なメールアドレス
-          areaId,
+          email: `apple_${userID}@temp.com`, // Apple IDユーザー用の一時メール
+          areaId: finalAreaId,
           name,
           password: '', // Apple IDユーザーはパスワードなし
           profileImage: null
@@ -412,13 +413,14 @@ router.post('/apple', async (req: Request, res: Response) => {
     }
   } catch (error) {
     if (error instanceof z.ZodError) {
+      console.error('Apple ID認証バリデーションエラー:', error.errors);
       return res.status(400).json({
         error: '入力内容に問題があります',
         details: error.errors
       });
     }
     
-    console.error('Apple ID auth error:', error);
+    console.error('Apple ID認証エラー:', error);
     return res.status(500).json({ error: 'Apple ID認証に失敗しました' });
   }
 });
