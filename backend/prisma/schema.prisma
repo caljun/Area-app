@@ -32,6 +32,9 @@ model User {
   images        Image[]
   areaMembers   AreaMember[] @relation("AreaMembers")
   addedAreaMembers AreaMember[] @relation("AreaMemberAddedBy")
+  notifications Notification[] @relation("NotificationRecipient")
+  sentNotifications Notification[] @relation("NotificationSender")
+  notificationSettings NotificationSettings[]
 
   @@map("users")
 }
@@ -144,6 +147,45 @@ model AreaMember {
   @@map("area_members")
 }
 
+// 通知システム用のモデル
+model Notification {
+  id        String   @id @default(auto()) @map("_id") @db.ObjectId
+  type      NotificationType
+  title     String
+  message   String
+  data      Json     // 追加データ（例：エリアID、友達IDなど）
+  isRead    Boolean  @default(false)
+  isDeleted Boolean  @default(false)
+  recipientId String @db.ObjectId
+  senderId  String? @db.ObjectId
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  recipient User @relation("NotificationRecipient", fields: [recipientId], references: [id], onDelete: Cascade)
+  sender    User? @relation("NotificationSender", fields: [senderId], references: [id], onDelete: SetNull)
+
+  @@map("notifications")
+}
+
+model NotificationSettings {
+  id                    String @id @default(auto()) @map("_id") @db.ObjectId
+  userId                String @db.ObjectId @unique
+  friendRequests        Boolean @default(true)
+  areaInvites           Boolean @default(true)
+  locationUpdates       Boolean @default(true)
+  generalNotifications  Boolean @default(true)
+  pushEnabled           Boolean @default(true)
+  emailEnabled          Boolean @default(false)
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+
+  // Relations
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("notification_settings")
+}
+
 enum RequestStatus {
   PENDING
   ACCEPTED
@@ -153,5 +195,12 @@ enum RequestStatus {
 enum ImageType {
   PROFILE
   AREA
+  GENERAL
+}
+
+enum NotificationType {
+  FRIEND_REQUEST
+  AREA_INVITE
+  LOCATION_UPDATE
   GENERAL
 } 

@@ -1,15 +1,33 @@
 # Area App Backend
 
-Area AppのバックエンドAPIサーバーです。
+Area AppのバックエンドAPIサーバーです。iOSアプリケーションとの完全な互換性を提供します。
+
+## 🚀 **新機能（iOSアプリ対応）**
+
+### **認証システムの拡張**
+- ✅ **5ステップ登録フロー** - 段階的なユーザー登録
+- ✅ **Apple ID認証** - Apple Sign In対応
+- ✅ **JWT認証** - セキュアなトークンベース認証
+
+### **通知システム**
+- ✅ **リアルタイム通知** - 友達申請、エリア招待、位置情報更新
+- ✅ **通知設定** - ユーザーごとの通知カスタマイズ
+- ✅ **プッシュ通知対応** - iOSアプリ用の通知管理
+
+### **位置情報共有**
+- ✅ **リアルタイム位置更新** - Socket.ioによる即座の位置共有
+- ✅ **友達位置表示** - 友達の現在位置を地図上に表示
+- ✅ **位置履歴** - 過去の位置情報の管理
 
 ## 機能
 
-- ユーザー認証（JWT）
+- ユーザー認証（JWT + Apple ID）
 - エリア管理（作成、更新、削除、共有）
 - フレンド機能（追加、リクエスト管理）
-- 位置情報管理
+- 位置情報管理（リアルタイム共有）
 - 画像アップロード（Cloudinary）
 - リアルタイム通信（Socket.io）
+- 通知システム（友達申請、エリア招待、位置更新）
 
 ## 技術スタック
 
@@ -76,7 +94,13 @@ npm run dev
 
 ### 認証
 
-- `POST /api/auth/register` - ユーザー登録
+- `POST /api/auth/register` - 従来のユーザー登録
+- `POST /api/auth/register/step1` - ステップ1: メールアドレス確認
+- `POST /api/auth/register/step2` - ステップ2: Now ID確認
+- `POST /api/auth/register/step3` - ステップ3: ユーザー名確認
+- `POST /api/auth/register/step4` - ステップ4: パスワード確認
+- `POST /api/auth/register/step5` - ステップ5: プロフィール画像設定
+- `POST /api/auth/apple` - Apple ID認証
 - `POST /api/auth/login` - ログイン
 - `GET /api/auth/me` - 現在のユーザー情報
 
@@ -93,6 +117,10 @@ npm run dev
 - `POST /api/areas` - エリア作成
 - `PUT /api/areas/:id` - エリア更新
 - `DELETE /api/areas/:id` - エリア削除
+- `GET /api/areas/:id/members` - エリアメンバー一覧
+- `POST /api/areas/:id/members` - メンバー追加
+- `DELETE /api/areas/:id/members/:userId` - メンバー削除
+- `GET /api/areas/memberships` - 参加エリア一覧
 
 ### フレンド
 
@@ -110,6 +138,18 @@ npm run dev
 - `GET /api/locations/friends` - フレンドの位置情報
 - `GET /api/locations/history` - 位置情報履歴
 
+### 通知
+
+- `POST /api/notifications` - 通知作成
+- `GET /api/notifications` - 通知一覧取得
+- `GET /api/notifications/:id` - 通知詳細
+- `PUT /api/notifications/:id/read` - 通知を既読にする
+- `PUT /api/notifications/:id` - 通知更新
+- `DELETE /api/notifications/:id` - 通知削除
+- `PUT /api/notifications/read-all` - 全通知を既読にする
+- `GET /api/notifications/settings` - 通知設定取得
+- `PUT /api/notifications/settings` - 通知設定更新
+
 ### 画像
 
 - `POST /api/images/upload` - 画像アップロード
@@ -120,6 +160,38 @@ npm run dev
 ## データベーススキーマ
 
 詳細は `prisma/schema.prisma` を参照してください。
+
+### 新しく追加されたモデル
+
+**Notification**
+- 通知の基本情報（タイプ、タイトル、メッセージ）
+- 送信者・受信者の関連付け
+- 既読・削除状態の管理
+
+**NotificationSettings**
+- ユーザーごとの通知設定
+- プッシュ通知・メール通知の有効/無効
+- 通知タイプ別の設定
+
+## iOSアプリ対応
+
+### 認証フロー
+
+1. **Apple ID認証**: `POST /api/auth/apple`
+2. **5ステップ登録**: 段階的なユーザー登録
+3. **JWTトークン**: 認証後のAPI呼び出し
+
+### 通知システム
+
+- **友達申請**: 自動通知作成
+- **エリア招待**: エリア共有時の通知
+- **位置情報更新**: リアルタイム位置共有通知
+
+### 位置情報共有
+
+- **リアルタイム更新**: Socket.ioによる即座の反映
+- **友達位置表示**: 地図上での友達位置表示
+- **位置履歴**: 過去の移動履歴の管理
 
 ## 開発
 
@@ -166,4 +238,24 @@ npm run dev
 ### Mapbox
 1. [Mapbox](https://www.mapbox.com/)でアカウント作成
 2. アクセストークンを取得
-3. 環境変数に設定 
+3. 環境変数に設定
+
+## トラブルシューティング
+
+### よくある問題
+
+1. **データベース接続エラー**
+   - MongoDB AtlasのIP制限を確認
+   - 接続文字列の形式を確認
+
+2. **通知が作成されない**
+   - データベーススキーマの同期を確認
+   - Prismaクライアントの再生成
+
+3. **Apple ID認証エラー**
+   - 環境変数の設定を確認
+   - Apple Developer Programの設定確認
+
+## ライセンス
+
+このプロジェクトはMITライセンスの下で公開されています。 

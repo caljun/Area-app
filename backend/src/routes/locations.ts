@@ -1,4 +1,4 @@
-import { Router, Response } from 'express';
+import { Router, Request, Response } from 'express';
 import { z } from 'zod';
 import { prisma } from '../index';
 import { AuthRequest } from '../middleware/auth';
@@ -24,109 +24,68 @@ router.post('/', async (req: AuthRequest, res: Response) => {
       }
     });
 
+    // 友達に位置情報更新通知を送信
+    try {
+      const friends = await prisma.friend.findMany({
+        where: { userId: req.user!.id },
+        include: {
+          friend: {
+            select: {
+              id: true,
+              name: true
+            }
+          }
+        }
+      });
+
+      // 各友達に通知を作成
+      for (const friend of friends) {
+        await prisma.notification.create({
+          data: {
+            type: 'LOCATION_UPDATE',
+            title: '位置情報更新',
+            message: `${req.user!.name}さんの位置情報が更新されました`,
+            data: {
+              userId: req.user!.id,
+              userName: req.user!.name,
+              latitude,
+              longitude,
+              timestamp: new Date()
+            },
+            recipientId: friend.friend.id,
+            senderId: req.user!.id
+          }
+        });
+      }
+    } catch (notificationError) {
+      console.error('Failed to create location update notifications:', notificationError);
+      // 通知作成に失敗しても位置情報更新は成功とする
+    }
+
     return res.status(201).json({
-      message: 'Location updated successfully',
+      message: '位置情報が更新されました',
       location
     });
   } catch (error) {
     if (error instanceof z.ZodError) {
       return res.status(400).json({
-        error: 'Validation error',
+        error: '入力内容に問題があります',
         details: error.errors
       });
     }
     
     console.error('Update location error:', error);
-    return res.status(500).json({ error: 'Internal server error' });
+    return res.status(500).json({ error: '位置情報の更新に失敗しました' });
   }
 });
 
-// Get friends locations
+// Get friend locations
 router.get('/friends', async (req: AuthRequest, res: Response) => {
   try {
-    // Get user's friends
     const friends = await prisma.friend.findMany({
       where: { userId: req.user!.id },
       include: {
         friend: {
-          select: {
-            id: true,
-            name: true,
-            nowId: true
-          }
-        }
-      }
-    });
-
-    // Get latest location for each friend
-    const friendsWithLocations = await Promise.all(
-      friends.map(async (friend) => {
-        const latestLocation = await prisma.location.findFirst({
-          where: { userId: friend.friendId },
-          orderBy: { createdAt: 'desc' }
-        });
-
-        return {
-          ...friend.friend,
-          location: latestLocation ? {
-            latitude: latestLocation.latitude,
-            longitude: latestLocation.longitude,
-            updatedAt: latestLocation.createdAt
-          } : null
-        };
-      })
-    );
-
-    return res.json({ friends: friendsWithLocations });
-  } catch (error) {
-    console.error('Get friends locations error:', error);
-    return res.status(500).json({ error: 'Internal server error' });
-  }
-});
-
-// Get user's location history
-router.get('/history', async (req: AuthRequest, res: Response) => {
-  try {
-    const limit = parseInt(req.query.limit as string) || 50;
-    
-    const locations = await prisma.location.findMany({
-      where: { userId: req.user!.id },
-      orderBy: { createdAt: 'desc' },
-      take: Math.min(limit, 100) // Max 100 locations
-    });
-
-    return res.json({ locations });
-  } catch (error) {
-    console.error('Get location history error:', error);
-    return res.status(500).json({ error: 'Internal server error' });
-  }
-});
-
-// Get friends locations in specific area
-router.get('/area/:areaId/friends', async (req: AuthRequest, res: Response) => {
-  try {
-    const { areaId } = req.params;
-
-    // Check if user has access to this area
-    const area = await prisma.area.findFirst({
-      where: {
-        id: areaId,
-        OR: [
-          { userId: req.user!.id },
-          { isPublic: true }
-        ]
-      } as any
-    });
-
-    if (!area) {
-      return res.status(404).json({ error: 'Area not found' });
-    }
-
-    // Get area members
-    const areaMembers = await prisma.areaMember.findMany({
-      where: { areaId },
-      include: {
-        user: {
           select: {
             id: true,
             name: true,
@@ -137,29 +96,67 @@ router.get('/area/:areaId/friends', async (req: AuthRequest, res: Response) => {
       }
     });
 
-    // Get latest location for each member
-    const membersWithLocations = await Promise.all(
-      areaMembers.map(async (member) => {
-        const latestLocation = await prisma.location.findFirst({
-          where: { userId: member.userId },
-          orderBy: { createdAt: 'desc' }
-        });
+    const friendIds = friends.map(f => f.friend.id);
+    
+    // 最新の位置情報を取得
+    const locations = await prisma.location.findMany({
+      where: {
+        userId: { in: friendIds }
+      },
+      orderBy: { createdAt: 'desc' },
+      distinct: ['userId']
+    });
 
-        return {
-          ...member.user,
-          location: latestLocation ? {
-            latitude: latestLocation.latitude,
-            longitude: latestLocation.longitude,
-            updatedAt: latestLocation.createdAt
-          } : null
-        };
-      })
-    );
+    // 友達情報と位置情報を結合
+    const friendsWithLocations = friends.map(friend => {
+      const location = locations.find(loc => loc.userId === friend.friend.id);
+      return {
+        ...friend.friend,
+        location: location ? {
+          latitude: location.latitude,
+          longitude: location.longitude,
+          updatedAt: location.createdAt
+        } : null
+      };
+    });
 
-    return res.json({ friends: membersWithLocations });
+    return res.json({ friends: friendsWithLocations });
   } catch (error) {
-    console.error('Get area friends locations error:', error);
-    return res.status(500).json({ error: 'Internal server error' });
+    console.error('Get friend locations error:', error);
+    return res.status(500).json({ error: '友達の位置情報取得に失敗しました' });
+  }
+});
+
+// Get location history
+router.get('/history', async (req: AuthRequest, res: Response) => {
+  try {
+    const { page = '1', limit = '50' } = req.query;
+    const pageNum = parseInt(page as string);
+    const limitNum = parseInt(limit as string);
+
+    const locations = await prisma.location.findMany({
+      where: { userId: req.user!.id },
+      orderBy: { createdAt: 'desc' },
+      skip: (pageNum - 1) * limitNum,
+      take: limitNum
+    });
+
+    const total = await prisma.location.count({
+      where: { userId: req.user!.id }
+    });
+
+    return res.json({
+      locations,
+      pagination: {
+        page: pageNum,
+        limit: limitNum,
+        total,
+        totalPages: Math.ceil(total / limitNum)
+      }
+    });
+  } catch (error) {
+    console.error('Get location history error:', error);
+    return res.status(500).json({ error: '位置情報履歴の取得に失敗しました' });
   }
 });
 

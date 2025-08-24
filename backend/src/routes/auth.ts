@@ -22,12 +22,240 @@ const registerSchema = z.object({
   profileImage: z.string().url('プロフィール画像のURLが正しくありません').optional()
 });
 
+// 5ステップ登録用のスキーマ
+const step1Schema = z.object({
+  email: z.string().email('メールアドレスの形式が正しくありません')
+});
+
+const step2Schema = z.object({
+  email: z.string().email('メールアドレスの形式が正しくありません'),
+  nowId: z.string().min(3, 'Now IDは3文字以上で入力してください')
+});
+
+const step3Schema = z.object({
+  email: z.string().email('メールアドレスの形式が正しくありません'),
+  nowId: z.string().min(3, 'Now IDは3文字以上で入力してください'),
+  name: z.string().min(1, 'ユーザー名は必須です')
+});
+
+const step4Schema = z.object({
+  email: z.string().email('メールアドレスの形式が正しくありません'),
+  nowId: z.string().min(3, 'Now IDは3文字以上で入力してください'),
+  name: z.string().min(1, 'ユーザー名は必須です'),
+  password: z.string().min(6, 'パスワードは6文字以上で入力してください')
+});
+
+const step5Schema = z.object({
+  email: z.string().email('メールアドレスの形式が正しくありません'),
+  nowId: z.string().min(3, 'Now IDは3文字以上で入力してください'),
+  name: z.string().min(1, 'ユーザー名は必須です'),
+  password: z.string().min(6, 'パスワードは6文字以上で入力してください'),
+  profileImage: z.string().url('プロフィール画像のURLが正しくありません').optional()
+});
+
 const loginSchema = z.object({
   email: z.string().email('メールアドレスの形式が正しくありません'),
   password: z.string().min(1, 'パスワードは必須です')
 });
 
-// Register
+// Apple ID認証用のスキーマ
+const appleAuthSchema = z.object({
+  identityToken: z.string().min(1, 'Apple IDトークンは必須です'),
+  email: z.string().email('メールアドレスの形式が正しくありません').optional(),
+  name: z.string().min(1, 'ユーザー名は必須です'),
+  nowId: z.string().min(3, 'Now IDは3文字以上で入力してください').optional()
+});
+
+// Step 1: メールアドレス確認
+router.post('/register/step1', async (req: Request, res: Response) => {
+  try {
+    const { email } = step1Schema.parse(req.body);
+
+    // メールアドレスの重複チェック
+    const existingUser = await prisma.user.findUnique({
+      where: { email }
+    });
+
+    if (existingUser) {
+      return res.status(400).json({
+        error: 'このメールアドレスは既に登録されています'
+      });
+    }
+
+    // 一時的な登録セッションを作成（実際の実装ではRedis等を使用）
+    return res.status(200).json({
+      message: 'メールアドレスが確認されました',
+      email,
+      nextStep: 'step2'
+    });
+  } catch (error) {
+    if (error instanceof z.ZodError) {
+      return res.status(400).json({
+        error: '入力内容に問題があります',
+        details: error.errors
+      });
+    }
+    
+    console.error('Step 1 error:', error);
+    return res.status(500).json({ error: 'サーバーエラーが発生しました' });
+  }
+});
+
+// Step 2: Now ID確認
+router.post('/register/step2', async (req: Request, res: Response) => {
+  try {
+    const { email, nowId } = step2Schema.parse(req.body);
+
+    // Now IDの重複チェック
+    const existingUser = await prisma.user.findUnique({
+      where: { nowId }
+    });
+
+    if (existingUser) {
+      return res.status(400).json({
+        error: 'このNow IDは既に使用されています'
+      });
+    }
+
+    return res.status(200).json({
+      message: 'Now IDが確認されました',
+      email,
+      nowId,
+      nextStep: 'step3'
+    });
+  } catch (error) {
+    if (error instanceof z.ZodError) {
+      return res.status(400).json({
+        error: '入力内容に問題があります',
+        details: error.errors
+      });
+    }
+    
+    console.error('Step 2 error:', error);
+    return res.status(500).json({ error: 'サーバーエラーが発生しました' });
+  }
+});
+
+// Step 3: ユーザー名確認
+router.post('/register/step3', async (req: Request, res: Response) => {
+  try {
+    const { email, nowId, name } = step3Schema.parse(req.body);
+
+    return res.status(200).json({
+      message: 'ユーザー名が確認されました',
+      email,
+      nowId,
+      name,
+      nextStep: 'step4'
+    });
+  } catch (error) {
+    if (error instanceof z.ZodError) {
+      return res.status(400).json({
+        error: '入力内容に問題があります',
+        details: error.errors
+      });
+    }
+    
+    console.error('Step 3 error:', error);
+    return res.status(500).json({ error: 'サーバーエラーが発生しました' });
+  }
+});
+
+// Step 4: パスワード確認
+router.post('/register/step4', async (req: Request, res: Response) => {
+  try {
+    const { email, nowId, name, password } = step4Schema.parse(req.body);
+
+    return res.status(200).json({
+      message: 'パスワードが確認されました',
+      email,
+      nowId,
+      name,
+      nextStep: 'step5'
+    });
+  } catch (error) {
+    if (error instanceof z.ZodError) {
+      return res.status(400).json({
+        error: '入力内容に問題があります',
+        details: error.errors
+      });
+    }
+    
+    console.error('Step 4 error:', error);
+    return res.status(500).json({ error: 'サーバーエラーが発生しました' });
+  }
+});
+
+// Step 5: プロフィール画像設定とユーザー作成
+router.post('/register/step5', async (req: Request, res: Response) => {
+  try {
+    const { email, nowId, name, password, profileImage } = step5Schema.parse(req.body);
+
+    // 最終的な重複チェック
+    const existingUser = await prisma.user.findFirst({
+      where: {
+        OR: [
+          { email },
+          { nowId }
+        ]
+      }
+    });
+
+    if (existingUser) {
+      return res.status(400).json({
+        error: existingUser.email === email ? 'このメールアドレスは既に登録されています' : 'このNow IDは既に使用されています'
+      });
+    }
+
+    // パスワードのハッシュ化
+    const hashedPassword = await bcrypt.hash(password, 12);
+
+    // ユーザー作成
+    const user = await prisma.user.create({
+      data: {
+        email,
+        nowId,
+        name,
+        password: hashedPassword,
+        profileImage: profileImage || null
+      },
+      select: {
+        id: true,
+        email: true,
+        nowId: true,
+        name: true,
+        profileImage: true,
+        createdAt: true
+      }
+    });
+
+    // JWTトークン生成
+    const token = jwt.sign(
+      { userId: user.id } as JWTPayload,
+      process.env.JWT_SECRET || 'fallback-secret',
+      { expiresIn: process.env.JWT_EXPIRES_IN || '7d' } as any
+    );
+
+    return res.status(201).json({
+      message: 'ユーザー登録が完了しました',
+      user,
+      token,
+      nextStep: 'complete'
+    });
+  } catch (error) {
+    if (error instanceof z.ZodError) {
+      return res.status(400).json({
+        error: '入力内容に問題があります',
+        details: error.errors
+      });
+    }
+    
+    console.error('Step 5 error:', error);
+    return res.status(500).json({ error: 'サーバーエラーが発生しました' });
+  }
+});
+
+// 従来の登録エンドポイント（後方互換性のため）
 router.post('/register', async (req: Request, res: Response) => {
   try {
     const { email, nowId, name, password, profileImage } = registerSchema.parse(req.body);
@@ -92,6 +320,106 @@ router.post('/register', async (req: Request, res: Response) => {
     
     console.error('Register error:', error);
     return res.status(500).json({ error: 'サーバーエラーが発生しました' });
+  }
+});
+
+// Apple ID認証
+router.post('/apple', async (req: Request, res: Response) => {
+  try {
+    const { identityToken, email, name, nowId } = appleAuthSchema.parse(req.body);
+
+    // 注意: 実際の実装では、Apple IDのidentityTokenを検証する必要があります
+    // ここでは簡略化しています
+
+    // メールアドレスが提供されている場合、既存ユーザーを検索
+    let user;
+    if (email) {
+      user = await prisma.user.findUnique({
+        where: { email }
+      });
+    }
+
+    if (user) {
+      // 既存ユーザーの場合、ログイン
+      const token = jwt.sign(
+        { userId: user.id } as JWTPayload,
+        process.env.JWT_SECRET || 'fallback-secret',
+        { expiresIn: process.env.JWT_EXPIRES_IN || '7d' } as any
+      );
+
+      return res.json({
+        message: 'Apple IDでログインしました',
+        user: {
+          id: user.id,
+          email: user.email,
+          nowId: user.nowId,
+          name: user.name,
+          profileImage: user.profileImage
+        },
+        token,
+        isNewUser: false
+      });
+    } else {
+      // 新規ユーザーの場合、Now IDが必要
+      if (!nowId) {
+        return res.status(400).json({
+          error: '新規ユーザーの場合、Now IDが必要です'
+        });
+      }
+
+      // Now IDの重複チェック
+      const existingNowId = await prisma.user.findUnique({
+        where: { nowId }
+      });
+
+      if (existingNowId) {
+        return res.status(400).json({
+          error: 'このNow IDは既に使用されています'
+        });
+      }
+
+      // 新規ユーザー作成（パスワードなし）
+      const newUser = await prisma.user.create({
+        data: {
+          email: email || `apple_${Date.now()}@temp.com`, // 一時的なメールアドレス
+          nowId,
+          name,
+          password: '', // Apple IDユーザーはパスワードなし
+          profileImage: null
+        },
+        select: {
+          id: true,
+          email: true,
+          nowId: true,
+          name: true,
+          profileImage: true,
+          createdAt: true
+        }
+      });
+
+      const token = jwt.sign(
+        { userId: newUser.id } as JWTPayload,
+        process.env.JWT_SECRET || 'fallback-secret',
+        { expiresIn: process.env.JWT_EXPIRES_IN || '7d' } as any
+      );
+
+      return res.status(201).json({
+        message: 'Apple IDでユーザー登録が完了しました',
+        user: newUser,
+        token,
+        isNewUser: true
+      });
+    }
+  } catch (error) {
+    if (error instanceof z.ZodError) {
+      return res.status(400).json({
+        error: '入力内容に問題があります',
+        details: error.errors
+      });
+    }
+    
+    console.error('Apple ID auth error:', error);
+    return res.status(500).json({ error: 'Apple ID認証に失敗しました' });
   }
 });
 

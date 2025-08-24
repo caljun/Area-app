@@ -120,6 +120,28 @@ router.post('/request', async (req: AuthRequest, res: Response) => {
       }
     });
 
+    // 通知を作成
+    try {
+      await prisma.notification.create({
+        data: {
+          type: 'FRIEND_REQUEST',
+          title: '友達申請',
+          message: `${req.user!.name}さんから友達申請が届いています`,
+          data: {
+            requestId: request.id,
+            senderId: req.user!.id,
+            senderName: req.user!.name,
+            senderNowId: req.user!.nowId
+          },
+          recipientId: receiverId,
+          senderId: req.user!.id
+        }
+      });
+    } catch (notificationError) {
+      console.error('Failed to create notification:', notificationError);
+      // 通知作成に失敗しても友達申請は成功とする
+    }
+
     return res.status(201).json({
       message: 'Friend request sent successfully',
       request
@@ -288,6 +310,30 @@ router.post('/area-request', async (req: AuthRequest, res: Response) => {
         }
       }
     });
+
+    // 通知を作成
+    try {
+      await prisma.notification.create({
+        data: {
+          type: 'AREA_INVITE',
+          title: 'エリア招待',
+          message: `${req.user!.name}さんが「${area.name}」エリアに招待しています`,
+          data: {
+            requestId: request.id,
+            areaId: area.id,
+            areaName: area.name,
+            senderId: req.user!.id,
+            senderName: req.user!.name,
+            senderNowId: req.user!.nowId
+          },
+          recipientId: receiverId,
+          senderId: req.user!.id
+        }
+      });
+    } catch (notificationError) {
+      console.error('Failed to create notification:', notificationError);
+      // 通知作成に失敗してもエリア招待は成功とする
+    }
 
     return res.status(201).json({
       message: 'Area request sent successfully',
