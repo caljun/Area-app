@@ -237,11 +237,20 @@ router.post('/register/step5', async (req: Request, res: Response) => {
       { expiresIn: process.env.JWT_EXPIRES_IN || '7d' } as any
     );
 
+    // 新規登録ユーザーの場合、プロフィールの完全性をチェック
+    const missingFields = [];
+    if (!user.name) missingFields.push('name');
+    if (!user.areaId) missingFields.push('areaId');
+    if (!user.profileImage) missingFields.push('profileImage');
+    const profileComplete = missingFields.length === 0;
+
     return res.status(201).json({
       message: 'ユーザー登録が完了しました',
       user,
       token,
-      nextStep: 'complete'
+      nextStep: 'complete',
+      profileComplete,
+      missingFields
     });
   } catch (error) {
     if (error instanceof z.ZodError) {
@@ -306,10 +315,19 @@ router.post('/register', async (req: Request, res: Response) => {
       { expiresIn: process.env.JWT_EXPIRES_IN || '7d' } as any
     );
 
+    // 新規登録ユーザーの場合、プロフィールの完全性をチェック
+    const missingFields = [];
+    if (!user.name) missingFields.push('name');
+    if (!user.areaId) missingFields.push('areaId');
+    if (!user.profileImage) missingFields.push('profileImage');
+    const profileComplete = missingFields.length === 0;
+
     return res.status(201).json({
       message: 'ユーザー登録が完了しました',
       user,
-      token
+      token,
+      profileComplete,
+      missingFields
     });
   } catch (error) {
     if (error instanceof z.ZodError) {
@@ -403,6 +421,13 @@ router.post('/apple', async (req: Request, res: Response) => {
         { expiresIn: process.env.JWT_EXPIRES_IN || '7d' } as any
       );
 
+      // プロフィールの完全性をチェック
+      const missingFields = [];
+      if (!user.name) missingFields.push('name');
+      if (!user.areaId) missingFields.push('areaId');
+      if (!user.profileImage) missingFields.push('profileImage');
+      const profileComplete = missingFields.length === 0;
+
       return res.json({
         message: 'Apple IDでログインしました',
         user: {
@@ -414,7 +439,9 @@ router.post('/apple', async (req: Request, res: Response) => {
           createdAt: user.createdAt
         },
         token,
-        isNewUser: false
+        isNewUser: false,
+        profileComplete,
+        missingFields
       });
     } else {
       // 新規ユーザーの場合、Area IDの重複チェック
@@ -453,6 +480,10 @@ router.post('/apple', async (req: Request, res: Response) => {
         { expiresIn: process.env.JWT_EXPIRES_IN || '7d' } as any
       );
 
+      // 新規ユーザーの場合、プロフィールは不完全
+      const missingFields = ['profileImage']; // プロフィール画像が未設定
+      const profileComplete = false;
+
       return res.status(201).json({
         message: 'Apple IDでユーザー登録が完了しました',
         user: {
@@ -464,7 +495,9 @@ router.post('/apple', async (req: Request, res: Response) => {
           createdAt: newUser.createdAt
         },
         token,
-        isNewUser: true
+        isNewUser: true,
+        profileComplete,
+        missingFields
       });
     }
   } catch (error) {
@@ -509,17 +542,26 @@ router.post('/login', async (req: Request, res: Response) => {
       { expiresIn: process.env.JWT_EXPIRES_IN || '7d' } as any
     );
 
-      return res.json({
-        message: 'ログインに成功しました',
-        user: {
-          id: user.id,
-          email: user.email,
-          areaId: user.areaId,
-          name: user.name,
-          profileImage: user.profileImage
-        },
-        token
-      });
+    // プロフィールの完全性をチェック
+    const missingFields = [];
+    if (!user.name) missingFields.push('name');
+    if (!user.areaId) missingFields.push('areaId');
+    if (!user.profileImage) missingFields.push('profileImage');
+    const profileComplete = missingFields.length === 0;
+
+    return res.json({
+      message: 'ログインに成功しました',
+      user: {
+        id: user.id,
+        email: user.email,
+        areaId: user.areaId,
+        name: user.name,
+        profileImage: user.profileImage
+      },
+      token,
+      profileComplete,
+      missingFields
+    });
   } catch (error) {
     if (error instanceof z.ZodError) {
       return res.status(400).json({
@@ -549,6 +591,13 @@ router.get('/me', authMiddleware, async (req: AuthRequest, res: Response) => {
       }
     });
     
+    // プロフィールの完全性をチェック
+    const missingFields = [];
+    if (!user.name) missingFields.push('name');
+    if (!user.areaId) missingFields.push('areaId');
+    if (!user.profileImage) missingFields.push('profileImage');
+    const profileComplete = missingFields.length === 0;
+    
     return res.json({
       user: {
         id: user.id,
@@ -557,7 +606,9 @@ router.get('/me', authMiddleware, async (req: AuthRequest, res: Response) => {
         name: user.name,
         profileImage: user.profileImage,
         createdAt: user.createdAt
-      }
+      },
+      profileComplete,
+      missingFields
     });
   } catch (error) {
     console.error('Get current user error:', error);
