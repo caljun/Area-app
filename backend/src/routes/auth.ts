@@ -351,8 +351,15 @@ router.post('/apple', async (req: Request, res: Response) => {
 
     // Apple IDのidentityTokenを検証
     try {
-      // Appleの公開鍵を取得
-      const appleKeysResponse = await fetch('https://appleid.apple.com/auth/keys');
+      // Appleの公開鍵を取得（タイムアウト設定）
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 30000); // 30秒タイムアウト
+      
+      const appleKeysResponse = await fetch('https://appleid.apple.com/auth/keys', {
+        signal: controller.signal
+      });
+      clearTimeout(timeoutId);
+      
       if (!appleKeysResponse.ok) {
         throw new Error('Apple公開鍵の取得に失敗しました');
       }
@@ -387,82 +394,25 @@ router.post('/apple', async (req: Request, res: Response) => {
         return res.status(401).json({ error: 'Apple IDトークンが無効です' });
       }
       
-    } catch (jwtError) {
+    } catch (jwtError: any) {
       console.error('Apple IDトークン検証エラー:', jwtError);
+      if (jwtError.name === 'AbortError') {
+        return res.status(504).json({ error: 'Apple IDトークンの検証がタイムアウトしました' });
+      }
       return res.status(401).json({ error: 'Apple IDトークンの検証に失敗しました' });
     }
 
     // areaIdが提供されていない場合、userIDをareaIdとして使用
     const finalAreaId = areaId || userID;
 
-    // Apple User IDまたはArea IDで既存ユーザーを検索
-    let user = await prisma.user.findFirst({
-      where: {
-        OR: [
-          { email: `apple_${userID}@temp.com` }, // Apple IDユーザー用の一時メール
-          { areaId: finalAreaId } // 指定されたArea IDまたはUser ID
-        ]
-      },
-      select: {
-        id: true,
-        email: true,
-        areaId: true,
-        name: true,
-        profileImage: true,
-        createdAt: true
-      }
-    });
-
-    if (user) {
-      // 既存ユーザーの場合、ログイン
-      const token = jwt.sign(
-        { userId: user.id } as JWTPayload,
-        process.env.JWT_SECRET || 'fallback-secret',
-        { expiresIn: process.env.JWT_EXPIRES_IN || '7d' } as any
-      );
-
-      // プロフィールの完全性をチェック
-      const missingFields = [];
-      if (!user.name) missingFields.push('name');
-      if (!user.areaId) missingFields.push('areaId');
-      if (!user.profileImage) missingFields.push('profileImage');
-      const profileComplete = missingFields.length === 0;
-
-      return res.json({
-        message: 'Apple IDでログインしました',
-        user: {
-          id: user.id,
-          email: user.email,
-          areaId: user.areaId,
-          name: user.name,
-          profileImage: user.profileImage,
-          createdAt: user.createdAt
-        },
-        token,
-        isNewUser: false,
-        profileComplete,
-        missingFields
-      });
-    } else {
-      // 新規ユーザーの場合、Area IDの重複チェック
-      const existingAreaId = await prisma.user.findUnique({
-        where: { areaId: finalAreaId }
-      });
-
-      if (existingAreaId) {
-        return res.status(400).json({
-          error: 'このArea IDは既に使用されています'
-        });
-      }
-
-      // 新規ユーザー作成（パスワードなし）
-      const newUser = await prisma.user.create({
-        data: {
-          email: `apple_${userID}@temp.com`, // Apple IDユーザー用の一時メール
-          areaId: finalAreaId,
-          name,
-          password: null, // Apple IDユーザーはパスワードなし
-          profileImage: null
+    try {
+      // Apple User IDまたはArea IDで既存ユーザーを検索
+      let user = await prisma.user.findFirst({
+        where: {
+          OR: [
+            { email: `apple_${userID}@temp.com` }, // Apple IDユーザー用の一時メール
+            { areaId: finalAreaId } // 指定されたArea IDまたはUser ID
+          ]
         },
         select: {
           id: true,
@@ -474,31 +424,94 @@ router.post('/apple', async (req: Request, res: Response) => {
         }
       });
 
-      const token = jwt.sign(
-        { userId: newUser.id } as JWTPayload,
-        process.env.JWT_SECRET || 'fallback-secret',
-        { expiresIn: process.env.JWT_EXPIRES_IN || '7d' } as any
-      );
+      if (user) {
+        // 既存ユーザーの場合、ログイン
+        const token = jwt.sign(
+          { userId: user.id } as JWTPayload,
+          process.env.JWT_SECRET || 'fallback-secret',
+          { expiresIn: process.env.JWT_EXPIRES_IN || '7d' } as any
+        );
 
-      // 新規ユーザーの場合、プロフィールは不完全
-      const missingFields = ['profileImage']; // プロフィール画像が未設定
-      const profileComplete = false;
+        // プロフィールの完全性をチェック
+        const missingFields = [];
+        if (!user.name) missingFields.push('name');
+        if (!user.areaId) missingFields.push('areaId');
+        if (!user.profileImage) missingFields.push('profileImage');
+        const profileComplete = missingFields.length === 0;
 
-      return res.status(201).json({
-        message: 'Apple IDでユーザー登録が完了しました',
-        user: {
-          id: newUser.id,
-          email: newUser.email,
-          areaId: newUser.areaId,
-          name: newUser.name,
-          profileImage: newUser.profileImage,
-          createdAt: newUser.createdAt
-        },
-        token,
-        isNewUser: true,
-        profileComplete,
-        missingFields
-      });
+        return res.json({
+          token,
+          user: {
+            id: user.id,
+            email: user.email,
+            areaId: user.areaId,
+            name: user.name,
+            profileImage: user.profileImage,
+            createdAt: user.createdAt
+          },
+          isNewUser: false,
+          profileComplete,
+          missingFields
+        });
+      } else {
+        // 新規ユーザーの場合、Area IDの重複チェック
+        const existingAreaId = await prisma.user.findUnique({
+          where: { areaId: finalAreaId }
+        });
+
+        if (existingAreaId) {
+          return res.status(400).json({
+            error: 'このArea IDは既に使用されています'
+          });
+        }
+
+        // 新規ユーザー作成（パスワードなし）
+        const newUser = await prisma.user.create({
+          data: {
+            email: `apple_${userID}@temp.com`, // Apple IDユーザー用の一時メール
+            areaId: finalAreaId,
+            name,
+            password: null, // Apple IDユーザーはパスワードなし
+            profileImage: null
+          },
+          select: {
+            id: true,
+            email: true,
+            areaId: true,
+            name: true,
+            profileImage: true,
+            createdAt: true
+          }
+        });
+
+        const token = jwt.sign(
+          { userId: newUser.id } as JWTPayload,
+          process.env.JWT_SECRET || 'fallback-secret',
+          { expiresIn: process.env.JWT_EXPIRES_IN || '7d' } as any
+        );
+
+        // 新規ユーザーの場合、プロフィールは不完全
+        const missingFields = ['profileImage']; // プロフィール画像が未設定
+        const profileComplete = false;
+
+        return res.status(201).json({
+          token,
+          user: {
+            id: newUser.id,
+            email: newUser.email,
+            areaId: newUser.areaId,
+            name: newUser.name,
+            profileImage: newUser.profileImage,
+            createdAt: newUser.createdAt
+          },
+          isNewUser: true,
+          profileComplete,
+          missingFields
+        });
+      }
+    } catch (dbError) {
+      console.error('データベース操作エラー:', dbError);
+      return res.status(503).json({ error: 'データベース接続エラーが発生しました' });
     }
   } catch (error) {
     if (error instanceof z.ZodError) {
