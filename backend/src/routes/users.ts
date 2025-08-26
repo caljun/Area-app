@@ -86,19 +86,56 @@ router.put('/profile', async (req: AuthRequest, res: Response) => {
 // Update current user's profile (PATCH /api/users/me)
 router.patch('/me',
   (req: any, res: any, next: any) => {
+    console.log('🔄 プロフィール更新リクエスト開始');
+    console.log('📋 リクエストヘッダー:', req.headers);
+    console.log('📦 リクエストボディ:', req.body);
     uploadSingleProfileImage(req, res, next);
   },
   handleUploadError,
   validateCloudinaryUpload,
   async (req: AuthRequest, res: Response) => {
   try {
+    console.log('🔍 プロフィール更新処理開始');
+    console.log('📁 req.file の詳細:', req.file);
+    console.log('📄 req.body の詳細:', req.body);
+    
     const { name, areaId } = req.body;
     let profileImage = req.body.profileImage;
 
-    // 画像ファイルがアップロードされた場合、CloudinaryのURLを使用（validateCloudinaryUploadで検証済み）
+    // 画像ファイルがアップロードされた場合の詳細ログ
     if (req.file) {
-      profileImage = (req.file as any).secure_url;
-      console.log('✅ 画像アップロード成功:', { secure_url: profileImage });
+      console.log('✅ 画像ファイル検出成功');
+      console.log('📁 ファイル情報:', {
+        fieldname: req.file.fieldname,
+        originalname: req.file.originalname,
+        mimetype: req.file.mimetype,
+        size: req.file.size,
+        buffer: req.file.buffer ? 'Buffer存在' : 'Bufferなし',
+        path: req.file.path,
+        filename: req.file.filename
+      });
+      
+      // Cloudinaryのアップロード結果を確認
+      const cloudinaryFile = req.file as any;
+      console.log('☁️ Cloudinaryファイル情報:', {
+        secure_url: cloudinaryFile.secure_url,
+        public_id: cloudinaryFile.public_id,
+        url: cloudinaryFile.url,
+        format: cloudinaryFile.format,
+        width: cloudinaryFile.width,
+        height: cloudinaryFile.height
+      });
+      
+      if (cloudinaryFile.secure_url) {
+        profileImage = cloudinaryFile.secure_url;
+        console.log('✅ Cloudinary secure_url取得成功:', profileImage);
+      } else {
+        console.error('❌ Cloudinary secure_urlが取得できません');
+        console.log('🔍 完全なreq.file内容:', JSON.stringify(req.file, null, 2));
+      }
+    } else {
+      console.log('⚠️ 画像ファイルが検出されませんでした');
+      console.log('🔍 multerの設定を確認してください');
     }
 
     // 更新するデータを構築
@@ -109,13 +146,18 @@ router.patch('/me',
     }
     // 画像ファイルがアップロードされた場合、必ずprofileImageを更新
     if (req.file) {
-      updateData.profileImage = (req.file as any).secure_url;
-      console.log('🖼️ 画像アップロードによるprofileImage更新:', updateData.profileImage);
+      const cloudinaryFile = req.file as any;
+      if (cloudinaryFile.secure_url) {
+        updateData.profileImage = cloudinaryFile.secure_url;
+        console.log('🖼️ 画像アップロードによるprofileImage更新:', updateData.profileImage);
+      } else {
+        console.error('❌ Cloudinary secure_urlが取得できません - データベース更新をスキップ');
+      }
     }
     if (name !== undefined && name.trim() !== '') updateData.name = name.trim();
     if (areaId !== undefined && areaId.trim() !== '') updateData.areaId = areaId.trim();
 
-    console.log('🔄 更新データ:', updateData);
+    console.log('🔄 最終更新データ:', updateData);
 
     // 少なくとも1つのフィールドが提供されているかチェック
     if (Object.keys(updateData).length === 0) {
@@ -132,6 +174,8 @@ router.patch('/me',
       }
     }
 
+    console.log('💾 データベース更新開始:', { userId: req.user!.id, updateData });
+    
     const updatedUser = await prisma.user.update({
       where: { id: req.user!.id },
       data: updateData,
@@ -145,7 +189,12 @@ router.patch('/me',
       }
     });
 
-    console.log('✅ ユーザー更新完了:', { profileImage: updatedUser.profileImage });
+    console.log('✅ ユーザー更新完了:', { 
+      id: updatedUser.id,
+      profileImage: updatedUser.profileImage,
+      name: updatedUser.name,
+      areaId: updatedUser.areaId
+    });
 
     // プロフィールの完全性を再計算
     const missingFields = [];
@@ -172,7 +221,7 @@ router.patch('/me',
       missingFields
     });
   } catch (error) {
-    console.error('Update profile error:', error);
+    console.error('❌ プロフィール更新エラー:', error);
     return res.status(500).json({ error: 'プロフィールの更新に失敗しました' });
   }
 });
