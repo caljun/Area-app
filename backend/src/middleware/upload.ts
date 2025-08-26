@@ -62,6 +62,8 @@ export const upload = multer({
 
 export const uploadSingle = upload.single('image');
 
+export const uploadSingleProfileImage = upload.single('profileImage');
+
 export const uploadMultiple = upload.array('images', 5);
 
 export const handleUploadError = (

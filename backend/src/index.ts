@@ -137,6 +137,51 @@ app.get('/health', (req, res) => {
   res.json({ status: 'OK', timestamp: new Date().toISOString() });
 });
 
+// Session validation API (requires authentication)
+app.get('/api/health', authMiddleware, async (req: any, res) => {
+  try {
+    const user = await prisma.user.findUnique({
+      where: { id: req.user.id },
+      select: {
+        id: true,
+        email: true,
+        areaId: true,
+        name: true,
+        profileImage: true,
+        createdAt: true
+      }
+    });
+
+    if (!user) {
+      return res.status(404).json({ error: 'ユーザーが見つかりません' });
+    }
+
+    // プロフィールの完全性をチェック
+    const missingFields = [];
+    if (!user.name) missingFields.push('name');
+    if (!user.areaId) missingFields.push('areaId');
+    if (!user.profileImage) missingFields.push('profileImage');
+    const profileComplete = missingFields.length === 0;
+
+    return res.json({
+      token: req.headers.authorization?.replace('Bearer ', ''),
+      user: {
+        id: user.id,
+        email: user.email,
+        areaId: user.areaId,
+        name: user.name,
+        profileImage: user.profileImage,
+        createdAt: user.createdAt
+      },
+      profileComplete,
+      missingFields
+    });
+  } catch (error) {
+    console.error('Session validation error:', error);
+    return res.status(500).json({ error: 'セッション検証に失敗しました' });
+  }
+});
+
 // Routes
 app.use('/api/auth', authLimiter, authRoutes);
 app.use('/api/users', authMiddleware, userRoutes);
@@ -271,4 +316,25 @@ process.on('SIGINT', async () => {
     console.log('Server closed');
     process.exit(0);
   });
-}); 
+});
+
+// グローバルエラーハンドラー
+process.on('uncaughtException', (error) => {
+  console.error('🚨 Uncaught Exception:', error);
+  console.error('Stack trace:', error.stack);
+  process.exit(1);
+});
+
+process.on('unhandledRejection', (reason, promise) => {
+  console.error('🚨 Unhandled Rejection at:', promise, 'reason:', reason);
+  process.exit(1);
+});
+
+// WebSocketエラーハンドラー
+io.on('error', (error) => {
+  console.error('🚨 WebSocket error:', error);
+});
+
+server.on('error', (error) => {
+  console.error('🚨 Server error:', error);
+});

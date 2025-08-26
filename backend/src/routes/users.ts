@@ -1,6 +1,7 @@
 import { Router, Response } from 'express';
 import { prisma } from '../index';
 import { AuthRequest } from '../middleware/auth';
+import { uploadSingleProfileImage, handleUploadError } from '../middleware/upload';
 
 const router = Router();
 
@@ -62,9 +63,20 @@ router.put('/profile', async (req: AuthRequest, res: Response) => {
 });
 
 // Update current user's profile (PATCH /api/users/me)
-router.patch('/me', async (req: AuthRequest, res: Response) => {
+router.patch('/me',
+  (req: any, res: any, next: any) => {
+    uploadSingleProfileImage(req, res, next);
+  },
+  handleUploadError,
+  async (req: AuthRequest, res: Response) => {
   try {
-    const { profileImage, name, areaId } = req.body;
+    const { name, areaId } = req.body;
+    let profileImage = req.body.profileImage;
+
+    // 画像ファイルがアップロードされた場合、CloudinaryのURLを使用
+    if (req.file) {
+      profileImage = (req.file as any).secure_url;
+    }
 
     // 更新するデータを構築
     const updateData: any = {};
