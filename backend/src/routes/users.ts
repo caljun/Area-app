@@ -81,8 +81,8 @@ router.patch('/me',
     // 更新するデータを構築
     const updateData: any = {};
     if (profileImage !== undefined) updateData.profileImage = profileImage;
-    if (name !== undefined) updateData.name = name;
-    if (areaId !== undefined) updateData.areaId = areaId;
+    if (name !== undefined && name.trim() !== '') updateData.name = name.trim();
+    if (areaId !== undefined && areaId.trim() !== '') updateData.areaId = areaId.trim();
 
     // 少なくとも1つのフィールドが提供されているかチェック
     if (Object.keys(updateData).length === 0) {
@@ -95,7 +95,7 @@ router.patch('/me',
         where: { areaId }
       });
       if (existingUser) {
-        return res.status(400).json({ error: 'このArea IDは既に使用されています' });
+        return res.status(409).json({ error: 'このArea IDは既に使用されています' });
       }
     }
 
@@ -119,6 +119,7 @@ router.patch('/me',
     if (!updatedUser.profileImage) missingFields.push('profileImage');
     const profileComplete = missingFields.length === 0;
 
+    // SwiftUIアプリの期待する形式でレスポンスを返す
     return res.json({
       token: req.headers.authorization?.replace('Bearer ', ''),
       user: {

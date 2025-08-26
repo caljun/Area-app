@@ -32,7 +32,19 @@ router.get('/', async (req: AuthRequest, res: Response) => {
       orderBy: { createdAt: 'desc' }
     });
 
-    res.json({ areas });
+    // SwiftUIアプリの期待する形式でレスポンスを返す
+    const apiAreas = areas.map(area => ({
+      id: area.id,
+      name: area.name,
+      coordinates: area.coordinates,
+      userId: area.userId,
+      isPublic: area.isPublic,
+      imageUrl: area.imageUrl,
+      createdAt: area.createdAt,
+      updatedAt: area.updatedAt
+    }));
+
+    res.json(apiAreas);
   } catch (error) {
     console.error('Get areas error:', error);
     res.status(500).json({ error: 'Internal server error' });
@@ -44,19 +56,22 @@ router.get('/public', async (req: Request, res: Response) => {
   try {
     const areas = await prisma.area.findMany({
       where: { isPublic: true },
-      include: {
-        user: {
-          select: {
-            id: true,
-            name: true,
-            areaId: true
-          }
-        }
-      },
       orderBy: { createdAt: 'desc' }
     });
 
-    res.json({ areas });
+    // SwiftUIアプリの期待する形式でレスポンスを返す
+    const apiAreas = areas.map(area => ({
+      id: area.id,
+      name: area.name,
+      coordinates: area.coordinates,
+      userId: area.userId,
+      isPublic: area.isPublic,
+      imageUrl: area.imageUrl,
+      createdAt: area.createdAt,
+      updatedAt: area.updatedAt
+    }));
+
+    res.json(apiAreas);
   } catch (error) {
     console.error('Get public areas error:', error);
     res.status(500).json({ error: 'Internal server error' });
@@ -75,23 +90,26 @@ router.get('/:id', async (req: AuthRequest, res: Response) => {
           { userId: req.user!.id },
           { isPublic: true }
         ]
-      } as any,
-      include: {
-        user: {
-          select: {
-            id: true,
-            name: true,
-            areaId: true
-          }
-        }
-      }
+      } as any
     });
 
     if (!area) {
       return res.status(404).json({ error: 'Area not found' });
     }
 
-    return res.json({ area });
+    // SwiftUIアプリの期待する形式でレスポンスを返す
+    const apiArea = {
+      id: area.id,
+      name: area.name,
+      coordinates: area.coordinates,
+      userId: area.userId,
+      isPublic: area.isPublic,
+      imageUrl: area.imageUrl,
+      createdAt: area.createdAt,
+      updatedAt: area.updatedAt
+    };
+
+    return res.json(apiArea);
   } catch (error) {
     console.error('Get area error:', error);
     return res.status(500).json({ error: 'Internal server error' });
@@ -112,10 +130,19 @@ router.post('/', async (req: AuthRequest, res: Response) => {
       }
     });
 
-    return res.status(201).json({
-      message: 'エリアの作成が完了しました',
-      area
-    });
+    // SwiftUIアプリの期待する形式でレスポンスを返す
+    const apiArea = {
+      id: area.id,
+      name: area.name,
+      coordinates: area.coordinates,
+      userId: area.userId,
+      isPublic: area.isPublic,
+      imageUrl: area.imageUrl,
+      createdAt: area.createdAt,
+      updatedAt: area.updatedAt
+    };
+
+    return res.status(201).json(apiArea);
   } catch (error) {
     if (error instanceof z.ZodError) {
       return res.status(400).json({
@@ -190,7 +217,7 @@ router.delete('/:id', async (req: AuthRequest, res: Response) => {
       where: { id }
     });
 
-    return res.json({ message: 'Area deleted successfully' });
+    return res.status(204).send();
   } catch (error) {
     console.error('Delete area error:', error);
     return res.status(500).json({ error: 'Internal server error' });
@@ -232,7 +259,9 @@ router.get('/:id/members', async (req: AuthRequest, res: Response) => {
       orderBy: { createdAt: 'asc' }
     });
 
-    return res.json({ members });
+    // SwiftUIアプリの期待する形式でレスポンスを返す
+    const memberIds = members.map(member => member.user.id);
+    return res.json(memberIds);
   } catch (error) {
     console.error('Get area members error:', error);
     return res.status(500).json({ error: 'Internal server error' });

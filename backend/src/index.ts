@@ -137,8 +137,8 @@ app.get('/health', (req, res) => {
   res.json({ status: 'OK', timestamp: new Date().toISOString() });
 });
 
-// Session validation API (requires authentication)
-app.get('/api/health', authMiddleware, async (req: any, res) => {
+// Session validation API for SwiftUI app (requires authentication)
+app.get('/api/session', authLimiter, authMiddleware, async (req: any, res) => {
   try {
     const user = await prisma.user.findUnique({
       where: { id: req.user.id },

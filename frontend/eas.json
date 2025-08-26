@@ -13,7 +13,7 @@
         "buildConfiguration": "Release"
       },
       "env":{
-        "EXPO_PUBLIC_API_URL": "https://area-app.onrender.com/api",
+        "EXPO_PUBLIC_API_URL": "https://area-app.onrender.com",
         "EXPO_ROUTER_APP_ROOT": "app",
         "MAPBOX_ACCESS_TOKEN": "pk.eyJ1IjoiY2FsanVuIiwiYSI6ImNtZDlzaTZ0eDA5MWEybHNiYXB0N2J2bDcifQ._goEiKRsfnDMImATZniUtQ"
       }
