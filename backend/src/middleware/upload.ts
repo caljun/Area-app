@@ -80,8 +80,36 @@ export const handleUploadError = (
   }
 
   if (error) {
+    console.error('Upload error:', error);
     return res.status(400).json({ error: error.message || 'アップロードに失敗しました' });
   }
+
+  next();
+};
+
+// Cloudinaryアップロード結果の検証とsecure_urlの取得を確実にする
+export const validateCloudinaryUpload = (req: Request, res: Response, next: NextFunction) => {
+  if (!req.file) {
+    return res.status(400).json({ error: '画像ファイルが選択されていません' });
+  }
+
+  // Cloudinaryのアップロード結果を確認
+  const cloudinaryFile = req.file as any;
+  
+  if (!cloudinaryFile.secure_url) {
+    console.error('Cloudinary upload failed - no secure_url:', cloudinaryFile);
+    return res.status(500).json({ error: '画像のアップロードに失敗しました。Cloudinaryからの応答が不正です。' });
+  }
+
+  if (!cloudinaryFile.public_id) {
+    console.error('Cloudinary upload failed - no public_id:', cloudinaryFile);
+    return res.status(500).json({ error: '画像のアップロードに失敗しました。Cloudinaryからの応答が不正です。' });
+  }
+
+  console.log('✅ Cloudinary upload successful:', {
+    secure_url: cloudinaryFile.secure_url,
+    public_id: cloudinaryFile.public_id
+  });
 
   next();
 };

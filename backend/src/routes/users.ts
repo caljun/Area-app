@@ -1,7 +1,7 @@
 import { Router, Response } from 'express';
 import { prisma } from '../index';
 import { AuthRequest } from '../middleware/auth';
-import { uploadSingleProfileImage, handleUploadError } from '../middleware/upload';
+import { uploadSingleProfileImage, handleUploadError, validateCloudinaryUpload } from '../middleware/upload';
 
 const router = Router();
 
@@ -55,7 +55,28 @@ router.put('/profile', async (req: AuthRequest, res: Response) => {
       }
     });
 
-    return res.json({ user: updatedUser });
+    // プロフィールの完全性を再計算
+    const missingFields = [];
+    if (!updatedUser.name) missingFields.push('name');
+    if (!updatedUser.areaId) missingFields.push('areaId');
+    if (!updatedUser.profileImage) missingFields.push('profileImage');
+    const profileComplete = missingFields.length === 0;
+
+    // 統一されたレスポンス形式で返す
+    return res.json({
+      token: req.headers.authorization?.replace('Bearer ', ''),
+      user: {
+        id: updatedUser.id,
+        email: updatedUser.email,
+        areaId: updatedUser.areaId,
+        name: updatedUser.name,
+        profileImage: updatedUser.profileImage,
+        createdAt: updatedUser.createdAt
+      },
+      isNewUser: false,
+      profileComplete,
+      missingFields
+    });
   } catch (error) {
     console.error('Update profile error:', error);
     return res.status(500).json({ error: 'プロフィールの更新に失敗しました' });
@@ -68,12 +89,13 @@ router.patch('/me',
     uploadSingleProfileImage(req, res, next);
   },
   handleUploadError,
+  validateCloudinaryUpload,
   async (req: AuthRequest, res: Response) => {
   try {
     const { name, areaId } = req.body;
     let profileImage = req.body.profileImage;
 
-    // 画像ファイルがアップロードされた場合、CloudinaryのURLを使用
+    // 画像ファイルがアップロードされた場合、CloudinaryのURLを使用（validateCloudinaryUploadで検証済み）
     if (req.file) {
       profileImage = (req.file as any).secure_url;
     }

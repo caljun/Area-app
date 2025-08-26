@@ -563,15 +563,16 @@ router.post('/login', async (req: Request, res: Response) => {
     const profileComplete = missingFields.length === 0;
 
     return res.json({
-      message: 'ログインに成功しました',
+      token,
       user: {
         id: user.id,
         email: user.email,
         areaId: user.areaId,
         name: user.name,
-        profileImage: user.profileImage
+        profileImage: user.profileImage,
+        createdAt: user.createdAt
       },
-      token,
+      isNewUser: false,
       profileComplete,
       missingFields
     });
@@ -612,6 +613,7 @@ router.get('/me', authMiddleware, async (req: AuthRequest, res: Response) => {
     const profileComplete = missingFields.length === 0;
     
     return res.json({
+      token: req.headers.authorization?.replace('Bearer ', ''),
       user: {
         id: user.id,
         email: user.email,
@@ -620,6 +622,7 @@ router.get('/me', authMiddleware, async (req: AuthRequest, res: Response) => {
         profileImage: user.profileImage,
         createdAt: user.createdAt
       },
+      isNewUser: false,
       profileComplete,
       missingFields
     });
@@ -653,6 +656,7 @@ router.get('/session', authMiddleware, async (req: AuthRequest, res: Response) =
     const profileComplete = missingFields.length === 0;
     
     return res.json({
+      token: req.headers.authorization?.replace('Bearer ', ''),
       user: {
         id: user.id,
         email: user.email,
@@ -661,6 +665,7 @@ router.get('/session', authMiddleware, async (req: AuthRequest, res: Response) =
         profileImage: user.profileImage,
         createdAt: user.createdAt
       },
+      isNewUser: false,
       profileComplete,
       missingFields
     });

@@ -173,6 +173,7 @@ app.get('/api/session', authLimiter, authMiddleware, async (req: any, res) => {
         profileImage: user.profileImage,
         createdAt: user.createdAt
       },
+      isNewUser: false,
       profileComplete,
       missingFields
     });

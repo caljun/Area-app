@@ -2,7 +2,7 @@ import { Router, Response, Request } from 'express';
 import { z } from 'zod';
 import { prisma } from '../index';
 import { AuthRequest, authMiddleware } from '../middleware/auth';
-import { uploadSingle, handleUploadError } from '../middleware/upload';
+import { uploadSingle, handleUploadError, validateCloudinaryUpload } from '../middleware/upload';
 import { v2 as cloudinary } from 'cloudinary';
 
 // Prismaの型定義
@@ -27,24 +27,21 @@ router.post('/upload',
   (req: any, res: any, next: any) => {
     uploadSingle(req, res, next);
   },
-  handleUploadError, 
+  handleUploadError,
+  validateCloudinaryUpload,
   async (req: AuthRequest, res: Response) => {
   try {
     const { type } = uploadImageSchema.parse(req.body);
 
-    if (!req.file) {
-      return res.status(400).json({ error: '画像ファイルが選択されていません' });
-    }
-
-    // Cloudinaryからアップロード結果を取得
+    // Cloudinaryからアップロード結果を取得（validateCloudinaryUploadで検証済み）
     const result = req.file as CloudinaryFile;
 
     // データベースに画像情報を保存
     const image = await prisma.image.create({
       data: {
         userId: req.user!.id,
-        url: result.secure_url,
-        publicId: result.public_id,
+        url: result.secure_url!,
+        publicId: result.public_id!,
         type: type
       }
     });
@@ -53,7 +50,7 @@ router.post('/upload',
     if (type === 'PROFILE') {
       await prisma.user.update({
         where: { id: req.user!.id },
-        data: { profileImage: result.secure_url }
+        data: { profileImage: result.secure_url! }
       });
     }
 
@@ -84,16 +81,13 @@ router.post('/upload-registration',
   (req: any, res: any, next: any) => {
     uploadSingle(req, res, next);
   },
-  handleUploadError, 
+  handleUploadError,
+  validateCloudinaryUpload,
   async (req: any, res: Response) => {
   try {
     const { type } = uploadImageSchema.parse(req.body);
 
-    if (!req.file) {
-      return res.status(400).json({ error: '画像ファイルが選択されていません' });
-    }
-
-    // Cloudinaryからアップロード結果を取得
+    // Cloudinaryからアップロード結果を取得（validateCloudinaryUploadで検証済み）
     const result = req.file as CloudinaryFile;
 
     // 登録用の画像アップロードなので、データベースには保存しない
@@ -102,7 +96,7 @@ router.post('/upload-registration',
     return res.status(201).json({
       message: '画像のアップロードが完了しました',
       image: {
-        url: result.secure_url,
+        url: result.secure_url!,
         type: type,
         createdAt: new Date()
       }
