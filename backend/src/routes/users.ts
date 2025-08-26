@@ -98,13 +98,24 @@ router.patch('/me',
     // 画像ファイルがアップロードされた場合、CloudinaryのURLを使用（validateCloudinaryUploadで検証済み）
     if (req.file) {
       profileImage = (req.file as any).secure_url;
+      console.log('✅ 画像アップロード成功:', { secure_url: profileImage });
     }
 
     // 更新するデータを構築
     const updateData: any = {};
-    if (profileImage !== undefined) updateData.profileImage = profileImage;
+    if (profileImage !== undefined) {
+      updateData.profileImage = profileImage;
+      console.log('📝 profileImage更新データ:', profileImage);
+    }
+    // 画像ファイルがアップロードされた場合、必ずprofileImageを更新
+    if (req.file) {
+      updateData.profileImage = (req.file as any).secure_url;
+      console.log('🖼️ 画像アップロードによるprofileImage更新:', updateData.profileImage);
+    }
     if (name !== undefined && name.trim() !== '') updateData.name = name.trim();
     if (areaId !== undefined && areaId.trim() !== '') updateData.areaId = areaId.trim();
+
+    console.log('🔄 更新データ:', updateData);
 
     // 少なくとも1つのフィールドが提供されているかチェック
     if (Object.keys(updateData).length === 0) {
@@ -134,12 +145,16 @@ router.patch('/me',
       }
     });
 
+    console.log('✅ ユーザー更新完了:', { profileImage: updatedUser.profileImage });
+
     // プロフィールの完全性を再計算
     const missingFields = [];
     if (!updatedUser.name) missingFields.push('name');
     if (!updatedUser.areaId) missingFields.push('areaId');
     if (!updatedUser.profileImage) missingFields.push('profileImage');
     const profileComplete = missingFields.length === 0;
+
+    console.log('📊 プロフィール完全性:', { profileComplete, missingFields });
 
     // SwiftUIアプリの期待する形式でレスポンスを返す
     return res.json({
