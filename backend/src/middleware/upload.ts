@@ -20,6 +20,13 @@ console.log('🔧 Cloudinary config:', {
   api_secret: !!process.env.CLOUDINARY_API_SECRET, // true ならOK
 });
 
+console.log('📁 CloudinaryStorage設定:', {
+  folder: 'area-app',
+  format: 'jpg',
+  resource_type: 'image',
+  allowed_formats: ['jpg', 'jpeg', 'png', 'gif', 'webp', 'heic', 'heif']
+});
+
 const storage = new CloudinaryStorage({
   cloudinary,
   params: {
@@ -31,6 +38,13 @@ const storage = new CloudinaryStorage({
       { quality: 'auto' },
       { fetch_format: 'auto' },
     ],
+    // HEICファイルの自動変換を確実にする
+    resource_type: 'image',
+    eager: [
+      { format: 'jpg', quality: 'auto' }
+    ],
+    eager_async: true,
+    eager_notification_url: null
   } as any,
 });
 
@@ -71,13 +85,57 @@ export const upload = multer({
 
 export const uploadSingle = upload.single('image');
 
+// Cloudinaryの直接アップロード処理（フォールバック用）
+export const uploadToCloudinaryDirectly = async (file: Express.Multer.File) => {
+  try {
+    console.log('☁️ Cloudinary直接アップロード開始:', {
+      originalname: file.originalname,
+      mimetype: file.mimetype,
+      size: file.size
+    });
+
+    // ファイルをBase64エンコード
+    const base64Data = file.buffer.toString('base64');
+    const dataURI = `data:${file.mimetype};base64,${base64Data}`;
+
+    console.log('📤 Cloudinaryアップロード実行中...');
+    
+    const result = await cloudinary.uploader.upload(dataURI, {
+      folder: 'area-app/profile-images',
+      resource_type: 'image',
+      format: 'jpg',  // 強制的にJPEGに変換
+      transformation: [
+        { width: 800, height: 600, crop: 'limit' },
+        { quality: 'auto' }
+      ],
+      eager: [
+        { format: 'jpg', quality: 'auto' }
+      ],
+      eager_async: true
+    });
+
+    console.log('✅ Cloudinary直接アップロード成功:', {
+      secure_url: result.secure_url,
+      public_id: result.public_id,
+      format: result.format,
+      width: result.width,
+      height: result.height
+    });
+
+    return result;
+  } catch (error) {
+    console.error('❌ Cloudinary直接アップロード失敗:', error);
+    throw error;
+  }
+};
+
 // アップロード処理の詳細ログを追加
 export const uploadSingleProfileImage = (req: any, res: any, next: any) => {
   console.log('🔄 uploadSingleProfileImage開始');
   console.log('📋 リクエストヘッダー:', req.headers);
   console.log('📦 リクエストボディ:', req.body);
   
-  return upload.single('profileImage')(req, res, (err: any) => {
+  return upload.single('profileImage')(req, res, async (err: any) => {
     if (err) {
       console.error('❌ multer.single エラー:', err);
       return next(err);
@@ -86,6 +144,28 @@ export const uploadSingleProfileImage = (req: any, res: any, next: any) => {
     console.log('✅ multer.single 完了');
     console.log('📁 処理後のreq.file:', req.file);
     console.log('📄 処理後のreq.body:', req.body);
+    
+    // Cloudinaryの結果が不正な場合、直接アップロードを試行
+    if (req.file) {
+      const cloudinaryFile = req.file as any;
+      if (!cloudinaryFile.secure_url || !cloudinaryFile.public_id) {
+        console.log('⚠️ multer-storage-cloudinaryの結果が不正 - 直接アップロードを試行');
+        try {
+          const directResult = await uploadToCloudinaryDirectly(req.file);
+          // req.fileを直接アップロード結果で上書き
+          req.file = {
+            ...req.file,
+            secure_url: directResult.secure_url,
+            public_id: directResult.public_id,
+            url: directResult.secure_url
+          };
+          console.log('✅ 直接アップロードでreq.fileを更新:', req.file);
+        } catch (directError) {
+          console.error('❌ 直接アップロードも失敗:', directError);
+          return next(new Error('画像のアップロードに失敗しました'));
+        }
+      }
+    }
     
     next();
   });
