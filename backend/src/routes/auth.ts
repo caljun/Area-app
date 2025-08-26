@@ -616,4 +616,45 @@ router.get('/me', authMiddleware, async (req: AuthRequest, res: Response) => {
   }
 });
 
+// Session validation endpoint
+router.get('/session', authMiddleware, async (req: AuthRequest, res: Response) => {
+  try {
+    // トークンが有効な場合、ユーザー情報を返す
+    const user = await prisma.user.findUnique({
+      where: { id: req.user!.id },
+      select: {
+        id: true,
+        email: true,
+        areaId: true,
+        name: true,
+        profileImage: true,
+        createdAt: true
+      }
+    });
+    
+    // プロフィールの完全性をチェック
+    const missingFields = [];
+    if (!user.name) missingFields.push('name');
+    if (!user.areaId) missingFields.push('areaId');
+    if (!user.profileImage) missingFields.push('profileImage');
+    const profileComplete = missingFields.length === 0;
+    
+    return res.json({
+      user: {
+        id: user.id,
+        email: user.email,
+        areaId: user.areaId,
+        name: user.name,
+        profileImage: user.profileImage,
+        createdAt: user.createdAt
+      },
+      profileComplete,
+      missingFields
+    });
+  } catch (error) {
+    console.error('Session validation error:', error);
+    return res.status(500).json({ error: 'セッション検証に失敗しました' });
+  }
+});
+
 export default router; 

@@ -26,18 +26,24 @@ router.get('/profile', async (req: AuthRequest, res: Response) => {
   }
 });
 
-// Update current user's profile image
+// Update current user's profile
 router.put('/profile', async (req: AuthRequest, res: Response) => {
   try {
-    const { profileImage } = req.body;
+    const { profileImage, name } = req.body;
 
-    if (!profileImage) {
-      return res.status(400).json({ error: 'プロフィール画像は必須です' });
+    // 更新するデータを構築
+    const updateData: any = {};
+    if (profileImage !== undefined) updateData.profileImage = profileImage;
+    if (name !== undefined) updateData.name = name;
+
+    // 少なくとも1つのフィールドが提供されているかチェック
+    if (Object.keys(updateData).length === 0) {
+      return res.status(400).json({ error: '更新するフィールドが指定されていません' });
     }
 
     const updatedUser = await prisma.user.update({
       where: { id: req.user!.id },
-      data: { profileImage },
+      data: updateData,
       select: {
         id: true,
         email: true,
