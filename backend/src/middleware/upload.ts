@@ -1,5 +1,4 @@
 import multer from 'multer';
-import { CloudinaryStorage } from 'multer-storage-cloudinary';
 import { v2 as cloudinary } from 'cloudinary';
 import { Request, Response, NextFunction } from 'express';
 import dotenv from 'dotenv';
@@ -20,33 +19,10 @@ console.log('🔧 Cloudinary config:', {
   api_secret: !!process.env.CLOUDINARY_API_SECRET, // true ならOK
 });
 
-console.log('📁 CloudinaryStorage設定:', {
-  folder: 'area-app',
-  format: 'jpg',
-  resource_type: 'image',
-  allowed_formats: ['jpg', 'jpeg', 'png', 'gif', 'webp', 'heic', 'heif']
-});
 
-const storage = new CloudinaryStorage({
-  cloudinary,
-  params: {
-    folder: 'area-app',
-    format: 'jpg',
-    allowed_formats: ['jpg', 'jpeg', 'png', 'gif', 'webp', 'heic', 'heif'],
-    transformation: [
-      { width: 800, height: 600, crop: 'limit' },
-      { quality: 'auto' },
-      { fetch_format: 'auto' },
-    ],
-    // HEICファイルの自動変換を確実にする
-    resource_type: 'image',
-    eager: [
-      { format: 'jpg', quality: 'auto' }
-    ],
-    eager_async: true,
-    eager_notification_url: null
-  } as any,
-});
+
+// メモリストレージを使用してファイルバッファを保持
+const memoryStorage = multer.memoryStorage();
 
 const allowedTypes = [
   'image/jpeg',
@@ -76,7 +52,7 @@ const fileFilter = (req: any, file: any, cb: any) => {
 };
 
 export const upload = multer({
-  storage: storage as any,
+  storage: memoryStorage, // メモリストレージを使用してファイルバッファを保持
   fileFilter,
   limits: {
     fileSize: 5 * 1024 * 1024,
@@ -94,7 +70,10 @@ export const uploadToCloudinaryDirectly = async (file: Express.Multer.File) => {
       size: file.size
     });
 
-    // ファイルをBase64エンコード
+        // ファイルをBase64エンコード
+    if (!file.buffer) {
+      throw new Error('ファイルバッファが存在しません。multer-storage-cloudinaryの設定を確認してください。');
+    }
     const base64Data = file.buffer.toString('base64');
     const dataURI = `data:${file.mimetype};base64,${base64Data}`;
 
@@ -145,25 +124,28 @@ export const uploadSingleProfileImage = (req: any, res: any, next: any) => {
     console.log('📁 処理後のreq.file:', req.file);
     console.log('📄 処理後のreq.body:', req.body);
     
-    // Cloudinaryの結果が不正な場合、直接アップロードを試行
+    // ファイルが存在する場合、Cloudinaryに直接アップロード
     if (req.file) {
-      const cloudinaryFile = req.file as any;
-      if (!cloudinaryFile.secure_url || !cloudinaryFile.public_id) {
-        console.log('⚠️ multer-storage-cloudinaryの結果が不正 - 直接アップロードを試行');
-        try {
-          const directResult = await uploadToCloudinaryDirectly(req.file);
-          // req.fileを直接アップロード結果で上書き
-          req.file = {
-            ...req.file,
-            secure_url: directResult.secure_url,
-            public_id: directResult.public_id,
-            url: directResult.secure_url
-          };
-          console.log('✅ 直接アップロードでreq.fileを更新:', req.file);
-        } catch (directError) {
-          console.error('❌ 直接アップロードも失敗:', directError);
-          return next(new Error('画像のアップロードに失敗しました'));
-        }
+      try {
+        console.log('☁️ Cloudinary直接アップロード開始');
+        const directResult = await uploadToCloudinaryDirectly(req.file);
+        
+        // req.fileをCloudinaryアップロード結果で更新
+        req.file = {
+          ...req.file,
+          secure_url: directResult.secure_url,
+          public_id: directResult.public_id,
+          url: directResult.secure_url,
+          path: directResult.secure_url
+        };
+        
+        console.log('✅ Cloudinaryアップロード成功:', {
+          secure_url: directResult.secure_url,
+          public_id: directResult.public_id
+        });
+      } catch (directError) {
+        console.error('❌ Cloudinaryアップロード失敗:', directError);
+        return next(new Error('画像のアップロードに失敗しました'));
       }
     }
     
@@ -193,7 +175,18 @@ export const handleUploadError = (
 
   if (error) {
     console.error('❌ その他のアップロードエラー:', error);
-    return res.status(400).json({ error: error.message || 'アップロードに失敗しました' });
+    
+    // より具体的なエラーメッセージを提供
+    let errorMessage = 'アップロードに失敗しました';
+    if (error.message.includes('ファイルバッファが存在しません')) {
+      errorMessage = 'ファイルの処理に失敗しました。ファイルを再選択してください。';
+    } else if (error.message.includes('画像のアップロードに失敗しました')) {
+      errorMessage = '画像のアップロードに失敗しました。しばらく時間をおいて再度お試しください。';
+    } else if (error.message) {
+      errorMessage = error.message;
+    }
+    
+    return res.status(400).json({ error: errorMessage });
   }
 
   console.log('✅ アップロードエラーなし - 次の処理へ');
