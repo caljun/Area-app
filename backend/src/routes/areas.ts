@@ -116,6 +116,34 @@ router.get('/:id', async (req: AuthRequest, res: Response) => {
   }
 });
 
+// Get area members
+router.get('/:id/members', async (req: AuthRequest, res: Response) => {
+  try {
+    const { id } = req.params;
+
+    const members = await prisma.areaMember.findMany({
+      where: { areaId: id },
+      include: {
+        user: {
+          select: {
+            id: true,
+            name: true,
+            areaId: true
+          }
+        }
+      }
+    });
+
+    // Areaフロントエンドの期待する形式でレスポンスを返す（ユーザーIDの配列）
+    const memberIds = members.map(member => member.user.id);
+
+    return res.json(memberIds);
+  } catch (error) {
+    console.error('Get area members error:', error);
+    return res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
 // Create area
 router.post('/', async (req: AuthRequest, res: Response) => {
   try {

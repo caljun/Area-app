@@ -119,7 +119,8 @@ router.get('/friends', async (req: AuthRequest, res: Response) => {
       };
     });
 
-    return res.json({ friends: friendsWithLocations });
+    // Areaフロントエンドの期待する形式でレスポンスを返す
+    return res.json(friendsWithLocations);
   } catch (error) {
     console.error('Get friend locations error:', error);
     return res.status(500).json({ error: '友達の位置情報取得に失敗しました' });

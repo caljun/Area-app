@@ -61,10 +61,9 @@ const loginSchema = z.object({
 // Apple ID認証用のスキーマ
 const appleAuthSchema = z.object({
   userID: z.string().min(1, 'Apple User IDは必須です'),
-  name: z.string().min(1, 'ユーザー名は必須です'),
-  token: z.string().optional(), // フロントエンドから送信されるが使用しない
-  identityToken: z.string().min(1, 'Apple IDトークンは必須です'),
-  areaId: z.string().min(3, 'Area IDは3文字以上で入力してください').optional()
+  name: z.string().optional(),
+  email: z.string().email('メールアドレスの形式が正しくありません').optional(),
+  identityToken: z.string().min(1, 'Apple IDトークンは必須です')
 });
 
 // Step 1: メールアドレス確認
@@ -345,9 +344,9 @@ router.post('/register', async (req: Request, res: Response) => {
 // Apple ID認証
 router.post('/apple', async (req: Request, res: Response) => {
   try {
-    const { userID, name, identityToken, areaId } = appleAuthSchema.parse(req.body);
+    const { userID, name, email, identityToken } = appleAuthSchema.parse(req.body);
 
-    console.log('Apple ID認証リクエスト:', { userID, name, areaId });
+    console.log('Apple ID認証リクエスト:', { userID, name, email });
 
     // Apple IDのidentityTokenを検証
     try {
@@ -403,7 +402,7 @@ router.post('/apple', async (req: Request, res: Response) => {
     }
 
     // areaIdが提供されていない場合、userIDをareaIdとして使用
-    const finalAreaId = areaId || userID;
+    const finalAreaId = userID;
 
     try {
       // Apple User IDまたはArea IDで既存ユーザーを検索
@@ -524,6 +523,96 @@ router.post('/apple', async (req: Request, res: Response) => {
     
     console.error('Apple ID認証エラー:', error);
     return res.status(500).json({ error: 'Apple ID認証に失敗しました' });
+  }
+});
+
+// Register
+router.post('/register', async (req: Request, res: Response) => {
+  try {
+    const { email, password, areaId, name, profileImage } = registerSchema.parse(req.body);
+
+    // Check if user already exists
+    const existingUser = await prisma.user.findUnique({
+      where: { email }
+    });
+
+    if (existingUser) {
+      return res.status(400).json({
+        error: 'このメールアドレスは既に登録されています'
+      });
+    }
+
+    // Check if Area ID is already taken
+    const existingAreaId = await prisma.user.findUnique({
+      where: { areaId }
+    });
+
+    if (existingAreaId) {
+      return res.status(409).json({
+        error: 'このArea IDは既に使用されています'
+      });
+    }
+
+    // Hash password
+    const hashedPassword = await bcrypt.hash(password, 12);
+
+    // Create user
+    const user = await prisma.user.create({
+      data: {
+        email,
+        password: hashedPassword,
+        areaId,
+        name,
+        profileImage: profileImage || null
+      },
+      select: {
+        id: true,
+        email: true,
+        areaId: true,
+        name: true,
+        profileImage: true,
+        createdAt: true
+      }
+    });
+
+    // Generate JWT token
+    const token = jwt.sign(
+      { userId: user.id } as JWTPayload,
+      process.env.JWT_SECRET || 'fallback-secret',
+      { expiresIn: process.env.JWT_EXPIRES_IN || '7d' } as any
+    );
+
+    // Check profile completeness
+    const missingFields = [];
+    if (!user.name) missingFields.push('name');
+    if (!user.areaId) missingFields.push('areaId');
+    if (!user.profileImage) missingFields.push('profileImage');
+    const profileComplete = missingFields.length === 0;
+
+    return res.status(201).json({
+      token,
+      user: {
+        id: user.id,
+        email: user.email,
+        areaId: user.areaId,
+        name: user.name,
+        profileImage: user.profileImage,
+        createdAt: user.createdAt
+      },
+      isNewUser: true,
+      profileComplete,
+      missingFields
+    });
+  } catch (error) {
+    if (error instanceof z.ZodError) {
+      return res.status(400).json({
+        error: '入力内容に問題があります',
+        details: error.errors
+      });
+    }
+    
+    console.error('Register error:', error);
+    return res.status(500).json({ error: 'ユーザー登録に失敗しました' });
   }
 });
 

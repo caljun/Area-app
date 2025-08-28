@@ -7,12 +7,11 @@ const router = Router();
 
 // Validation schemas
 const sendFriendRequestSchema = z.object({
-  receiverId: z.string().min(1, 'Receiver ID is required')
+  friendId: z.string().min(1, 'Friend ID is required')
 });
 
 const respondToFriendRequestSchema = z.object({
-  requestId: z.string().min(1, 'Request ID is required'),
-  status: z.enum(['ACCEPTED', 'REJECTED'])
+  accept: z.boolean()
 });
 
 const sendAreaRequestSchema = z.object({
@@ -36,7 +35,15 @@ router.get('/', async (req: AuthRequest, res: Response) => {
       }
     });
 
-    res.json({ friends });
+    // Areaフロントエンドの期待する形式でレスポンスを返す
+    const apiFriends = friends.map(friend => ({
+      id: friend.id,
+      userId: friend.userId,
+      friendId: friend.friendId,
+      createdAt: friend.createdAt
+    }));
+
+    res.json(apiFriends);
   } catch (error) {
     console.error('Get friends error:', error);
     res.status(500).json({ error: 'Internal server error' });
@@ -63,7 +70,16 @@ router.get('/requests', async (req: AuthRequest, res: Response) => {
       orderBy: { createdAt: 'desc' }
     });
 
-    res.json({ requests });
+    // Areaフロントエンドの期待する形式でレスポンスを返す
+    const apiRequests = requests.map(request => ({
+      id: request.id,
+      fromUserId: request.senderId,
+      toUserId: request.receiverId,
+      status: request.status.toLowerCase(),
+      createdAt: request.createdAt
+    }));
+
+    res.json(apiRequests);
   } catch (error) {
     console.error('Get friend requests error:', error);
     res.status(500).json({ error: 'Internal server error' });
@@ -73,14 +89,14 @@ router.get('/requests', async (req: AuthRequest, res: Response) => {
 // Send friend request
 router.post('/request', async (req: AuthRequest, res: Response) => {
   try {
-    const { receiverId } = sendFriendRequestSchema.parse(req.body);
+    const { friendId } = sendFriendRequestSchema.parse(req.body);
 
     // Check if already friends
     const existingFriend = await prisma.friend.findFirst({
       where: {
         OR: [
-          { userId: req.user!.id, friendId: receiverId },
-          { userId: receiverId, friendId: req.user!.id }
+          { userId: req.user!.id, friendId: friendId },
+          { userId: friendId, friendId: req.user!.id }
         ]
       } as any
     });
@@ -93,8 +109,8 @@ router.post('/request', async (req: AuthRequest, res: Response) => {
     const existingRequest = await prisma.friendRequest.findFirst({
       where: {
         OR: [
-          { senderId: req.user!.id, receiverId: receiverId },
-          { senderId: receiverId, receiverId: req.user!.id }
+          { senderId: req.user!.id, receiverId: friendId },
+          { senderId: friendId, receiverId: req.user!.id }
         ],
         status: 'PENDING'
       } as any
@@ -107,7 +123,7 @@ router.post('/request', async (req: AuthRequest, res: Response) => {
     const request = await prisma.friendRequest.create({
       data: {
         senderId: req.user!.id,
-        receiverId
+        receiverId: friendId
       },
       include: {
         receiver: {
@@ -133,7 +149,7 @@ router.post('/request', async (req: AuthRequest, res: Response) => {
             senderName: req.user!.name,
             senderAreaId: req.user!.areaId
           },
-          recipientId: receiverId,
+          recipientId: friendId,
           senderId: req.user!.id
         }
       });
@@ -163,7 +179,7 @@ router.post('/request', async (req: AuthRequest, res: Response) => {
 router.put('/request/:requestId', async (req: AuthRequest, res: Response) => {
   try {
     const { requestId } = req.params;
-    const { status } = respondToFriendRequestSchema.parse(req.body);
+    const { accept } = respondToFriendRequestSchema.parse(req.body);
 
     const request = await prisma.friendRequest.findFirst({
       where: {
@@ -177,12 +193,14 @@ router.put('/request/:requestId', async (req: AuthRequest, res: Response) => {
       return res.status(404).json({ error: 'Friend request not found' });
     }
 
+    const status = accept ? 'ACCEPTED' : 'REJECTED';
+
     await prisma.friendRequest.update({
       where: { id: requestId },
       data: { status }
     });
 
-    if (status === 'ACCEPTED') {
+    if (accept) {
       // Create friend relationship
       await prisma.friend.create({
         data: {
@@ -356,7 +374,7 @@ router.post('/area-request', async (req: AuthRequest, res: Response) => {
 router.put('/area-request/:requestId', async (req: AuthRequest, res: Response) => {
   try {
     const { requestId } = req.params;
-    const { status } = respondToFriendRequestSchema.parse(req.body);
+    const { accept } = respondToFriendRequestSchema.parse(req.body);
 
     const request = await prisma.areaRequest.findFirst({
       where: {
@@ -369,6 +387,8 @@ router.put('/area-request/:requestId', async (req: AuthRequest, res: Response) =
     if (!request) {
       return res.status(404).json({ error: 'Area request not found' });
     }
+
+    const status = accept ? 'ACCEPTED' : 'REJECTED';
 
     await prisma.areaRequest.update({
       where: { id: requestId },
