@@ -469,7 +469,7 @@ router.post('/apple', async (req: Request, res: Response) => {
           data: {
             email: `apple_${userID}@temp.com`, // Apple IDユーザー用の一時メール
             areaId: finalAreaId,
-            name,
+            name: name || `Apple User ${userID.slice(-4)}`, // 名前がない場合はデフォルト名
             password: null, // Apple IDユーザーはパスワードなし
             profileImage: null
           },

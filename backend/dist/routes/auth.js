@@ -374,7 +374,7 @@ router.post('/apple', async (req, res) => {
                     data: {
                         email: `apple_${userID}@temp.com`,
                         areaId: finalAreaId,
-                        name,
+                        name: name || `Apple User ${userID.slice(-4)}`,
                         password: null,
                         profileImage: null
                     },
