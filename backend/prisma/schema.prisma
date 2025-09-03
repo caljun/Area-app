@@ -35,6 +35,13 @@ model User {
   notifications Notification[] @relation("NotificationRecipient")
   sentNotifications Notification[] @relation("NotificationSender")
   notificationSettings NotificationSettings[]
+  // チャット関連
+  chatUser1    Chat[] @relation("ChatUser1")
+  chatUser2    Chat[] @relation("ChatUser2")
+  messages     Message[] @relation("MessageSender")
+  // エリア招待関連
+  areaInvitationInvited AreaInvitation[] @relation("AreaInvitationInvited")
+  areaInvitationInviter AreaInvitation[] @relation("AreaInvitationInviter")
 
   @@map("users")
 }
@@ -53,6 +60,7 @@ model Area {
   user         User          @relation(fields: [userId], references: [id], onDelete: Cascade)
   areaRequests AreaRequest[] @relation("AreaRequests")
   areaMembers  AreaMember[]  @relation("AreaMembers")
+  areaInvitations AreaInvitation[] @relation("AreaInvitations")
 
   @@map("areas")
 }
@@ -184,6 +192,57 @@ model NotificationSettings {
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@map("notification_settings")
+}
+
+// チャット機能用のモデル
+model Chat {
+  id        String   @id @default(auto()) @map("_id") @db.ObjectId
+  user1Id   String   @db.ObjectId
+  user2Id   String   @db.ObjectId
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  user1    User      @relation("ChatUser1", fields: [user1Id], references: [id], onDelete: Cascade)
+  user2    User      @relation("ChatUser2", fields: [user2Id], references: [id], onDelete: Cascade)
+  messages Message[]
+
+  @@unique([user1Id, user2Id])
+  @@map("chats")
+}
+
+model Message {
+  id        String   @id @default(auto()) @map("_id") @db.ObjectId
+  content   String
+  senderId  String   @db.ObjectId
+  chatId    String   @db.ObjectId
+  isRead    Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  // Relations
+  sender User @relation("MessageSender", fields: [senderId], references: [id], onDelete: Cascade)
+  chat   Chat @relation(fields: [chatId], references: [id], onDelete: Cascade)
+
+  @@map("messages")
+}
+
+// エリア招待用のモデル
+model AreaInvitation {
+  id            String @id @default(auto()) @map("_id") @db.ObjectId
+  areaId        String @db.ObjectId
+  invitedUserId String @db.ObjectId
+  invitedBy     String @db.ObjectId
+  status        RequestStatus @default(PENDING)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  // Relations
+  area         Area @relation("AreaInvitations", fields: [areaId], references: [id], onDelete: Cascade)
+  invitedUser  User @relation("AreaInvitationInvited", fields: [invitedUserId], references: [id], onDelete: Cascade)
+  invitedByUser User @relation("AreaInvitationInviter", fields: [invitedBy], references: [id], onDelete: Cascade)
+
+  @@unique([areaId, invitedUserId])
+  @@map("area_invitations")
 }
 
 enum RequestStatus {

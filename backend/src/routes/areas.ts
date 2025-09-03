@@ -440,4 +440,245 @@ router.get('/memberships', async (req: AuthRequest, res: Response) => {
   }
 });
 
+// Invite friend to area
+router.post('/:id/invite', async (req: AuthRequest, res: Response) => {
+  try {
+    const { id } = req.params;
+    const { friendId } = req.body;
+
+    if (!friendId) {
+      return res.status(400).json({ error: 'Friend ID is required' });
+    }
+
+    // Check if area belongs to user
+    const area = await prisma.area.findFirst({
+      where: {
+        id,
+        userId: req.user!.id
+      }
+    });
+
+    if (!area) {
+      return res.status(404).json({ error: 'Area not found or access denied' });
+    }
+
+    // Check if they are friends
+    const friendship = await prisma.friend.findFirst({
+      where: {
+        OR: [
+          { userId: req.user!.id, friendId: friendId },
+          { userId: friendId, friendId: req.user!.id }
+        ]
+      } as any
+    });
+
+    if (!friendship) {
+      return res.status(400).json({ error: 'Can only invite friends to areas' });
+    }
+
+    // Check if already a member
+    const existingMember = await prisma.areaMember.findFirst({
+      where: {
+        areaId: id,
+        userId: friendId
+      }
+    });
+
+    if (existingMember) {
+      return res.status(400).json({ error: 'User is already a member of this area' });
+    }
+
+    // Create invitation (簡易版 - 実際の実装ではAreaInvitationテーブルを使用)
+    // 現在は直接メンバーとして追加
+    const member = await prisma.areaMember.create({
+      data: {
+        areaId: id,
+        userId: friendId,
+        addedBy: req.user!.id
+      }
+    });
+
+    return res.status(201).json({
+      message: 'Invitation sent successfully',
+      member
+    });
+  } catch (error) {
+    console.error('Invite to area error:', error);
+    return res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// Join area
+router.post('/:id/join', async (req: AuthRequest, res: Response) => {
+  try {
+    const { id } = req.params;
+
+    // Check if area exists and is public
+    const area = await prisma.area.findFirst({
+      where: {
+        id,
+        isPublic: true
+      }
+    });
+
+    if (!area) {
+      return res.status(404).json({ error: 'Area not found or not public' });
+    }
+
+    // Check if already a member
+    const existingMember = await prisma.areaMember.findFirst({
+      where: {
+        areaId: id,
+        userId: req.user!.id
+      }
+    });
+
+    if (existingMember) {
+      return res.status(400).json({ error: 'Already a member of this area' });
+    }
+
+    const member = await prisma.areaMember.create({
+      data: {
+        areaId: id,
+        userId: req.user!.id,
+        addedBy: req.user!.id
+      }
+    });
+
+    return res.status(201).json({
+      message: 'Joined area successfully',
+      member
+    });
+  } catch (error) {
+    console.error('Join area error:', error);
+    return res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// Leave area
+router.delete('/:id/leave', async (req: AuthRequest, res: Response) => {
+  try {
+    const { id } = req.params;
+
+    // Check if member exists
+    const member = await prisma.areaMember.findFirst({
+      where: {
+        areaId: id,
+        userId: req.user!.id
+      }
+    });
+
+    if (!member) {
+      return res.status(404).json({ error: 'Not a member of this area' });
+    }
+
+    // Cannot leave if you own the area
+    const area = await prisma.area.findFirst({
+      where: { id }
+    });
+
+    if (area?.userId === req.user!.id) {
+      return res.status(400).json({ error: 'Cannot leave area you own' });
+    }
+
+    await prisma.areaMember.delete({
+      where: { id: member.id }
+    });
+
+    return res.json({ message: 'Left area successfully' });
+  } catch (error) {
+    console.error('Leave area error:', error);
+    return res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// Search areas
+router.get('/search', async (req: Request, res: Response) => {
+  try {
+    const { q, lat, lng, radius = 10 } = req.query;
+
+    let whereClause: any = {};
+
+    if (q) {
+      whereClause.name = {
+        contains: q as string,
+        mode: 'insensitive'
+      };
+    }
+
+    if (lat && lng) {
+      // Simple distance calculation (can be improved with proper geospatial queries)
+      whereClause.isPublic = true;
+    }
+
+    const areas = await prisma.area.findMany({
+      where: whereClause,
+      include: {
+        user: {
+          select: {
+            id: true,
+            name: true,
+            areaId: true
+          }
+        }
+      },
+      orderBy: { createdAt: 'desc' },
+      take: 20
+    });
+
+    res.json(areas);
+  } catch (error) {
+    console.error('Search areas error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// Get nearby areas
+router.get('/nearby', async (req: Request, res: Response) => {
+  try {
+    const { lat, lng, radius = 10 } = req.query;
+
+    if (!lat || !lng) {
+      return res.status(400).json({ error: 'Latitude and longitude are required' });
+    }
+
+    const areas = await prisma.area.findMany({
+      where: { isPublic: true },
+      include: {
+        user: {
+          select: {
+            id: true,
+            name: true,
+            areaId: true
+          }
+        }
+      },
+      orderBy: { createdAt: 'desc' },
+      take: 20
+    });
+
+    // Simple distance filtering (can be improved with proper geospatial queries)
+    const nearbyAreas = areas.filter(area => {
+      const coords = area.coordinates as any;
+      if (!coords || !Array.isArray(coords) || coords.length === 0) return false;
+      
+      // Calculate distance from center point
+      const centerLat = coords.reduce((sum: number, coord: any) => sum + coord.latitude, 0) / coords.length;
+      const centerLng = coords.reduce((sum: number, coord: any) => sum + coord.longitude, 0) / coords.length;
+      
+      const distance = Math.sqrt(
+        Math.pow(parseFloat(lat as string) - centerLat, 2) + 
+        Math.pow(parseFloat(lng as string) - centerLng, 2)
+      ) * 111; // Rough conversion to km
+      
+      return distance <= parseFloat(radius as string);
+    });
+
+    res.json(nearbyAreas);
+  } catch (error) {
+    console.error('Get nearby areas error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
 export default router; 

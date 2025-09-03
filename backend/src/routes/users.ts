@@ -256,4 +256,37 @@ router.get('/search/:areaId', async (req: AuthRequest, res: Response) => {
   }
 });
 
+// Search users by query string
+router.get('/search', async (req: AuthRequest, res: Response) => {
+  try {
+    const { q } = req.query;
+
+    if (!q || typeof q !== 'string') {
+      return res.status(400).json({ error: '検索クエリが必要です' });
+    }
+
+    const users = await prisma.user.findMany({
+      where: {
+        OR: [
+          { name: { contains: q, mode: 'insensitive' } },
+          { areaId: { contains: q, mode: 'insensitive' } }
+        ],
+        id: { not: req.user!.id } // 自分自身を除外
+      },
+      select: {
+        id: true,
+        name: true,
+        areaId: true,
+        profileImage: true
+      },
+      take: 20
+    });
+
+    return res.json({ users });
+  } catch (error) {
+    console.error('Search users error:', error);
+    return res.status(500).json({ error: 'ユーザー検索に失敗しました' });
+  }
+});
+
 export default router;

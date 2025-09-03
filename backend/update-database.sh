@@ -1,25 +1,14 @@
 #!/bin/bash
 
-echo "🚀 Area App バックエンド - データベース更新スクリプト"
-echo "=================================================="
+echo "🔄 データベーススキーマを更新しています..."
 
-# 依存関係のインストール
-echo "📦 依存関係をインストール中..."
-npm install
+# Prismaクライアントを再生成
+echo "📦 Prismaクライアントを再生成中..."
+npx prisma generate
 
-# Prismaクライアントの生成
-echo "🔧 Prismaクライアントを生成中..."
-npm run db:generate
+# データベースにスキーマを適用
+echo "🗄️ データベースにスキーマを適用中..."
+npx prisma db push
 
-# データベーススキーマの同期
-echo "🔄 データベーススキーマを同期中..."
-npm run db:push
-
-echo "✅ データベースの更新が完了しました！"
-echo ""
-echo "次のステップ:"
-echo "1. サーバーを起動: npm run dev"
-echo "2. 通知システムのテスト"
-echo "3. iOSアプリとの連携テスト"
-echo ""
-echo "何か問題が発生した場合は、ログを確認してください。"
+echo "✅ データベーススキーマの更新が完了しました！"
+echo "🚀 サーバーを再起動してください"

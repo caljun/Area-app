@@ -411,4 +411,41 @@ router.put('/area-request/:requestId', async (req: AuthRequest, res: Response) =
   }
 });
 
+// Get online friends
+router.get('/online', async (req: AuthRequest, res: Response) => {
+  try {
+    // 友達のオンライン状態を取得（簡易版）
+    // 実際の実装では、WebSocketやRedis等を使用してリアルタイム状態を管理
+    const friends = await prisma.friend.findMany({
+      where: { userId: req.user!.id },
+      include: {
+        friend: {
+          select: {
+            id: true,
+            name: true,
+            areaId: true,
+            profileImage: true,
+            updatedAt: true
+          }
+        }
+      }
+    });
+
+    // 簡易的なオンライン判定（最後の更新から5分以内をオンラインとする）
+    const onlineFriends = friends.map(friend => ({
+      id: friend.friend.id,
+      name: friend.friend.name,
+      areaId: friend.friend.areaId,
+      profileImage: friend.friend.profileImage,
+      isOnline: new Date().getTime() - friend.friend.updatedAt.getTime() < 5 * 60 * 1000, // 5分以内
+      lastSeen: friend.friend.updatedAt
+    }));
+
+    res.json({ friends: onlineFriends });
+  } catch (error) {
+    console.error('Get online friends error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
 export default router; 

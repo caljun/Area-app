@@ -15,6 +15,7 @@ import friendRoutes from './routes/friends';
 import locationRoutes from './routes/locations';
 import imageRoutes from './routes/images';
 import notificationRoutes from './routes/notifications';
+import chatRoutes from './routes/chat';
 // import uploadRoutes from './routes/upload'; 
 
 // Import middleware
@@ -191,6 +192,7 @@ app.use('/api/friends', authMiddleware, friendRoutes);
 app.use('/api/locations', authMiddleware, locationRoutes);
 app.use('/api/images', imageRoutes); // 認証不要なエンドポイントがあるため、authMiddlewareを削除 
 app.use('/api/notifications', authMiddleware, notificationRoutes);
+app.use('/api/chat', authMiddleware, chatRoutes);
 // app.use('/api/images/upload', authMiddleware, uploadRoutes); 
 
 // WebSocket connection handling
