@@ -33,15 +33,36 @@ router.get('/', async (req: AuthRequest, res: Response) => {
     });
 
     // SwiftUIアプリの期待する形式でレスポンスを返す
-    const apiAreas = areas.map(area => ({
-      id: area.id,
-      name: area.name,
-      coordinates: area.coordinates,
-      userId: area.userId,
-      isPublic: area.isPublic,
-      imageUrl: area.imageUrl,
-      createdAt: area.createdAt,
-      updatedAt: area.updatedAt
+    const apiAreas = await Promise.all(areas.map(async (area) => {
+      // メンバー数を取得
+      const memberCount = await prisma.areaMember.count({
+        where: { areaId: area.id }
+      });
+      
+      // オンラインメンバー数を取得（簡易版）
+      const onlineCount = await prisma.areaMember.count({
+        where: { 
+          areaId: area.id,
+          user: {
+            updatedAt: {
+              gte: new Date(Date.now() - 5 * 60 * 1000) // 5分以内
+            }
+          }
+        }
+      });
+
+      return {
+        id: area.id,
+        name: area.name,
+        coordinates: area.coordinates,
+        userId: area.userId,
+        isPublic: area.isPublic,
+        imageUrl: area.imageUrl,
+        createdAt: area.createdAt,
+        updatedAt: area.updatedAt,
+        memberCount,
+        onlineCount
+      };
     }));
 
     res.json(apiAreas);
@@ -60,15 +81,36 @@ router.get('/public', async (req: Request, res: Response) => {
     });
 
     // SwiftUIアプリの期待する形式でレスポンスを返す
-    const apiAreas = areas.map(area => ({
-      id: area.id,
-      name: area.name,
-      coordinates: area.coordinates,
-      userId: area.userId,
-      isPublic: area.isPublic,
-      imageUrl: area.imageUrl,
-      createdAt: area.createdAt,
-      updatedAt: area.updatedAt
+    const apiAreas = await Promise.all(areas.map(async (area) => {
+      // メンバー数を取得
+      const memberCount = await prisma.areaMember.count({
+        where: { areaId: area.id }
+      });
+      
+      // オンラインメンバー数を取得（簡易版）
+      const onlineCount = await prisma.areaMember.count({
+        where: { 
+          areaId: area.id,
+          user: {
+            updatedAt: {
+              gte: new Date(Date.now() - 5 * 60 * 1000) // 5分以内
+            }
+          }
+        }
+      });
+
+      return {
+        id: area.id,
+        name: area.name,
+        coordinates: area.coordinates,
+        userId: area.userId,
+        isPublic: area.isPublic,
+        imageUrl: area.imageUrl,
+        createdAt: area.createdAt,
+        updatedAt: area.updatedAt,
+        memberCount,
+        onlineCount
+      };
     }));
 
     res.json(apiAreas);
@@ -116,33 +158,7 @@ router.get('/:id', async (req: AuthRequest, res: Response) => {
   }
 });
 
-// Get area members
-router.get('/:id/members', async (req: AuthRequest, res: Response) => {
-  try {
-    const { id } = req.params;
 
-    const members = await prisma.areaMember.findMany({
-      where: { areaId: id },
-      include: {
-        user: {
-          select: {
-            id: true,
-            name: true,
-            areaId: true
-          }
-        }
-      }
-    });
-
-    // Areaフロントエンドの期待する形式でレスポンスを返す（ユーザーIDの配列）
-    const memberIds = members.map(member => member.user.id);
-
-    return res.json(memberIds);
-  } catch (error) {
-    console.error('Get area members error:', error);
-    return res.status(500).json({ error: 'Internal server error' });
-  }
-});
 
 // Create area
 router.post('/', async (req: AuthRequest, res: Response) => {
@@ -184,8 +200,8 @@ router.post('/', async (req: AuthRequest, res: Response) => {
   }
 });
 
-// Update area
-router.put('/:id', async (req: AuthRequest, res: Response) => {
+// Update area (PATCH method for partial updates)
+router.patch('/:id', async (req: AuthRequest, res: Response) => {
   try {
     const { id } = req.params;
     const updateData = updateAreaSchema.parse(req.body);
@@ -287,9 +303,14 @@ router.get('/:id/members', async (req: AuthRequest, res: Response) => {
       orderBy: { createdAt: 'asc' }
     });
 
-    // SwiftUIアプリの期待する形式でレスポンスを返す
-    const memberIds = members.map(member => member.user.id);
-    return res.json(memberIds);
+    // SwiftUIアプリの期待する形式でレスポンスを返す（Userオブジェクトの配列）
+    const memberUsers = members.map(member => ({
+      id: member.user.id,
+      name: member.user.name,
+      areaId: member.user.areaId,
+      profileImage: member.user.profileImage
+    }));
+    return res.json(memberUsers);
   } catch (error) {
     console.error('Get area members error:', error);
     return res.status(500).json({ error: 'Internal server error' });

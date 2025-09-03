@@ -7,11 +7,12 @@ const router = Router();
 
 // Validation schemas
 const sendFriendRequestSchema = z.object({
-  friendId: z.string().min(1, 'Friend ID is required')
+  toUserId: z.string().min(1, 'User ID is required'),
+  message: z.string().optional()
 });
 
 const respondToFriendRequestSchema = z.object({
-  accept: z.boolean()
+  action: z.string().min(1, 'Action is required') // "accept" or "reject"
 });
 
 const sendAreaRequestSchema = z.object({
@@ -87,16 +88,16 @@ router.get('/requests', async (req: AuthRequest, res: Response) => {
 });
 
 // Send friend request
-router.post('/request', async (req: AuthRequest, res: Response) => {
+router.post('/requests', async (req: AuthRequest, res: Response) => {
   try {
-    const { friendId } = sendFriendRequestSchema.parse(req.body);
+    const { toUserId, message } = sendFriendRequestSchema.parse(req.body);
 
     // Check if already friends
     const existingFriend = await prisma.friend.findFirst({
       where: {
         OR: [
-          { userId: req.user!.id, friendId: friendId },
-          { userId: friendId, friendId: req.user!.id }
+          { userId: req.user!.id, friendId: toUserId },
+          { userId: toUserId, friendId: req.user!.id }
         ]
       } as any
     });
@@ -109,8 +110,8 @@ router.post('/request', async (req: AuthRequest, res: Response) => {
     const existingRequest = await prisma.friendRequest.findFirst({
       where: {
         OR: [
-          { senderId: req.user!.id, receiverId: friendId },
-          { senderId: friendId, receiverId: req.user!.id }
+          { senderId: req.user!.id, receiverId: toUserId },
+          { senderId: toUserId, receiverId: req.user!.id }
         ],
         status: 'PENDING'
       } as any
@@ -123,7 +124,7 @@ router.post('/request', async (req: AuthRequest, res: Response) => {
     const request = await prisma.friendRequest.create({
       data: {
         senderId: req.user!.id,
-        receiverId: friendId
+        receiverId: toUserId
       },
       include: {
         receiver: {
@@ -149,7 +150,7 @@ router.post('/request', async (req: AuthRequest, res: Response) => {
             senderName: req.user!.name,
             senderAreaId: req.user!.areaId
           },
-          recipientId: friendId,
+          recipientId: toUserId,
           senderId: req.user!.id
         }
       });
@@ -176,10 +177,10 @@ router.post('/request', async (req: AuthRequest, res: Response) => {
 });
 
 // Respond to friend request
-router.put('/request/:requestId', async (req: AuthRequest, res: Response) => {
+router.patch('/requests/:requestId', async (req: AuthRequest, res: Response) => {
   try {
     const { requestId } = req.params;
-    const { accept } = respondToFriendRequestSchema.parse(req.body);
+    const { action } = respondToFriendRequestSchema.parse(req.body);
 
     const request = await prisma.friendRequest.findFirst({
       where: {
@@ -193,21 +194,23 @@ router.put('/request/:requestId', async (req: AuthRequest, res: Response) => {
       return res.status(404).json({ error: 'Friend request not found' });
     }
 
-    const status = accept ? 'ACCEPTED' : 'REJECTED';
+    const status = action === 'accept' ? 'ACCEPTED' : 'REJECTED';
 
     await prisma.friendRequest.update({
       where: { id: requestId },
       data: { status }
     });
 
-    if (accept) {
+    if (action === 'accept') {
       // Create friend relationship
-      await prisma.friend.create({
+      const friend = await prisma.friend.create({
         data: {
           userId: request.senderId,
           friendId: request.receiverId
         }
       });
+      
+      return res.json(friend);
     }
 
     return res.json({
@@ -445,6 +448,63 @@ router.get('/online', async (req: AuthRequest, res: Response) => {
   } catch (error) {
     console.error('Get online friends error:', error);
     res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// Cancel friend request
+router.delete('/requests/:requestId', async (req: AuthRequest, res: Response) => {
+  try {
+    const { requestId } = req.params;
+
+    const request = await prisma.friendRequest.findFirst({
+      where: {
+        id: requestId,
+        senderId: req.user!.id,
+        status: 'PENDING'
+      }
+    });
+
+    if (!request) {
+      return res.status(404).json({ error: 'Friend request not found' });
+    }
+
+    await prisma.friendRequest.delete({
+      where: { id: requestId }
+    });
+
+    return res.status(204).send();
+  } catch (error) {
+    console.error('Cancel friend request error:', error);
+    return res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// Remove friend
+router.delete('/:friendId', async (req: AuthRequest, res: Response) => {
+  try {
+    const { friendId } = req.params;
+
+    const friendship = await prisma.friend.findFirst({
+      where: {
+        OR: [
+          { userId: req.user!.id, friendId: friendId },
+          { userId: friendId, friendId: req.user!.id }
+        ]
+      } as any
+    });
+
+    if (!friendship) {
+      return res.status(404).json({ error: 'Friendship not found' });
+    }
+
+    await prisma.friend.delete({
+      where: { id: friendship.id }
+    });
+
+    return res.status(204).send();
+  } catch (error) {
+    console.error('Remove friend error:', error);
+    return res.status(500).json({ error: 'Internal server error' });
   }
 });
 

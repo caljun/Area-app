@@ -128,7 +128,8 @@ router.post('/:id/messages', async (req: AuthRequest, res: Response) => {
       data: {
         content,
         senderId: userId,
-        chatId: id
+        chatId: id,
+        messageType: 'TEXT'
       }
     });
 
@@ -182,16 +183,19 @@ router.patch('/:id/messages/:messageId/read', async (req: AuthRequest, res: Resp
 // チャットルーム作成
 router.post('/rooms', async (req: AuthRequest, res: Response) => {
   try {
-    const { friendId } = req.body;
+    const { participantIds } = req.body;
     const userId = req.user?.id;
     
     if (!userId) {
       return res.status(401).json({ error: 'Unauthorized' });
     }
 
-    if (!friendId) {
-      return res.status(400).json({ error: 'Friend ID is required' });
+    if (!participantIds || !Array.isArray(participantIds) || participantIds.length === 0) {
+      return res.status(400).json({ error: 'Participant IDs are required' });
     }
+
+    // 1対1チャットの場合、最初の参加者IDを使用
+    const friendId = participantIds[0];
 
     // 既存のチャットルームがあるかチェック
     const existingChat = await prisma.chat.findFirst({

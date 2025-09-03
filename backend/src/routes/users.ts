@@ -259,20 +259,30 @@ router.get('/search/:areaId', async (req: AuthRequest, res: Response) => {
 // Search users by query string
 router.get('/search', async (req: AuthRequest, res: Response) => {
   try {
-    const { q } = req.query;
+    const { query, type } = req.query;
 
-    if (!q || typeof q !== 'string') {
+    if (!query || typeof query !== 'string') {
       return res.status(400).json({ error: '検索クエリが必要です' });
     }
 
+    let whereClause: any = {
+      id: { not: req.user!.id } // 自分自身を除外
+    };
+
+    if (type === 'areaId') {
+      whereClause.areaId = { contains: query, mode: 'insensitive' };
+    } else if (type === 'username') {
+      whereClause.name = { contains: query, mode: 'insensitive' };
+    } else {
+      // デフォルトは両方で検索
+      whereClause.OR = [
+        { name: { contains: query, mode: 'insensitive' } },
+        { areaId: { contains: query, mode: 'insensitive' } }
+      ];
+    }
+
     const users = await prisma.user.findMany({
-      where: {
-        OR: [
-          { name: { contains: q, mode: 'insensitive' } },
-          { areaId: { contains: q, mode: 'insensitive' } }
-        ],
-        id: { not: req.user!.id } // 自分自身を除外
-      },
+      where: whereClause,
       select: {
         id: true,
         name: true,
@@ -282,7 +292,7 @@ router.get('/search', async (req: AuthRequest, res: Response) => {
       take: 20
     });
 
-    return res.json({ users });
+    return res.json(users);
   } catch (error) {
     console.error('Search users error:', error);
     return res.status(500).json({ error: 'ユーザー検索に失敗しました' });

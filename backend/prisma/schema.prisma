@@ -212,12 +212,14 @@ model Chat {
 }
 
 model Message {
-  id        String   @id @default(auto()) @map("_id") @db.ObjectId
-  content   String
-  senderId  String   @db.ObjectId
-  chatId    String   @db.ObjectId
-  isRead    Boolean  @default(false)
-  createdAt DateTime @default(now())
+  id          String      @id @default(auto()) @map("_id") @db.ObjectId
+  content     String
+  senderId    String      @db.ObjectId
+  chatId      String      @db.ObjectId
+  messageType MessageType @default(TEXT)
+  isRead      Boolean     @default(false)
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
 
   // Relations
   sender User @relation("MessageSender", fields: [senderId], references: [id], onDelete: Cascade)
@@ -262,4 +264,11 @@ enum NotificationType {
   AREA_INVITE
   LOCATION_UPDATE
   GENERAL
+}
+
+enum MessageType {
+  TEXT
+  IMAGE
+  LOCATION
+  AREA
 } 
