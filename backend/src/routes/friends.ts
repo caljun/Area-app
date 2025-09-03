@@ -377,7 +377,7 @@ router.post('/area-request', async (req: AuthRequest, res: Response) => {
 router.put('/area-request/:requestId', async (req: AuthRequest, res: Response) => {
   try {
     const { requestId } = req.params;
-    const { accept } = respondToFriendRequestSchema.parse(req.body);
+    const { action } = respondToFriendRequestSchema.parse(req.body);
 
     const request = await prisma.areaRequest.findFirst({
       where: {
@@ -391,7 +391,7 @@ router.put('/area-request/:requestId', async (req: AuthRequest, res: Response) =
       return res.status(404).json({ error: 'Area request not found' });
     }
 
-    const status = accept ? 'ACCEPTED' : 'REJECTED';
+    const status = action === 'accept' ? 'ACCEPTED' : 'REJECTED';
 
     await prisma.areaRequest.update({
       where: { id: requestId },
