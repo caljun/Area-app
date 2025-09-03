@@ -1,13 +1,13 @@
 import { Router, Request, Response } from 'express';
 import { z } from 'zod';
 import { PrismaClient } from '@prisma/client';
-import { authenticateToken } from '../middleware/auth';
+import { AuthRequest } from '../middleware/auth';
 
 const router = Router();
 const prisma = new PrismaClient();
 
 // チャットルーム一覧取得
-router.get('/rooms', authenticateToken, async (req: Request, res: Response) => {
+router.get('/rooms', async (req: AuthRequest, res: Response) => {
   try {
     const userId = req.user?.id;
     if (!userId) {
@@ -25,14 +25,14 @@ router.get('/rooms', authenticateToken, async (req: Request, res: Response) => {
         user1: {
           select: {
             id: true,
-            username: true,
+            name: true,
             profileImage: true
           }
         },
         user2: {
           select: {
             id: true,
-            username: true,
+            name: true,
             profileImage: true
           }
         },
@@ -56,7 +56,7 @@ router.get('/rooms', authenticateToken, async (req: Request, res: Response) => {
 });
 
 // 特定のチャットルームのメッセージ取得
-router.get('/:id/messages', authenticateToken, async (req: Request, res: Response) => {
+router.get('/:id/messages', async (req: AuthRequest, res: Response) => {
   try {
     const { id } = req.params;
     const userId = req.user?.id;
@@ -96,7 +96,7 @@ router.get('/:id/messages', authenticateToken, async (req: Request, res: Respons
 });
 
 // メッセージ送信
-router.post('/:id/messages', authenticateToken, async (req: Request, res: Response) => {
+router.post('/:id/messages', async (req: AuthRequest, res: Response) => {
   try {
     const { id } = req.params;
     const { content } = req.body;
@@ -146,7 +146,7 @@ router.post('/:id/messages', authenticateToken, async (req: Request, res: Respon
 });
 
 // メッセージ既読更新
-router.patch('/:id/messages/:messageId/read', authenticateToken, async (req: Request, res: Response) => {
+router.patch('/:id/messages/:messageId/read', async (req: AuthRequest, res: Response) => {
   try {
     const { id, messageId } = req.params;
     const userId = req.user?.id;
@@ -180,7 +180,7 @@ router.patch('/:id/messages/:messageId/read', authenticateToken, async (req: Req
 });
 
 // チャットルーム作成
-router.post('/rooms', authenticateToken, async (req: Request, res: Response) => {
+router.post('/rooms', async (req: AuthRequest, res: Response) => {
   try {
     const { friendId } = req.body;
     const userId = req.user?.id;
@@ -223,14 +223,14 @@ router.post('/rooms', authenticateToken, async (req: Request, res: Response) => 
         user1: {
           select: {
             id: true,
-            username: true,
+            name: true,
             profileImage: true
           }
         },
         user2: {
           select: {
             id: true,
-            username: true,
+            name: true,
             profileImage: true
           }
         }
