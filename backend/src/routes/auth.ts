@@ -18,7 +18,7 @@ const registerSchema = z.object({
   email: z.string().email('メールアドレスの形式が正しくありません'),
   areaId: z.string().min(3, 'Area IDは3文字以上で入力してください'),
   name: z.string().min(1, 'ユーザー名は必須です'),
-  password: z.string().min(6, 'パスワードは6文字以上で入力してください'),
+  password: z.string().min(8, 'パスワードは8文字以上で入力してください'),
   profileImage: z.string().url('プロフィール画像のURLが正しくありません').optional()
 });
 
@@ -42,14 +42,14 @@ const step4Schema = z.object({
   email: z.string().email('メールアドレスの形式が正しくありません'),
   areaId: z.string().min(3, 'Area IDは3文字以上で入力してください'),
   name: z.string().min(1, 'ユーザー名は必須です'),
-  password: z.string().min(6, 'パスワードは6文字以上で入力してください')
+  password: z.string().min(8, 'パスワードは8文字以上で入力してください')
 });
 
 const step5Schema = z.object({
   email: z.string().email('メールアドレスの形式が正しくありません'),
   areaId: z.string().min(3, 'Area IDは3文字以上で入力してください'),
   name: z.string().min(1, 'ユーザー名は必須です'),
-  password: z.string().min(6, 'パスワードは6文字以上で入力してください'),
+  password: z.string().min(8, 'パスワードは8文字以上で入力してください'),
   profileImage: z.string().url('プロフィール画像のURLが正しくありません').optional()
 });
 
@@ -267,6 +267,14 @@ router.post('/register/step5', async (req: Request, res: Response) => {
 // 従来の登録エンドポイント（後方互換性のため）
 router.post('/register', async (req: Request, res: Response) => {
   try {
+    console.log('Register request received:', { 
+      email: req.body.email, 
+      areaId: req.body.areaId, 
+      name: req.body.name,
+      hasPassword: !!req.body.password,
+      hasProfileImage: !!req.body.profileImage
+    });
+    
     const { email, areaId, name, password, profileImage } = registerSchema.parse(req.body);
 
     // Check if user already exists
@@ -280,9 +288,15 @@ router.post('/register', async (req: Request, res: Response) => {
     });
 
     if (existingUser) {
-      return res.status(400).json({
-        error: existingUser.email === email ? 'このメールアドレスは既に登録されています' : 'このArea IDは既に使用されています'
-      });
+      if (existingUser.email === email) {
+        return res.status(400).json({
+          error: 'このメールアドレスは既に登録されています'
+        });
+      } else {
+        return res.status(409).json({
+          error: 'このArea IDは既に使用されています'
+        });
+      }
     }
 
     // Hash password
@@ -526,95 +540,7 @@ router.post('/apple', async (req: Request, res: Response) => {
   }
 });
 
-// Register
-router.post('/register', async (req: Request, res: Response) => {
-  try {
-    const { email, password, areaId, name, profileImage } = registerSchema.parse(req.body);
-
-    // Check if user already exists
-    const existingUser = await prisma.user.findUnique({
-      where: { email }
-    });
-
-    if (existingUser) {
-      return res.status(400).json({
-        error: 'このメールアドレスは既に登録されています'
-      });
-    }
-
-    // Check if Area ID is already taken
-    const existingAreaId = await prisma.user.findUnique({
-      where: { areaId }
-    });
-
-    if (existingAreaId) {
-      return res.status(409).json({
-        error: 'このArea IDは既に使用されています'
-      });
-    }
-
-    // Hash password
-    const hashedPassword = await bcrypt.hash(password, 12);
-
-    // Create user
-    const user = await prisma.user.create({
-      data: {
-        email,
-        password: hashedPassword,
-        areaId,
-        name,
-        profileImage: profileImage || null
-      },
-      select: {
-        id: true,
-        email: true,
-        areaId: true,
-        name: true,
-        profileImage: true,
-        createdAt: true
-      }
-    });
-
-    // Generate JWT token
-    const token = jwt.sign(
-      { userId: user.id } as JWTPayload,
-      process.env.JWT_SECRET || 'fallback-secret',
-      { expiresIn: process.env.JWT_EXPIRES_IN || '7d' } as any
-    );
-
-    // Check profile completeness
-    const missingFields = [];
-    if (!user.name) missingFields.push('name');
-    if (!user.areaId) missingFields.push('areaId');
-    if (!user.profileImage) missingFields.push('profileImage');
-    const profileComplete = missingFields.length === 0;
-
-    return res.status(201).json({
-      token,
-      user: {
-        id: user.id,
-        email: user.email,
-        areaId: user.areaId,
-        name: user.name,
-        profileImage: user.profileImage,
-        createdAt: user.createdAt
-      },
-      isNewUser: true,
-      profileComplete,
-      missingFields
-    });
-  } catch (error) {
-    if (error instanceof z.ZodError) {
-      return res.status(400).json({
-        error: '入力内容に問題があります',
-        details: error.errors
-      });
-    }
-    
-    console.error('Register error:', error);
-    return res.status(500).json({ error: 'ユーザー登録に失敗しました' });
-  }
-});
+// この重複したエンドポイントは削除（上記の従来の登録エンドポイントを使用）
 
 // Login
 router.post('/login', async (req: Request, res: Response) => {
