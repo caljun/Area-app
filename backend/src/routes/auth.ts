@@ -1,4 +1,4 @@
-import { Router, Request, Response } from 'express';
+import { Router, Request, Response, RequestHandler } from 'express';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import { z } from 'zod';
@@ -282,7 +282,7 @@ router.post('/register/step5', async (req: Request, res: Response) => {
 });
 
 // 従来の登録エンドポイント（後方互換性のため）
-router.post('/register', upload.single('profileImage'), async (req: Request, res: Response) => {
+router.post('/register', upload.single('profileImage') as RequestHandler, async (req: Request, res: Response) => {
   try {
     console.log('Register request received:', { 
       email: req.body.email, 
