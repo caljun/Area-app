@@ -2,6 +2,7 @@ import { Router, Request, Response } from 'express';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import { z } from 'zod';
+import multer from 'multer';
 import { prisma } from '../index';
 import { createError } from '../middleware/errorHandler';
 import { authMiddleware, AuthRequest } from '../middleware/auth';
@@ -12,6 +13,22 @@ interface JWTPayload {
 }
 
 const router = Router();
+
+// Multer設定（メモリストレージ）
+const upload = multer({
+  storage: multer.memoryStorage(),
+  limits: {
+    fileSize: 10 * 1024 * 1024, // 10MB
+  },
+  fileFilter: (req, file, cb) => {
+    // 画像ファイルのみ許可
+    if (file.mimetype.startsWith('image/')) {
+      cb(null, true);
+    } else {
+      cb(new Error('画像ファイルのみアップロード可能です'));
+    }
+  }
+});
 
 // Validation schemas
 const registerSchema = z.object({
@@ -265,17 +282,70 @@ router.post('/register/step5', async (req: Request, res: Response) => {
 });
 
 // 従来の登録エンドポイント（後方互換性のため）
-router.post('/register', async (req: Request, res: Response) => {
+router.post('/register', upload.single('profileImage'), async (req: Request, res: Response) => {
   try {
     console.log('Register request received:', { 
       email: req.body.email, 
       areaId: req.body.areaId, 
       name: req.body.name,
       hasPassword: !!req.body.password,
-      hasProfileImage: !!req.body.profileImage
+      hasProfileImage: !!req.body.profileImage,
+      contentType: req.headers['content-type']
     });
     
-    const { email, areaId, name, password, profileImage } = registerSchema.parse(req.body);
+    // マルチパートフォームデータの場合の処理
+    let email, areaId, name, password, profileImage;
+    
+    if (req.headers['content-type']?.includes('multipart/form-data')) {
+      console.log('Processing multipart form data');
+      // マルチパートフォームデータから値を取得
+      email = req.body.email;
+      areaId = req.body.areaId;
+      name = req.body.name;
+      password = req.body.password;
+      
+      // 画像ファイルの処理
+      if (req.file) {
+        console.log('Image file received:', {
+          fieldname: req.file.fieldname,
+          originalname: req.file.originalname,
+          mimetype: req.file.mimetype,
+          size: req.file.size
+        });
+        // 画像ファイルの場合は、後でCloudinaryにアップロードする必要がある
+        // 今は一時的にnullを設定
+        profileImage = null;
+      } else {
+        profileImage = req.body.profileImage;
+      }
+      
+      console.log('Extracted from multipart:', { email, areaId, name, hasPassword: !!password, hasProfileImage: !!profileImage, hasFile: !!req.file });
+    } else {
+      console.log('Processing JSON data');
+      // 通常のJSONボディの場合
+      const parsed = registerSchema.parse(req.body);
+      email = parsed.email;
+      areaId = parsed.areaId;
+      name = parsed.name;
+      password = parsed.password;
+      profileImage = parsed.profileImage;
+    }
+
+    // マルチパートフォームデータの場合、手動でバリデーション
+    if (req.headers['content-type']?.includes('multipart/form-data')) {
+      if (!email || !email.includes('@')) {
+        return res.status(400).json({ error: 'メールアドレスの形式が正しくありません' });
+      }
+      if (!areaId || areaId.length < 3) {
+        return res.status(400).json({ error: 'Area IDは3文字以上で入力してください' });
+      }
+      if (!name || name.trim().length < 1) {
+        return res.status(400).json({ error: 'ユーザー名は必須です' });
+      }
+      if (!password || password.length < 8) {
+        return res.status(400).json({ error: 'パスワードは8文字以上で入力してください' });
+      }
+    }
 
     // Check if user already exists
     const existingUser = await prisma.user.findFirst({
@@ -337,8 +407,16 @@ router.post('/register', async (req: Request, res: Response) => {
 
     return res.status(201).json({
       message: 'ユーザー登録が完了しました',
-      user,
+      user: {
+        id: user.id,
+        email: user.email,
+        areaId: user.areaId,
+        name: user.name,
+        profileImage: user.profileImage,
+        createdAt: user.createdAt
+      },
       token,
+      isNewUser: true,
       profileComplete,
       missingFields
     });
