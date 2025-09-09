@@ -189,7 +189,7 @@ router.get('/sharing', async (req: AuthRequest, res: Response) => {
     // 簡易的な位置共有設定（実際の実装では専用テーブルを作成）
     const settings = {
       enabled: true, // デフォルトで有効
-      friends: [], // 共有対象の友達IDリスト
+      friends: [] as string[], // 共有対象の友達IDリスト（明示的にstring[]型を指定）
       lastUpdated: new Date()
     };
 
@@ -208,7 +208,7 @@ router.put('/sharing', async (req: AuthRequest, res: Response) => {
     // 簡易的な位置共有設定の更新（実際の実装では専用テーブルを作成）
     const settings = {
       enabled: enabled !== undefined ? enabled : true,
-      friends: friends || [],
+      friends: Array.isArray(friends) ? friends : [] as string[], // 配列であることを保証
       lastUpdated: new Date()
     };
 
