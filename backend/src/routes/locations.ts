@@ -12,9 +12,13 @@ const updateLocationSchema = z.object({
 });
 
 // Update user location
-router.post('/', async (req: AuthRequest, res: Response) => {
+router.post('/update', async (req: AuthRequest, res: Response) => {
   try {
-    const { latitude, longitude } = updateLocationSchema.parse(req.body);
+    const { latitude, longitude, accuracy, timestamp, areaId } = req.body;
+
+    if (!latitude || !longitude) {
+      return res.status(400).json({ error: '緯度と経度が必要です' });
+    }
 
     const location = await prisma.location.create({
       data: {
@@ -23,6 +27,23 @@ router.post('/', async (req: AuthRequest, res: Response) => {
         longitude
       }
     });
+
+    // エリア内にいるかチェック
+    let isInArea = false;
+    if (areaId) {
+      const area = await prisma.area.findUnique({
+        where: { id: areaId }
+      });
+      
+      if (area) {
+        // 簡易的なエリア内判定（実際の実装ではより正確なポリゴン判定が必要）
+        const coords = area.coordinates as any;
+        if (coords && Array.isArray(coords) && coords.length >= 3) {
+          // ここでポリゴン内判定を行う（簡易版）
+          isInArea = true; // 仮実装
+        }
+      }
+    }
 
     // 友達に位置情報更新通知を送信
     try {
@@ -62,9 +83,11 @@ router.post('/', async (req: AuthRequest, res: Response) => {
       // 通知作成に失敗しても位置情報更新は成功とする
     }
 
-    return res.status(201).json({
+    return res.status(200).json({
+      success: true,
       message: '位置情報が更新されました',
-      location
+      areaId: areaId || null,
+      isInArea
     });
   } catch (error) {
     if (error instanceof z.ZodError) {
@@ -157,6 +180,42 @@ router.get('/history', async (req: AuthRequest, res: Response) => {
   } catch (error) {
     console.error('Get location history error:', error);
     return res.status(500).json({ error: '位置情報履歴の取得に失敗しました' });
+  }
+});
+
+// Get location sharing settings
+router.get('/sharing', async (req: AuthRequest, res: Response) => {
+  try {
+    // 簡易的な位置共有設定（実際の実装では専用テーブルを作成）
+    const settings = {
+      enabled: true, // デフォルトで有効
+      friends: [], // 共有対象の友達IDリスト
+      lastUpdated: new Date()
+    };
+
+    return res.json(settings);
+  } catch (error) {
+    console.error('Get location sharing settings error:', error);
+    return res.status(500).json({ error: '位置共有設定の取得に失敗しました' });
+  }
+});
+
+// Update location sharing settings
+router.put('/sharing', async (req: AuthRequest, res: Response) => {
+  try {
+    const { enabled, friends } = req.body;
+
+    // 簡易的な位置共有設定の更新（実際の実装では専用テーブルを作成）
+    const settings = {
+      enabled: enabled !== undefined ? enabled : true,
+      friends: friends || [],
+      lastUpdated: new Date()
+    };
+
+    return res.json(settings);
+  } catch (error) {
+    console.error('Update location sharing settings error:', error);
+    return res.status(500).json({ error: '位置共有設定の更新に失敗しました' });
   }
 });
 

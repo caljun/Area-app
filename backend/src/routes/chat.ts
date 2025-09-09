@@ -48,7 +48,25 @@ router.get('/rooms', async (req: AuthRequest, res: Response) => {
       }
     });
 
-    res.json(chatRooms);
+    // フロントエンドの期待する形式に変換
+    const formattedRooms = chatRooms.map(room => ({
+      id: room.id,
+      participants: [room.user1Id, room.user2Id],
+      lastMessage: room.messages[0] ? {
+        id: room.messages[0].id,
+        chatId: room.messages[0].chatId,
+        senderId: room.messages[0].senderId,
+        content: room.messages[0].content,
+        messageType: room.messages[0].messageType.toLowerCase(),
+        createdAt: room.messages[0].createdAt,
+        updatedAt: room.messages[0].updatedAt
+      } : null,
+      unreadCount: 0, // 簡易版 - 実際の実装では未読数を計算
+      createdAt: room.createdAt,
+      updatedAt: room.updatedAt
+    }));
+
+    res.json(formattedRooms);
   } catch (error) {
     console.error('Error fetching chat rooms:', error);
     res.status(500).json({ error: 'Internal server error' });
@@ -88,7 +106,17 @@ router.get('/:id/messages', async (req: AuthRequest, res: Response) => {
       }
     });
 
-    res.json(messages);
+    // フロントエンドの期待する形式に変換
+    const formattedMessages = messages.map(message => ({
+      id: message.id,
+      senderId: message.senderId,
+      receiverId: "", // チャットIDを使用
+      message: message.content,
+      timestamp: message.createdAt,
+      isRead: message.isRead
+    }));
+
+    res.json(formattedMessages);
   } catch (error) {
     console.error('Error fetching messages:', error);
     res.status(500).json({ error: 'Internal server error' });
@@ -99,7 +127,7 @@ router.get('/:id/messages', async (req: AuthRequest, res: Response) => {
 router.post('/:id/messages', async (req: AuthRequest, res: Response) => {
   try {
     const { id } = req.params;
-    const { content } = req.body;
+    const { content, messageType = 'text' } = req.body;
     const userId = req.user?.id;
     
     if (!userId) {
@@ -129,7 +157,7 @@ router.post('/:id/messages', async (req: AuthRequest, res: Response) => {
         content,
         senderId: userId,
         chatId: id,
-        messageType: 'TEXT'
+        messageType: messageType.toUpperCase()
       }
     });
 
@@ -139,7 +167,18 @@ router.post('/:id/messages', async (req: AuthRequest, res: Response) => {
       data: { updatedAt: new Date() }
     });
 
-    res.status(201).json(message);
+    // フロントエンドの期待する形式でレスポンスを返す
+    const formattedMessage = {
+      id: message.id,
+      chatId: message.chatId,
+      senderId: message.senderId,
+      content: message.content,
+      messageType: message.messageType.toLowerCase(),
+      createdAt: message.createdAt,
+      updatedAt: message.updatedAt
+    };
+
+    res.status(201).json(formattedMessage);
   } catch (error) {
     console.error('Error sending message:', error);
     res.status(500).json({ error: 'Internal server error' });
@@ -147,9 +186,9 @@ router.post('/:id/messages', async (req: AuthRequest, res: Response) => {
 });
 
 // メッセージ既読更新
-router.patch('/:id/messages/:messageId/read', async (req: AuthRequest, res: Response) => {
+router.patch('/messages/:messageId/read', async (req: AuthRequest, res: Response) => {
   try {
-    const { id, messageId } = req.params;
+    const { messageId } = req.params;
     const userId = req.user?.id;
     
     if (!userId) {
@@ -159,7 +198,6 @@ router.patch('/:id/messages/:messageId/read', async (req: AuthRequest, res: Resp
     const message = await prisma.message.findFirst({
       where: {
         id: messageId,
-        chatId: id,
         senderId: { not: userId } // 自分が送ったメッセージは既読にできない
       }
     });
@@ -173,7 +211,7 @@ router.patch('/:id/messages/:messageId/read', async (req: AuthRequest, res: Resp
       data: { isRead: true }
     });
 
-    res.json(updatedMessage);
+    res.json({ message: 'Message marked as read' });
   } catch (error) {
     console.error('Error updating message read status:', error);
     res.status(500).json({ error: 'Internal server error' });
@@ -210,11 +248,36 @@ router.post('/rooms', async (req: AuthRequest, res: Response) => {
             user2Id: userId
           }
         ]
+      },
+      include: {
+        user1: {
+          select: {
+            id: true,
+            name: true,
+            profileImage: true
+          }
+        },
+        user2: {
+          select: {
+            id: true,
+            name: true,
+            profileImage: true
+          }
+        }
       }
     });
 
     if (existingChat) {
-      return res.json(existingChat);
+      // フロントエンドの期待する形式に変換
+      const formattedChat = {
+        id: existingChat.id,
+        participants: [existingChat.user1Id, existingChat.user2Id],
+        lastMessage: null,
+        unreadCount: 0,
+        createdAt: existingChat.createdAt,
+        updatedAt: existingChat.updatedAt
+      };
+      return res.json(formattedChat);
     }
 
     // 新しいチャットルームを作成
@@ -241,7 +304,17 @@ router.post('/rooms', async (req: AuthRequest, res: Response) => {
       }
     });
 
-    res.status(201).json(newChat);
+    // フロントエンドの期待する形式に変換
+    const formattedChat = {
+      id: newChat.id,
+      participants: [newChat.user1Id, newChat.user2Id],
+      lastMessage: null,
+      unreadCount: 0,
+      createdAt: newChat.createdAt,
+      updatedAt: newChat.updatedAt
+    };
+
+    res.status(201).json(formattedChat);
   } catch (error) {
     console.error('Error creating chat room:', error);
     res.status(500).json({ error: 'Internal server error' });
