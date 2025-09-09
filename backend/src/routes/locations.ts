@@ -190,7 +190,7 @@ router.get('/sharing', async (req: AuthRequest, res: Response) => {
     const settings = {
       enabled: true, // デフォルトで有効
       friends: [] as string[], // 共有対象の友達IDリスト（明示的にstring[]型を指定）
-      lastUpdated: new Date()
+      lastUpdated: new Date().toISOString() // ISO8601形式で返す
     };
 
     return res.json(settings);
@@ -204,13 +204,17 @@ router.get('/sharing', async (req: AuthRequest, res: Response) => {
 router.put('/sharing', async (req: AuthRequest, res: Response) => {
   try {
     const { enabled, friends } = req.body;
+    
+    console.log('Location sharing settings update request:', { enabled, friends });
 
     // 簡易的な位置共有設定の更新（実際の実装では専用テーブルを作成）
     const settings = {
       enabled: enabled !== undefined ? enabled : true,
       friends: Array.isArray(friends) ? friends : [] as string[], // 配列であることを保証
-      lastUpdated: new Date()
+      lastUpdated: new Date().toISOString() // ISO8601形式で返す
     };
+    
+    console.log('Location sharing settings response:', settings);
 
     return res.json(settings);
   } catch (error) {
