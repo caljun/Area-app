@@ -46,11 +46,17 @@ router.get('/', async (req: AuthRequest, res: Response) => {
       friendId: friend.friendId,
       status: 'accepted',
       createdAt: friend.createdAt,
-      updatedAt: undefined,
+      // iOS側デコードで必須フィールド欠落とならないよう常に含める
+      updatedAt: friend.createdAt,
       friend: friend.friend
     }));
 
-    res.json(apiFriends);
+    // クライアント互換: ?wrap=true で { friends: [...] } を返す
+    const shouldWrap = String(req.query.wrap).toLowerCase() === 'true';
+    if (shouldWrap) {
+      return res.json({ friends: apiFriends });
+    }
+    return res.json(apiFriends);
   } catch (error) {
     console.error('Get friends error:', error);
     res.status(500).json({ error: 'Internal server error' });
