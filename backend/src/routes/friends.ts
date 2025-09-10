@@ -83,7 +83,12 @@ router.get('/requests', async (req: AuthRequest, res: Response) => {
       fromUserId: request.senderId,
       toUserId: request.receiverId,
       status: request.status.toLowerCase(),
-      createdAt: request.createdAt
+      createdAt: request.createdAt,
+      fromUser: request.sender ? {
+        id: request.sender.id,
+        name: request.sender.name,
+        areaId: request.sender.areaId
+      } : undefined
     }));
 
     res.json(apiRequests);
