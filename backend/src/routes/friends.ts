@@ -20,6 +20,54 @@ const sendAreaRequestSchema = z.object({
   areaId: z.string().min(1, 'Area ID is required')
 });
 
+// Get friend profile by ID
+router.get('/:friendId', async (req: AuthRequest, res: Response) => {
+  try {
+    const { friendId } = req.params;
+
+    // 友達関係をチェック
+    const friendship = await prisma.friend.findFirst({
+      where: {
+        OR: [
+          { userId: req.user!.id, friendId: friendId },
+          { userId: friendId, friendId: req.user!.id }
+        ]
+      } as any,
+      include: {
+        friend: {
+          select: {
+            id: true,
+            name: true,
+            areaId: true,
+            profileImage: true,
+            createdAt: true,
+            updatedAt: true
+          }
+        }
+      }
+    });
+
+    if (!friendship) {
+      return res.status(404).json({ error: 'Friend not found or not friends' });
+    }
+
+    // 友達のプロフィール情報を返す
+    const friendProfile = {
+      id: friendship.friend.id,
+      name: friendship.friend.name,
+      areaId: friendship.friend.areaId,
+      profileImage: friendship.friend.profileImage,
+      createdAt: friendship.friend.createdAt,
+      updatedAt: friendship.friend.updatedAt
+    };
+
+    return res.json(friendProfile);
+  } catch (error) {
+    console.error('Get friend profile error:', error);
+    return res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
 // Get friends list
 router.get('/', async (req: AuthRequest, res: Response) => {
   try {
@@ -256,33 +304,57 @@ router.patch('/requests/:requestId', async (req: AuthRequest, res: Response) => 
       const senderId = request.senderId;
       const receiverId = request.receiverId;
 
-      const [aToB, bToA] = await Promise.all([
-        prisma.friend.findFirst({ where: { userId: senderId, friendId: receiverId } as any }),
-        prisma.friend.findFirst({ where: { userId: receiverId, friendId: senderId } as any })
-      ]);
-
-      const created = await prisma.$transaction(async (tx) => {
-        const results: any = {};
-        if (!aToB) {
-          results.aToB = await tx.friend.create({
-            data: { userId: senderId, friendId: receiverId }
-          });
-        } else {
-          results.aToB = aToB;
-        }
-
-        if (!bToA) {
-          results.bToA = await tx.friend.create({
-            data: { userId: receiverId, friendId: senderId }
-          });
-        } else {
-          results.bToA = bToA;
-        }
-        return results;
+      // 既存の友達関係をチェック
+      const existingFriendship = await prisma.friend.findFirst({
+        where: {
+          OR: [
+            { userId: senderId, friendId: receiverId },
+            { userId: receiverId, friendId: senderId }
+          ]
+        } as any
       });
 
+      if (existingFriendship) {
+        return res.status(400).json({ error: 'Already friends' });
+      }
+
+      // トランザクションで双方向の友達関係を作成
+      const created = await prisma.$transaction(async (tx) => {
+        const aToB = await tx.friend.create({
+          data: { userId: senderId, friendId: receiverId }
+        });
+
+        const bToA = await tx.friend.create({
+          data: { userId: receiverId, friendId: senderId }
+        });
+
+        return { aToB, bToA };
+      });
+
+      // 通知を作成（友達申請承認）
+      try {
+        await prisma.notification.create({
+          data: {
+            type: 'FRIEND_REQUEST',
+            title: '友達申請が承認されました',
+            message: `${req.user!.name}さんが友達申請を承認しました`,
+            data: {
+              requestId: request.id,
+              senderId: req.user!.id,
+              senderName: req.user!.name,
+              senderAreaId: req.user!.areaId
+            },
+            recipientId: senderId,
+            senderId: req.user!.id
+          }
+        });
+      } catch (notificationError) {
+        console.error('Failed to create friend acceptance notification:', notificationError);
+        // 通知作成に失敗しても友達関係は成功とする
+      }
+
       // 返却は受信者視点の関係を優先
-      return res.json(created.bToA || created.aToB);
+      return res.json(created.bToA);
     }
 
     return res.json({

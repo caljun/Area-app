@@ -123,9 +123,14 @@ router.get('/public', async (req: Request, res: Response) => {
 // Get area invites (for recipient) - MUST be before /:id route
 router.get('/invites', async (req: AuthRequest, res: Response) => {
   try {
+    // ユーザーIDの検証
+    if (!req.user?.id) {
+      return res.status(401).json({ error: '認証が必要です' });
+    }
+
     const invites = await prisma.areaInvitation.findMany({
       where: { 
-        invitedUserId: req.user!.id,
+        invitedUserId: req.user.id,
         status: 'PENDING'
       },
       include: {
@@ -133,14 +138,16 @@ router.get('/invites', async (req: AuthRequest, res: Response) => {
           select: {
             id: true,
             name: true,
-            coordinates: true
+            coordinates: true,
+            isPublic: true
           }
         },
         invitedByUser: {
           select: {
             id: true,
             name: true,
-            areaId: true
+            areaId: true,
+            profileImage: true
           }
         }
       },
@@ -152,17 +159,35 @@ router.get('/invites', async (req: AuthRequest, res: Response) => {
       id: invite.id,
       areaId: invite.areaId,
       areaName: invite.area.name,
+      areaCoordinates: invite.area.coordinates,
+      areaIsPublic: invite.area.isPublic,
       fromUserId: invite.invitedBy,
+      fromUserName: invite.invitedByUser?.name || 'Unknown',
+      fromUserAreaId: invite.invitedByUser?.areaId || 'Unknown',
+      fromUserProfileImage: invite.invitedByUser?.profileImage || null,
       toUserId: invite.invitedUserId,
       status: invite.status.toLowerCase(),
       createdAt: invite.createdAt,
       updatedAt: invite.updatedAt
     }));
 
-    return res.json(apiInvites);
+    return res.json({
+      invites: apiInvites,
+      count: apiInvites.length
+    });
   } catch (error) {
     console.error('Get area invites error:', error);
-    return res.status(500).json({ error: 'エリア招待の取得に失敗しました' });
+    
+    // より詳細なエラーハンドリング
+    if (error instanceof Error) {
+      console.error('Error details:', error.message);
+      console.error('Stack trace:', error.stack);
+    }
+    
+    return res.status(500).json({ 
+      error: 'エリア招待の取得に失敗しました',
+      details: process.env.NODE_ENV === 'development' ? (error instanceof Error ? error.message : String(error)) : undefined
+    });
   }
 });
 
