@@ -120,6 +120,52 @@ router.get('/public', async (req: Request, res: Response) => {
   }
 });
 
+// Get area invites (for recipient) - MUST be before /:id route
+router.get('/invites', async (req: AuthRequest, res: Response) => {
+  try {
+    const invites = await prisma.areaInvitation.findMany({
+      where: { 
+        invitedUserId: req.user!.id,
+        status: 'PENDING'
+      },
+      include: {
+        area: {
+          select: {
+            id: true,
+            name: true,
+            coordinates: true
+          }
+        },
+        invitedByUser: {
+          select: {
+            id: true,
+            name: true,
+            areaId: true
+          }
+        }
+      },
+      orderBy: { createdAt: 'desc' }
+    });
+
+    // SwiftUIアプリの期待する形式でレスポンスを返す
+    const apiInvites = invites.map(invite => ({
+      id: invite.id,
+      areaId: invite.areaId,
+      areaName: invite.area.name,
+      fromUserId: invite.invitedBy,
+      toUserId: invite.invitedUserId,
+      status: invite.status.toLowerCase(),
+      createdAt: invite.createdAt,
+      updatedAt: invite.updatedAt
+    }));
+
+    return res.json(apiInvites);
+  } catch (error) {
+    console.error('Get area invites error:', error);
+    return res.status(500).json({ error: 'エリア招待の取得に失敗しました' });
+  }
+});
+
 // Get area by ID
 router.get('/:id', async (req: AuthRequest, res: Response) => {
   try {
@@ -737,51 +783,6 @@ router.get('/nearby', async (req: Request, res: Response) => {
   }
 });
 
-// Get area invites (for recipient)
-router.get('/invites', async (req: AuthRequest, res: Response) => {
-  try {
-    const invites = await prisma.areaInvitation.findMany({
-      where: { 
-        invitedUserId: req.user!.id,
-        status: 'PENDING'
-      },
-      include: {
-        area: {
-          select: {
-            id: true,
-            name: true,
-            coordinates: true
-          }
-        },
-        invitedByUser: {
-          select: {
-            id: true,
-            name: true,
-            areaId: true
-          }
-        }
-      },
-      orderBy: { createdAt: 'desc' }
-    });
-
-    // SwiftUIアプリの期待する形式でレスポンスを返す
-    const apiInvites = invites.map(invite => ({
-      id: invite.id,
-      areaId: invite.areaId,
-      areaName: invite.area.name,
-      fromUserId: invite.invitedBy,
-      toUserId: invite.invitedUserId,
-      status: invite.status.toLowerCase(),
-      createdAt: invite.createdAt,
-      updatedAt: invite.updatedAt
-    }));
-
-    return res.json(apiInvites);
-  } catch (error) {
-    console.error('Get area invites error:', error);
-    return res.status(500).json({ error: 'エリア招待の取得に失敗しました' });
-  }
-});
 
 // Respond to area invite
 router.patch('/invites/:inviteId', async (req: AuthRequest, res: Response) => {
