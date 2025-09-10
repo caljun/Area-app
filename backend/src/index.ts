@@ -129,7 +129,8 @@ app.use(cors({
   origin: process.env.CORS_ORIGIN || "http://localhost:8081",
   credentials: true
 }));
-app.use(limiter);
+// 高頻度APIではユーザー単位で緩い制限を適用するため、グローバルは外す
+// app.use(limiter);
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true }));
 
@@ -188,8 +189,17 @@ app.get('/api/session', authLimiter, authMiddleware, async (req: any, res) => {
 app.use('/api/auth', authLimiter, authRoutes);
 app.use('/api/users', authMiddleware, userRoutes);
 app.use('/api/areas', authMiddleware, areaRoutes);
-app.use('/api/friends', authMiddleware, friendRoutes);
-app.use('/api/locations', authMiddleware, locationRoutes);
+// 認証済みかつ高頻度のルートはユーザーIDをキーにした緩い制限を適用
+const authedKeyedLimiter = rateLimit({
+  windowMs: 60 * 1000, // 1分
+  max: 600, // 600req/分 (10req/秒)
+  standardHeaders: true,
+  legacyHeaders: false,
+  keyGenerator: (req: any) => req.user?.id || req.ip,
+});
+
+app.use('/api/friends', authMiddleware, authedKeyedLimiter, friendRoutes);
+app.use('/api/locations', authMiddleware, authedKeyedLimiter, locationRoutes);
 app.use('/api/location', authMiddleware, locationRoutes); // フロントエンドの期待するエンドポイント
 app.use('/api/images', imageRoutes); // 認証不要なエンドポイントがあるため、authMiddlewareを削除 
 app.use('/api/notifications', authMiddleware, notificationRoutes);

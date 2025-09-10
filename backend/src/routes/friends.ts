@@ -246,15 +246,37 @@ router.patch('/requests/:requestId', async (req: AuthRequest, res: Response) => 
     });
 
     if (action === 'accept') {
-      // Create friend relationship
-      const friend = await prisma.friend.create({
-        data: {
-          userId: request.senderId,
-          friendId: request.receiverId
+      // 双方向の友達関係を作成（存在しない場合のみ）
+      const senderId = request.senderId;
+      const receiverId = request.receiverId;
+
+      const [aToB, bToA] = await Promise.all([
+        prisma.friend.findFirst({ where: { userId: senderId, friendId: receiverId } as any }),
+        prisma.friend.findFirst({ where: { userId: receiverId, friendId: senderId } as any })
+      ]);
+
+      const created = await prisma.$transaction(async (tx) => {
+        const results: any = {};
+        if (!aToB) {
+          results.aToB = await tx.friend.create({
+            data: { userId: senderId, friendId: receiverId }
+          });
+        } else {
+          results.aToB = aToB;
         }
+
+        if (!bToA) {
+          results.bToA = await tx.friend.create({
+            data: { userId: receiverId, friendId: senderId }
+          });
+        } else {
+          results.bToA = bToA;
+        }
+        return results;
       });
-      
-      return res.json(friend);
+
+      // 返却は受信者視点の関係を優先
+      return res.json(created.bToA || created.aToB);
     }
 
     return res.json({
