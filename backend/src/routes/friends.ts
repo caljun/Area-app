@@ -92,12 +92,32 @@ router.post('/requests', async (req: AuthRequest, res: Response) => {
   try {
     const { toUserId, message } = sendFriendRequestSchema.parse(req.body);
 
+    // Resolve receiver by id or areaId (handle)
+    const resolveReceiver = async (identifier: string) => {
+      // Try by exact user id first
+      const byId = await prisma.user.findUnique({ where: { id: identifier } });
+      if (byId) return byId;
+      // Fallback to areaId (unique handle)
+      const byAreaId = await prisma.user.findUnique({ where: { areaId: identifier } });
+      return byAreaId;
+    };
+
+    const receiver = await resolveReceiver(toUserId);
+    if (!receiver) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    // Prevent sending request to self
+    if (receiver.id === req.user!.id) {
+      return res.status(400).json({ error: 'Cannot send friend request to yourself' });
+    }
+
     // Check if already friends
     const existingFriend = await prisma.friend.findFirst({
       where: {
         OR: [
-          { userId: req.user!.id, friendId: toUserId },
-          { userId: toUserId, friendId: req.user!.id }
+          { userId: req.user!.id, friendId: receiver.id },
+          { userId: receiver.id, friendId: req.user!.id }
         ]
       } as any
     });
@@ -110,8 +130,8 @@ router.post('/requests', async (req: AuthRequest, res: Response) => {
     const existingRequest = await prisma.friendRequest.findFirst({
       where: {
         OR: [
-          { senderId: req.user!.id, receiverId: toUserId },
-          { senderId: toUserId, receiverId: req.user!.id }
+          { senderId: req.user!.id, receiverId: receiver.id },
+          { senderId: receiver.id, receiverId: req.user!.id }
         ],
         status: 'PENDING'
       } as any
@@ -124,7 +144,7 @@ router.post('/requests', async (req: AuthRequest, res: Response) => {
     const request = await prisma.friendRequest.create({
       data: {
         senderId: req.user!.id,
-        receiverId: toUserId
+        receiverId: receiver.id
       },
       include: {
         receiver: {
@@ -150,7 +170,7 @@ router.post('/requests', async (req: AuthRequest, res: Response) => {
             senderName: req.user!.name,
             senderAreaId: req.user!.areaId
           },
-          recipientId: toUserId,
+          recipientId: receiver.id,
           senderId: req.user!.id
         }
       });
