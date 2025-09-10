@@ -30,7 +30,10 @@ router.get('/', async (req: AuthRequest, res: Response) => {
           select: {
             id: true,
             name: true,
-            areaId: true
+            areaId: true,
+            profileImage: true,
+            createdAt: true,
+            updatedAt: true
           }
         }
       }
@@ -41,7 +44,10 @@ router.get('/', async (req: AuthRequest, res: Response) => {
       id: friend.id,
       userId: friend.userId,
       friendId: friend.friendId,
-      createdAt: friend.createdAt
+      status: 'accepted',
+      createdAt: friend.createdAt,
+      updatedAt: undefined,
+      friend: friend.friend
     }));
 
     res.json(apiFriends);
@@ -179,10 +185,17 @@ router.post('/requests', async (req: AuthRequest, res: Response) => {
       // 通知作成に失敗しても友達申請は成功とする
     }
 
-    return res.status(201).json({
-      message: 'Friend request sent successfully',
-      request
-    });
+    // フロントのFriendRequestモデルへ整形して返却
+    const apiRequest = {
+      id: request.id,
+      fromUserId: request.senderId,
+      toUserId: request.receiverId,
+      message: undefined as string | undefined,
+      createdAt: request.createdAt,
+      status: (request.status as string).toLowerCase(),
+    };
+
+    return res.status(201).json(apiRequest);
   } catch (error) {
     if (error instanceof z.ZodError) {
       return res.status(400).json({
