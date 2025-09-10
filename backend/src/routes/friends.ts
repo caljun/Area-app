@@ -100,9 +100,15 @@ router.post('/requests', async (req: AuthRequest, res: Response) => {
 
     // Resolve receiver by id or areaId (handle)
     const resolveReceiver = async (identifier: string) => {
-      // Try by exact user id first
-      const byId = await prisma.user.findUnique({ where: { id: identifier } });
-      if (byId) return byId;
+      // Check if identifier is a valid ObjectID (24 hex characters)
+      const isObjectId = /^[0-9a-fA-F]{24}$/.test(identifier);
+      
+      if (isObjectId) {
+        // Try by exact user id first (only if it's a valid ObjectID)
+        const byId = await prisma.user.findUnique({ where: { id: identifier } });
+        if (byId) return byId;
+      }
+      
       // Fallback to areaId (unique handle)
       const byAreaId = await prisma.user.findUnique({ where: { areaId: identifier } });
       return byAreaId;
