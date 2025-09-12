@@ -72,8 +72,23 @@ router.get('/:friendId', async (req: AuthRequest, res: Response) => {
 router.get('/', async (req: AuthRequest, res: Response) => {
   try {
     const friends = await prisma.friend.findMany({
-      where: { userId: req.user!.id },
+      where: {
+        OR: [
+          { userId: req.user!.id },      // 現在のユーザーが起点の友達関係
+          { friendId: req.user!.id }     // 現在のユーザーが対象の友達関係
+        ]
+      },
       include: {
+        user: {
+          select: {
+            id: true,
+            name: true,
+            areaId: true,
+            profileImage: true,
+            createdAt: true,
+            updatedAt: true
+          }
+        },
         friend: {
           select: {
             id: true,
@@ -87,17 +102,25 @@ router.get('/', async (req: AuthRequest, res: Response) => {
       }
     });
 
-    // Areaフロントエンドの期待する形式でレスポンスを返す
-    const apiFriends = friends.map(friend => ({
-      id: friend.id,
-      userId: friend.userId,
-      friendId: friend.friendId,
-      status: 'accepted',
-      createdAt: friend.createdAt,
-      // iOS側デコードで必須フィールド欠落とならないよう常に含める
-      updatedAt: friend.createdAt,
-      friend: friend.friend
-    }));
+    // 友達関係から現在のユーザー以外のユーザー情報を抽出
+    const apiFriends = friends.map(friend => {
+      // 現在のユーザーID
+      const currentUserId = req.user!.id;
+      
+      // 友達関係の両方のユーザーをチェックして、現在のユーザー以外を友達として返す
+      const friendUser = friend.userId === currentUserId ? friend.friend : friend.user;
+      
+      return {
+        id: friend.id,
+        userId: friend.userId,
+        friendId: friend.friendId,
+        status: 'accepted',
+        createdAt: friend.createdAt,
+        // iOS側デコードで必須フィールド欠落とならないよう常に含める
+        updatedAt: friend.createdAt,
+        friend: friendUser
+      };
+    });
 
     // クライアント互換: ?wrap=true で { friends: [...] } を返す
     const shouldWrap = String(req.query.wrap).toLowerCase() === 'true';
