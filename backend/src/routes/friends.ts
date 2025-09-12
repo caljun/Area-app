@@ -20,54 +20,6 @@ const sendAreaRequestSchema = z.object({
   areaId: z.string().min(1, 'Area ID is required')
 });
 
-// Get friend profile by ID
-router.get('/:friendId', async (req: AuthRequest, res: Response) => {
-  try {
-    const { friendId } = req.params;
-
-    // 友達関係をチェック
-    const friendship = await prisma.friend.findFirst({
-      where: {
-        OR: [
-          { userId: req.user!.id, friendId: friendId },
-          { userId: friendId, friendId: req.user!.id }
-        ]
-      } as any,
-      include: {
-        friend: {
-          select: {
-            id: true,
-            name: true,
-            areaId: true,
-            profileImage: true,
-            createdAt: true,
-            updatedAt: true
-          }
-        }
-      }
-    });
-
-    if (!friendship) {
-      return res.status(404).json({ error: 'Friend not found or not friends' });
-    }
-
-    // 友達のプロフィール情報を返す
-    const friendProfile = {
-      id: friendship.friend.id,
-      name: friendship.friend.name,
-      areaId: friendship.friend.areaId,
-      profileImage: friendship.friend.profileImage,
-      createdAt: friendship.friend.createdAt,
-      updatedAt: friendship.friend.updatedAt
-    };
-
-    return res.json(friendProfile);
-  } catch (error) {
-    console.error('Get friend profile error:', error);
-    return res.status(500).json({ error: 'Internal server error' });
-  }
-});
-
 // Get friends list
 router.get('/', async (req: AuthRequest, res: Response) => {
   try {
@@ -131,6 +83,54 @@ router.get('/', async (req: AuthRequest, res: Response) => {
   } catch (error) {
     console.error('Get friends error:', error);
     res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// Get friend profile by ID
+router.get('/:friendId', async (req: AuthRequest, res: Response) => {
+  try {
+    const { friendId } = req.params;
+
+    // 友達関係をチェック
+    const friendship = await prisma.friend.findFirst({
+      where: {
+        OR: [
+          { userId: req.user!.id, friendId: friendId },
+          { userId: friendId, friendId: req.user!.id }
+        ]
+      } as any,
+      include: {
+        friend: {
+          select: {
+            id: true,
+            name: true,
+            areaId: true,
+            profileImage: true,
+            createdAt: true,
+            updatedAt: true
+          }
+        }
+      }
+    });
+
+    if (!friendship) {
+      return res.status(404).json({ error: 'Friend not found or not friends' });
+    }
+
+    // 友達のプロフィール情報を返す
+    const friendProfile = {
+      id: friendship.friend.id,
+      name: friendship.friend.name,
+      areaId: friendship.friend.areaId,
+      profileImage: friendship.friend.profileImage,
+      createdAt: friendship.friend.createdAt,
+      updatedAt: friendship.friend.updatedAt
+    };
+
+    return res.json(friendProfile);
+  } catch (error) {
+    console.error('Get friend profile error:', error);
+    return res.status(500).json({ error: 'Internal server error' });
   }
 });
 

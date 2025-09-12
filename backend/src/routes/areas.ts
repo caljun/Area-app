@@ -367,7 +367,9 @@ router.get('/:id/members', async (req: AuthRequest, res: Response) => {
             id: true,
             name: true,
             areaId: true,
-            profileImage: true
+            profileImage: true,
+            createdAt: true,
+            updatedAt: true
           }
         }
       },
