@@ -19,6 +19,12 @@ router.post('/update', async (req: AuthRequest, res: Response) => {
     if (!latitude || !longitude) {
       return res.status(400).json({ error: '緯度と経度が必要です' });
     }
+    
+    // 位置情報が0,0の場合は無効として拒否
+    if (latitude === 0 && longitude === 0) {
+      console.log(`無効な位置情報が送信されました (0,0) - userId: ${req.user!.id}`);
+      return res.status(400).json({ error: '無効な位置情報です' });
+    }
 
     const location = await prisma.location.create({
       data: {
@@ -131,19 +137,51 @@ router.get('/friends', async (req: AuthRequest, res: Response) => {
     });
 
     // 友達情報と位置情報を結合
-    const friendsWithLocations = friends.map(friend => {
-      const location = locations.find(loc => loc.userId === friend.friend.id);
-      return {
-        userId: friend.friend.id,
-        latitude: location?.latitude || 0,
-        longitude: location?.longitude || 0,
-        accuracy: 10.0, // デフォルト精度
-        timestamp: location?.createdAt?.toISOString() || new Date().toISOString(),
-        areaId: location?.areaId || null,
-        userName: friend.friend.name,
-        profileImage: friend.friend.profileImage
-      };
-    });
+    const friendsWithLocations = friends
+      .map(friend => {
+        const location = locations.find(loc => loc.userId === friend.friend.id);
+        
+        // 位置情報がない場合は、位置情報なしとして返す
+        if (!location) {
+          console.log(`友達の位置情報がありません - userId: ${friend.friend.id}, name: ${friend.friend.name}`);
+          return {
+            userId: friend.friend.id,
+            latitude: null, // 位置情報なしを示す
+            longitude: null,
+            accuracy: null,
+            timestamp: new Date().toISOString(), // 現在時刻
+            areaId: null,
+            userName: friend.friend.name,
+            profileImage: friend.friend.profileImage
+          };
+        }
+        
+        // 位置情報が0,0の場合は除外（無効な位置情報）
+        if (location.latitude === 0 && location.longitude === 0) {
+          console.log(`友達の位置情報が無効です (0,0) - userId: ${friend.friend.id}, name: ${friend.friend.name}`);
+          return {
+            userId: friend.friend.id,
+            latitude: null, // 位置情報なしを示す
+            longitude: null,
+            accuracy: null,
+            timestamp: new Date().toISOString(), // 現在時刻
+            areaId: null,
+            userName: friend.friend.name,
+            profileImage: friend.friend.profileImage
+          };
+        }
+        
+        return {
+          userId: friend.friend.id,
+          latitude: location.latitude,
+          longitude: location.longitude,
+          accuracy: 10.0, // デフォルト精度
+          timestamp: location.createdAt.toISOString(),
+          areaId: location.areaId || null,
+          userName: friend.friend.name,
+          profileImage: friend.friend.profileImage
+        };
+      });
 
     // デバッグログ: レスポンス内容を確認
     console.log('友達位置情報レスポンス:', JSON.stringify(friendsWithLocations, null, 2));
