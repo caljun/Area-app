@@ -145,6 +145,9 @@ router.get('/friends', async (req: AuthRequest, res: Response) => {
       };
     });
 
+    // デバッグログ: レスポンス内容を確認
+    console.log('友達位置情報レスポンス:', JSON.stringify(friendsWithLocations, null, 2));
+    
     // Areaフロントエンドの期待する形式でレスポンスを返す
     return res.json(friendsWithLocations);
   } catch (error) {
