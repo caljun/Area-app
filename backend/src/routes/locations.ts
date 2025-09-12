@@ -138,7 +138,7 @@ router.get('/friends', async (req: AuthRequest, res: Response) => {
         latitude: location?.latitude || 0,
         longitude: location?.longitude || 0,
         accuracy: 10.0, // デフォルト精度
-        timestamp: location?.createdAt || new Date(),
+        timestamp: location?.createdAt?.toISOString() || new Date().toISOString(),
         areaId: location?.areaId || null,
         userName: friend.friend.name,
         profileImage: friend.friend.profileImage

@@ -379,7 +379,9 @@ router.get('/:id/members', async (req: AuthRequest, res: Response) => {
       id: member.user.id,
       name: member.user.name,
       areaId: member.user.areaId,
-      profileImage: member.user.profileImage
+      profileImage: member.user.profileImage,
+      createdAt: member.user.createdAt || new Date(),
+      updatedAt: member.user.updatedAt || new Date()
     }));
     return res.json(memberUsers);
   } catch (error) {
