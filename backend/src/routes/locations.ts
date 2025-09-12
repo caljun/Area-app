@@ -26,6 +26,8 @@ router.post('/update', async (req: AuthRequest, res: Response) => {
       return res.status(400).json({ error: '無効な位置情報です' });
     }
 
+    console.log(`位置情報更新 - userId: ${req.user!.id}, lat: ${latitude}, lng: ${longitude}, areaId: ${areaId}`);
+    
     const location = await prisma.location.create({
       data: {
         userId: req.user!.id,
@@ -34,6 +36,8 @@ router.post('/update', async (req: AuthRequest, res: Response) => {
         areaId: areaId || null
       }
     });
+    
+    console.log(`位置情報保存完了 - locationId: ${location.id}`);
 
     // エリア内にいるかチェック
     let isInArea = false;
@@ -126,6 +130,7 @@ router.get('/friends', async (req: AuthRequest, res: Response) => {
     });
 
     const friendIds = friends.map(f => f.friend.id);
+    console.log(`友達ID一覧: ${JSON.stringify(friendIds)}`);
     
     // 最新の位置情報を取得
     const locations = await prisma.location.findMany({
@@ -134,6 +139,11 @@ router.get('/friends', async (req: AuthRequest, res: Response) => {
       },
       orderBy: { createdAt: 'desc' },
       distinct: ['userId']
+    });
+    
+    console.log(`取得した位置情報数: ${locations.length}`);
+    locations.forEach(loc => {
+      console.log(`位置情報 - userId: ${loc.userId}, lat: ${loc.latitude}, lng: ${loc.longitude}, areaId: ${loc.areaId}`);
     });
 
     // 友達情報と位置情報を結合
