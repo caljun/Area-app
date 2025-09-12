@@ -24,7 +24,8 @@ router.post('/update', async (req: AuthRequest, res: Response) => {
       data: {
         userId: req.user!.id,
         latitude,
-        longitude
+        longitude,
+        areaId: areaId || null
       }
     });
 
@@ -133,12 +134,14 @@ router.get('/friends', async (req: AuthRequest, res: Response) => {
     const friendsWithLocations = friends.map(friend => {
       const location = locations.find(loc => loc.userId === friend.friend.id);
       return {
-        ...friend.friend,
-        location: location ? {
-          latitude: location.latitude,
-          longitude: location.longitude,
-          updatedAt: location.createdAt
-        } : null
+        userId: friend.friend.id,
+        latitude: location?.latitude || 0,
+        longitude: location?.longitude || 0,
+        accuracy: 10.0, // デフォルト精度
+        timestamp: location?.createdAt || new Date(),
+        areaId: location?.areaId || null,
+        userName: friend.friend.name,
+        profileImage: friend.friend.profileImage
       };
     });
 
