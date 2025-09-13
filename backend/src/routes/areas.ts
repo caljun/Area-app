@@ -24,16 +24,37 @@ const updateAreaSchema = z.object({
   isPublic: z.boolean().optional()
 });
 
-// Get user's areas
+// Get user's areas (owned + member areas)
 router.get('/', async (req: AuthRequest, res: Response) => {
   try {
-    const areas = await prisma.area.findMany({
+    // 1. 自分が作成したエリアを取得
+    const ownedAreas = await prisma.area.findMany({
       where: { userId: req.user!.id },
       orderBy: { createdAt: 'desc' }
     });
 
+    // 2. 自分がメンバーとして参加しているエリアを取得
+    const memberAreas = await prisma.areaMember.findMany({
+      where: { userId: req.user!.id },
+      include: {
+        area: true
+      },
+      orderBy: { createdAt: 'desc' }
+    });
+
+    // 3. 重複を避けるために、所有エリアのIDセットを作成
+    const ownedAreaIds = new Set(ownedAreas.map(area => area.id));
+
+    // 4. メンバーエリアから所有エリアを除外
+    const uniqueMemberAreas = memberAreas
+      .filter(member => !ownedAreaIds.has(member.area.id))
+      .map(member => member.area);
+
+    // 5. すべてのエリアを結合
+    const allAreas = [...ownedAreas, ...uniqueMemberAreas];
+
     // SwiftUIアプリの期待する形式でレスポンスを返す
-    const apiAreas = await Promise.all(areas.map(async (area) => {
+    const apiAreas = await Promise.all(allAreas.map(async (area) => {
       // メンバー数を取得
       const memberCount = await prisma.areaMember.count({
         where: { areaId: area.id }
@@ -61,7 +82,8 @@ router.get('/', async (req: AuthRequest, res: Response) => {
         createdAt: area.createdAt,
         updatedAt: area.updatedAt,
         memberCount,
-        onlineCount
+        onlineCount,
+        isOwner: area.userId === req.user!.id  // 所有者かどうかのフラグを追加
       };
     }));
 
