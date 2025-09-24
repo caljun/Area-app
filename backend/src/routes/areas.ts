@@ -55,7 +55,7 @@ router.get('/', async (req: AuthRequest, res: Response) => {
 
     // SwiftUIアプリの期待する形式でレスポンスを返す
     const apiAreas = await Promise.all(allAreas.map(async (area) => {
-      // メンバー数を取得
+      // メンバー数を取得（所有者も含む）
       const memberCount = await prisma.areaMember.count({
         where: { areaId: area.id }
       });
@@ -104,7 +104,7 @@ router.get('/public', async (req: Request, res: Response) => {
 
     // SwiftUIアプリの期待する形式でレスポンスを返す
     const apiAreas = await Promise.all(areas.map(async (area) => {
-      // メンバー数を取得
+      // メンバー数を取得（所有者も含む）
       const memberCount = await prisma.areaMember.count({
         where: { areaId: area.id }
       });
@@ -151,10 +151,12 @@ router.get('/created', async (req: AuthRequest, res: Response) => {
     });
 
     const apiAreas = await Promise.all(areas.map(async (area) => {
+      // メンバー数を取得（所有者も含む）
       const memberCount = await prisma.areaMember.count({
         where: { areaId: area.id }
       });
 
+      // オンラインメンバー数を取得（簡易版）
       const onlineCount = await prisma.areaMember.count({
         where: {
           areaId: area.id,
@@ -203,10 +205,12 @@ router.get('/joined', async (req: AuthRequest, res: Response) => {
       .map(m => m.area!);
 
     const apiAreas = await Promise.all(joinedAreas.map(async (area) => {
+      // メンバー数を取得（所有者も含む）
       const memberCount = await prisma.areaMember.count({
         where: { areaId: area.id }
       });
 
+      // オンラインメンバー数を取得（簡易版）
       const onlineCount = await prisma.areaMember.count({
         where: {
           areaId: area.id,
@@ -356,25 +360,40 @@ router.post('/', async (req: AuthRequest, res: Response) => {
   try {
     const { name, coordinates, isPublic = false } = createAreaSchema.parse(req.body);
 
-    const area = await prisma.area.create({
-      data: {
-        name,
-        coordinates,
-        isPublic,
-        userId: req.user!.id
-      }
+    // トランザクションでエリア作成と所有者のメンバー登録を同時に実行
+    const result = await prisma.$transaction(async (tx) => {
+      // エリアを作成
+      const area = await tx.area.create({
+        data: {
+          name,
+          coordinates,
+          isPublic,
+          userId: req.user!.id
+        }
+      });
+
+      // エリア所有者をAreaMemberに自動登録
+      await tx.areaMember.create({
+        data: {
+          areaId: area.id,
+          userId: req.user!.id,
+          addedBy: req.user!.id // 自分自身が追加者
+        }
+      });
+
+      return area;
     });
 
     // SwiftUIアプリの期待する形式でレスポンスを返す
     const apiArea = {
-      id: area.id,
-      name: area.name,
-      coordinates: area.coordinates,
-      userId: area.userId,
-      isPublic: area.isPublic,
-      imageUrl: area.imageUrl,
-      createdAt: area.createdAt,
-      updatedAt: area.updatedAt
+      id: result.id,
+      name: result.name,
+      coordinates: result.coordinates,
+      userId: result.userId,
+      isPublic: result.isPublic,
+      imageUrl: result.imageUrl,
+      createdAt: result.createdAt,
+      updatedAt: result.updatedAt
     };
 
     return res.status(201).json(apiArea);
@@ -479,6 +498,7 @@ router.get('/:id/members', async (req: AuthRequest, res: Response) => {
       return res.status(404).json({ error: 'Area not found' });
     }
 
+    // AreaMemberテーブルからメンバーを取得（所有者も含む）
     const members = await prisma.areaMember.findMany({
       where: { areaId: id },
       include: {
@@ -505,6 +525,7 @@ router.get('/:id/members', async (req: AuthRequest, res: Response) => {
       createdAt: member.user.createdAt || new Date(),
       updatedAt: member.user.updatedAt || new Date()
     }));
+    
     return res.json(memberUsers);
   } catch (error) {
     console.error('Get area members error:', error);
