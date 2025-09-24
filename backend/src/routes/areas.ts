@@ -142,6 +142,104 @@ router.get('/public', async (req: Request, res: Response) => {
   }
 });
 
+// Get areas created by the authenticated user (owned only)
+router.get('/created', async (req: AuthRequest, res: Response) => {
+  try {
+    const areas = await prisma.area.findMany({
+      where: { userId: req.user!.id },
+      orderBy: { createdAt: 'desc' }
+    });
+
+    const apiAreas = await Promise.all(areas.map(async (area) => {
+      const memberCount = await prisma.areaMember.count({
+        where: { areaId: area.id }
+      });
+
+      const onlineCount = await prisma.areaMember.count({
+        where: {
+          areaId: area.id,
+          user: {
+            updatedAt: {
+              gte: new Date(Date.now() - 5 * 60 * 1000)
+            }
+          }
+        }
+      });
+
+      return {
+        id: area.id,
+        name: area.name,
+        coordinates: area.coordinates,
+        userId: area.userId,
+        isPublic: area.isPublic,
+        imageUrl: area.imageUrl,
+        createdAt: area.createdAt,
+        updatedAt: area.updatedAt,
+        memberCount,
+        onlineCount,
+        isOwner: true
+      };
+    }));
+
+    return res.json(apiAreas);
+  } catch (error) {
+    console.error('Get created areas error:', error);
+    return res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// Get areas the authenticated user has joined (member but not owner)
+router.get('/joined', async (req: AuthRequest, res: Response) => {
+  try {
+    const memberships = await prisma.areaMember.findMany({
+      where: { userId: req.user!.id },
+      include: { area: true },
+      orderBy: { createdAt: 'desc' }
+    });
+
+    // Exclude areas owned by the user to ensure "joined" means non-owned memberships
+    const joinedAreas = memberships
+      .filter(m => m.area && m.area.userId !== req.user!.id)
+      .map(m => m.area!);
+
+    const apiAreas = await Promise.all(joinedAreas.map(async (area) => {
+      const memberCount = await prisma.areaMember.count({
+        where: { areaId: area.id }
+      });
+
+      const onlineCount = await prisma.areaMember.count({
+        where: {
+          areaId: area.id,
+          user: {
+            updatedAt: {
+              gte: new Date(Date.now() - 5 * 60 * 1000)
+            }
+          }
+        }
+      });
+
+      return {
+        id: area.id,
+        name: area.name,
+        coordinates: area.coordinates,
+        userId: area.userId,
+        isPublic: area.isPublic,
+        imageUrl: area.imageUrl,
+        createdAt: area.createdAt,
+        updatedAt: area.updatedAt,
+        memberCount,
+        onlineCount,
+        isOwner: false
+      };
+    }));
+
+    return res.json(apiAreas);
+  } catch (error) {
+    console.error('Get joined areas error:', error);
+    return res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
 // Get area invites (for recipient) - MUST be before /:id route
 router.get('/invites', async (req: AuthRequest, res: Response) => {
   try {

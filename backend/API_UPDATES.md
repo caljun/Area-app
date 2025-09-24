@@ -15,6 +15,8 @@
 - `DELETE /api/areas/:id/leave` - エリアから退出
 - `GET /api/areas/search` - エリア検索
 - `GET /api/areas/nearby` - 近くのエリア取得
+- `GET /api/areas/created` - 作成したエリアのみ取得（`isOwner: true`）
+- `GET /api/areas/joined` - 参加したエリアのみ取得（自分が所有者ではないエリア、`isOwner: false`）
 
 ### 3. ユーザー検索機能 (`/api/users`)
 - `GET /api/users/search` - ユーザー検索（名前・Area ID）
