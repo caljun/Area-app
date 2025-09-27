@@ -17,6 +17,7 @@ const sendAreaRequestSchema = zod_1.z.object({
 });
 router.get('/', async (req, res) => {
     try {
+        console.log(`友達一覧取得開始 - userId: ${req.user.id}`);
         const friends = await index_1.prisma.friend.findMany({
             where: {
                 OR: [

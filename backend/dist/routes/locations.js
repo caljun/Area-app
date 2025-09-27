@@ -95,8 +95,20 @@ router.post('/update', async (req, res) => {
 router.get('/friends', async (req, res) => {
     try {
         const friends = await index_1.prisma.friend.findMany({
-            where: { userId: req.user.id },
+            where: {
+                OR: [
+                    { userId: req.user.id },
+                    { friendId: req.user.id }
+                ]
+            },
             include: {
+                user: {
+                    select: {
+                        id: true,
+                        name: true,
+                        profileImage: true
+                    }
+                },
                 friend: {
                     select: {
                         id: true,
@@ -106,7 +118,15 @@ router.get('/friends', async (req, res) => {
                 }
             }
         });
-        const friendIds = friends.map(f => f.friend.id);
+        const friendIds = [];
+        friends.forEach(friend => {
+            if (friend.userId === req.user.id && friend.friend) {
+                friendIds.push(friend.friend.id);
+            }
+            else if (friend.friendId === req.user.id && friend.user) {
+                friendIds.push(friend.user.id);
+            }
+        });
         console.log(`友達ID一覧: ${JSON.stringify(friendIds)}`);
         const locations = await index_1.prisma.location.findMany({
             where: {

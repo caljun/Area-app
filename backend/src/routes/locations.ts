@@ -117,8 +117,20 @@ router.post('/update', async (req: AuthRequest, res: Response) => {
 router.get('/friends', async (req: AuthRequest, res: Response) => {
   try {
     const friends = await prisma.friend.findMany({
-      where: { userId: req.user!.id },
+      where: {
+        OR: [
+          { userId: req.user!.id },
+          { friendId: req.user!.id }
+        ]
+      },
       include: {
+        user: {
+          select: {
+            id: true,
+            name: true,
+            profileImage: true
+          }
+        },
         friend: {
           select: {
             id: true,
@@ -129,7 +141,15 @@ router.get('/friends', async (req: AuthRequest, res: Response) => {
       }
     });
 
-    const friendIds = friends.map(f => f.friend.id);
+    // 双方向の友達関係から友達IDを抽出
+    const friendIds: string[] = [];
+    friends.forEach(friend => {
+      if (friend.userId === req.user!.id && friend.friend) {
+        friendIds.push(friend.friend.id);
+      } else if (friend.friendId === req.user!.id && friend.user) {
+        friendIds.push(friend.user.id);
+      }
+    });
     console.log(`友達ID一覧: ${JSON.stringify(friendIds)}`);
     
     // 最新の位置情報を取得
