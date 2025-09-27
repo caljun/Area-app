@@ -223,4 +223,42 @@ router.get('/search/:areaId', async (req, res) => {
         return res.status(500).json({ error: 'ユーザー検索に失敗しました' });
     }
 });
+router.get('/search', async (req, res) => {
+    try {
+        const { query, type } = req.query;
+        if (!query || typeof query !== 'string') {
+            return res.status(400).json({ error: '検索クエリが必要です' });
+        }
+        let whereClause = {
+            id: { not: req.user.id }
+        };
+        if (type === 'areaId') {
+            whereClause.areaId = { contains: query, mode: 'insensitive' };
+        }
+        else if (type === 'username') {
+            whereClause.name = { contains: query, mode: 'insensitive' };
+        }
+        else {
+            whereClause.OR = [
+                { name: { contains: query, mode: 'insensitive' } },
+                { areaId: { contains: query, mode: 'insensitive' } }
+            ];
+        }
+        const users = await index_1.prisma.user.findMany({
+            where: whereClause,
+            select: {
+                id: true,
+                name: true,
+                areaId: true,
+                profileImage: true
+            },
+            take: 20
+        });
+        return res.json(users);
+    }
+    catch (error) {
+        console.error('Search users error:', error);
+        return res.status(500).json({ error: 'ユーザー検索に失敗しました' });
+    }
+});
 exports.default = router;

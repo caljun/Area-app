@@ -516,8 +516,42 @@ router.get('/:id/members', async (req: AuthRequest, res: Response) => {
       orderBy: { createdAt: 'asc' }
     });
 
+    // 友達関係を確認して、友達のみを表示するかチェック
+    // エリア作成者の場合は全メンバーを表示、そうでない場合は友達のみ表示
+    let filteredMembers = members;
+    
+    if (area.userId !== req.user!.id) {
+      // エリア作成者でない場合、友達関係があるメンバーのみ表示
+      const memberIds = members.map(m => m.user.id);
+      
+      const friendships = await prisma.friend.findMany({
+        where: {
+          OR: [
+            { userId: req.user!.id, friendId: { in: memberIds } },
+            { friendId: req.user!.id, userId: { in: memberIds } }
+          ]
+        } as any
+      });
+
+      const friendIds = new Set();
+      friendships.forEach(friendship => {
+        if (friendship.userId === req.user!.id) {
+          friendIds.add(friendship.friendId);
+        } else {
+          friendIds.add(friendship.userId);
+        }
+      });
+
+      // 友達関係があるメンバーのみフィルタリング
+      filteredMembers = members.filter(member => friendIds.has(member.user.id));
+      
+      console.log(`エリアメンバー取得: 全${members.length}人中、友達は${filteredMembers.length}人`);
+    } else {
+      console.log(`エリアメンバー取得（作成者）: 全${members.length}人`);
+    }
+
     // SwiftUIアプリの期待する形式でレスポンスを返す（Userオブジェクトの配列）
-    const memberUsers = members.map(member => ({
+    const memberUsers = filteredMembers.map(member => ({
       id: member.user.id,
       name: member.user.name,
       areaId: member.user.areaId,

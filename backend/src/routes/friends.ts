@@ -74,12 +74,24 @@ router.get('/', async (req: AuthRequest, res: Response) => {
       };
     });
 
+    // 重複を除去（双方向の友達関係がある場合）
+    const uniqueFriends = new Map();
+    apiFriends.forEach(friend => {
+      if (friend.friend && !uniqueFriends.has(friend.friend.id)) {
+        uniqueFriends.set(friend.friend.id, friend);
+      }
+    });
+
+    const finalFriends = Array.from(uniqueFriends.values());
+
+    console.log(`友達取得完了: ${finalFriends.length}人 (元々: ${apiFriends.length}件)`);
+
     // クライアント互換: ?wrap=true で { friends: [...] } を返す
     const shouldWrap = String(req.query.wrap).toLowerCase() === 'true';
     if (shouldWrap) {
-      return res.json({ friends: apiFriends });
+      return res.json({ friends: finalFriends });
     }
-    return res.json(apiFriends);
+    return res.json(finalFriends);
   } catch (error) {
     console.error('Get friends error:', error);
     res.status(500).json({ error: 'Internal server error' });
@@ -343,13 +355,32 @@ router.patch('/requests/:requestId', async (req: AuthRequest, res: Response) => 
 
       // トランザクションで双方向の友達関係を作成
       const created = await prisma.$transaction(async (tx) => {
-        const aToB = await tx.friend.create({
-          data: { userId: senderId, friendId: receiverId }
+        // 既存の友達関係をチェック（重複防止）
+        const existingAtoB = await tx.friend.findFirst({
+          where: { userId: senderId, friendId: receiverId }
+        });
+        
+        const existingBtoA = await tx.friend.findFirst({
+          where: { userId: receiverId, friendId: senderId }
         });
 
-        const bToA = await tx.friend.create({
-          data: { userId: receiverId, friendId: senderId }
-        });
+        let aToB, bToA;
+
+        if (!existingAtoB) {
+          aToB = await tx.friend.create({
+            data: { userId: senderId, friendId: receiverId }
+          });
+        } else {
+          aToB = existingAtoB;
+        }
+
+        if (!existingBtoA) {
+          bToA = await tx.friend.create({
+            data: { userId: receiverId, friendId: senderId }
+          });
+        } else {
+          bToA = existingBtoA;
+        }
 
         return { aToB, bToA };
       });

@@ -7,14 +7,29 @@ const express_1 = require("express");
 const bcryptjs_1 = __importDefault(require("bcryptjs"));
 const jsonwebtoken_1 = __importDefault(require("jsonwebtoken"));
 const zod_1 = require("zod");
+const multer_1 = __importDefault(require("multer"));
 const index_1 = require("../index");
 const auth_1 = require("../middleware/auth");
 const router = (0, express_1.Router)();
+const upload = (0, multer_1.default)({
+    storage: multer_1.default.memoryStorage(),
+    limits: {
+        fileSize: 10 * 1024 * 1024,
+    },
+    fileFilter: (req, file, cb) => {
+        if (file.mimetype.startsWith('image/')) {
+            cb(null, true);
+        }
+        else {
+            cb(new Error('画像ファイルのみアップロード可能です'));
+        }
+    }
+});
 const registerSchema = zod_1.z.object({
     email: zod_1.z.string().email('メールアドレスの形式が正しくありません'),
     areaId: zod_1.z.string().min(3, 'Area IDは3文字以上で入力してください'),
     name: zod_1.z.string().min(1, 'ユーザー名は必須です'),
-    password: zod_1.z.string().min(6, 'パスワードは6文字以上で入力してください'),
+    password: zod_1.z.string().min(8, 'パスワードは8文字以上で入力してください'),
     profileImage: zod_1.z.string().url('プロフィール画像のURLが正しくありません').optional()
 });
 const step1Schema = zod_1.z.object({
@@ -33,13 +48,13 @@ const step4Schema = zod_1.z.object({
     email: zod_1.z.string().email('メールアドレスの形式が正しくありません'),
     areaId: zod_1.z.string().min(3, 'Area IDは3文字以上で入力してください'),
     name: zod_1.z.string().min(1, 'ユーザー名は必須です'),
-    password: zod_1.z.string().min(6, 'パスワードは6文字以上で入力してください')
+    password: zod_1.z.string().min(8, 'パスワードは8文字以上で入力してください')
 });
 const step5Schema = zod_1.z.object({
     email: zod_1.z.string().email('メールアドレスの形式が正しくありません'),
     areaId: zod_1.z.string().min(3, 'Area IDは3文字以上で入力してください'),
     name: zod_1.z.string().min(1, 'ユーザー名は必須です'),
-    password: zod_1.z.string().min(6, 'パスワードは6文字以上で入力してください'),
+    password: zod_1.z.string().min(8, 'パスワードは8文字以上で入力してください'),
     profileImage: zod_1.z.string().url('プロフィール画像のURLが正しくありません').optional()
 });
 const loginSchema = zod_1.z.object({
@@ -216,9 +231,60 @@ router.post('/register/step5', async (req, res) => {
         return res.status(500).json({ error: 'サーバーエラーが発生しました' });
     }
 });
-router.post('/register', async (req, res) => {
+router.post('/register', upload.single('profileImage'), async (req, res) => {
     try {
-        const { email, areaId, name, password, profileImage } = registerSchema.parse(req.body);
+        console.log('Register request received:', {
+            email: req.body.email,
+            areaId: req.body.areaId,
+            name: req.body.name,
+            hasPassword: !!req.body.password,
+            hasProfileImage: !!req.body.profileImage,
+            contentType: req.headers['content-type']
+        });
+        let email, areaId, name, password, profileImage;
+        if (req.headers['content-type']?.includes('multipart/form-data')) {
+            console.log('Processing multipart form data');
+            email = req.body.email;
+            areaId = req.body.areaId;
+            name = req.body.name;
+            password = req.body.password;
+            if (req.file) {
+                console.log('Image file received:', {
+                    fieldname: req.file.fieldname,
+                    originalname: req.file.originalname,
+                    mimetype: req.file.mimetype,
+                    size: req.file.size
+                });
+                profileImage = null;
+            }
+            else {
+                profileImage = req.body.profileImage;
+            }
+            console.log('Extracted from multipart:', { email, areaId, name, hasPassword: !!password, hasProfileImage: !!profileImage, hasFile: !!req.file });
+        }
+        else {
+            console.log('Processing JSON data');
+            const parsed = registerSchema.parse(req.body);
+            email = parsed.email;
+            areaId = parsed.areaId;
+            name = parsed.name;
+            password = parsed.password;
+            profileImage = parsed.profileImage;
+        }
+        if (req.headers['content-type']?.includes('multipart/form-data')) {
+            if (!email || !email.includes('@')) {
+                return res.status(400).json({ error: 'メールアドレスの形式が正しくありません' });
+            }
+            if (!areaId || areaId.length < 3) {
+                return res.status(400).json({ error: 'Area IDは3文字以上で入力してください' });
+            }
+            if (!name || name.trim().length < 1) {
+                return res.status(400).json({ error: 'ユーザー名は必須です' });
+            }
+            if (!password || password.length < 8) {
+                return res.status(400).json({ error: 'パスワードは8文字以上で入力してください' });
+            }
+        }
         const existingUser = await index_1.prisma.user.findFirst({
             where: {
                 OR: [
@@ -228,9 +294,16 @@ router.post('/register', async (req, res) => {
             }
         });
         if (existingUser) {
-            return res.status(400).json({
-                error: existingUser.email === email ? 'このメールアドレスは既に登録されています' : 'このArea IDは既に使用されています'
-            });
+            if (existingUser.email === email) {
+                return res.status(400).json({
+                    error: 'このメールアドレスは既に登録されています'
+                });
+            }
+            else {
+                return res.status(409).json({
+                    error: 'このArea IDは既に使用されています'
+                });
+            }
         }
         const hashedPassword = await bcryptjs_1.default.hash(password, 12);
         const user = await index_1.prisma.user.create({
@@ -261,8 +334,16 @@ router.post('/register', async (req, res) => {
         const profileComplete = missingFields.length === 0;
         return res.status(201).json({
             message: 'ユーザー登録が完了しました',
-            user,
+            user: {
+                id: user.id,
+                email: user.email,
+                areaId: user.areaId,
+                name: user.name,
+                profileImage: user.profileImage,
+                createdAt: user.createdAt
+            },
             token,
+            isNewUser: true,
             profileComplete,
             missingFields
         });
@@ -421,78 +502,6 @@ router.post('/apple', async (req, res) => {
         }
         console.error('Apple ID認証エラー:', error);
         return res.status(500).json({ error: 'Apple ID認証に失敗しました' });
-    }
-});
-router.post('/register', async (req, res) => {
-    try {
-        const { email, password, areaId, name, profileImage } = registerSchema.parse(req.body);
-        const existingUser = await index_1.prisma.user.findUnique({
-            where: { email }
-        });
-        if (existingUser) {
-            return res.status(400).json({
-                error: 'このメールアドレスは既に登録されています'
-            });
-        }
-        const existingAreaId = await index_1.prisma.user.findUnique({
-            where: { areaId }
-        });
-        if (existingAreaId) {
-            return res.status(409).json({
-                error: 'このArea IDは既に使用されています'
-            });
-        }
-        const hashedPassword = await bcryptjs_1.default.hash(password, 12);
-        const user = await index_1.prisma.user.create({
-            data: {
-                email,
-                password: hashedPassword,
-                areaId,
-                name,
-                profileImage: profileImage || null
-            },
-            select: {
-                id: true,
-                email: true,
-                areaId: true,
-                name: true,
-                profileImage: true,
-                createdAt: true
-            }
-        });
-        const token = jsonwebtoken_1.default.sign({ userId: user.id }, process.env.JWT_SECRET || 'fallback-secret', { expiresIn: process.env.JWT_EXPIRES_IN || '7d' });
-        const missingFields = [];
-        if (!user.name)
-            missingFields.push('name');
-        if (!user.areaId)
-            missingFields.push('areaId');
-        if (!user.profileImage)
-            missingFields.push('profileImage');
-        const profileComplete = missingFields.length === 0;
-        return res.status(201).json({
-            token,
-            user: {
-                id: user.id,
-                email: user.email,
-                areaId: user.areaId,
-                name: user.name,
-                profileImage: user.profileImage,
-                createdAt: user.createdAt
-            },
-            isNewUser: true,
-            profileComplete,
-            missingFields
-        });
-    }
-    catch (error) {
-        if (error instanceof zod_1.z.ZodError) {
-            return res.status(400).json({
-                error: '入力内容に問題があります',
-                details: error.errors
-            });
-        }
-        console.error('Register error:', error);
-        return res.status(500).json({ error: 'ユーザー登録に失敗しました' });
     }
 });
 router.post('/login', async (req, res) => {

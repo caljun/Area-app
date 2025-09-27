@@ -22,19 +22,49 @@ const updateAreaSchema = zod_1.z.object({
 });
 router.get('/', async (req, res) => {
     try {
-        const areas = await index_1.prisma.area.findMany({
+        const ownedAreas = await index_1.prisma.area.findMany({
             where: { userId: req.user.id },
             orderBy: { createdAt: 'desc' }
         });
-        const apiAreas = areas.map(area => ({
-            id: area.id,
-            name: area.name,
-            coordinates: area.coordinates,
-            userId: area.userId,
-            isPublic: area.isPublic,
-            imageUrl: area.imageUrl,
-            createdAt: area.createdAt,
-            updatedAt: area.updatedAt
+        const memberAreas = await index_1.prisma.areaMember.findMany({
+            where: { userId: req.user.id },
+            include: {
+                area: true
+            },
+            orderBy: { createdAt: 'desc' }
+        });
+        const ownedAreaIds = new Set(ownedAreas.map(area => area.id));
+        const uniqueMemberAreas = memberAreas
+            .filter(member => !ownedAreaIds.has(member.area.id))
+            .map(member => member.area);
+        const allAreas = [...ownedAreas, ...uniqueMemberAreas];
+        const apiAreas = await Promise.all(allAreas.map(async (area) => {
+            const memberCount = await index_1.prisma.areaMember.count({
+                where: { areaId: area.id }
+            });
+            const onlineCount = await index_1.prisma.areaMember.count({
+                where: {
+                    areaId: area.id,
+                    user: {
+                        updatedAt: {
+                            gte: new Date(Date.now() - 5 * 60 * 1000)
+                        }
+                    }
+                }
+            });
+            return {
+                id: area.id,
+                name: area.name,
+                coordinates: area.coordinates,
+                userId: area.userId,
+                isPublic: area.isPublic,
+                imageUrl: area.imageUrl,
+                createdAt: area.createdAt,
+                updatedAt: area.updatedAt,
+                memberCount,
+                onlineCount,
+                isOwner: area.userId === req.user.id
+            };
         }));
         res.json(apiAreas);
     }
@@ -49,21 +79,186 @@ router.get('/public', async (req, res) => {
             where: { isPublic: true },
             orderBy: { createdAt: 'desc' }
         });
-        const apiAreas = areas.map(area => ({
-            id: area.id,
-            name: area.name,
-            coordinates: area.coordinates,
-            userId: area.userId,
-            isPublic: area.isPublic,
-            imageUrl: area.imageUrl,
-            createdAt: area.createdAt,
-            updatedAt: area.updatedAt
+        const apiAreas = await Promise.all(areas.map(async (area) => {
+            const memberCount = await index_1.prisma.areaMember.count({
+                where: { areaId: area.id }
+            });
+            const onlineCount = await index_1.prisma.areaMember.count({
+                where: {
+                    areaId: area.id,
+                    user: {
+                        updatedAt: {
+                            gte: new Date(Date.now() - 5 * 60 * 1000)
+                        }
+                    }
+                }
+            });
+            return {
+                id: area.id,
+                name: area.name,
+                coordinates: area.coordinates,
+                userId: area.userId,
+                isPublic: area.isPublic,
+                imageUrl: area.imageUrl,
+                createdAt: area.createdAt,
+                updatedAt: area.updatedAt,
+                memberCount,
+                onlineCount
+            };
         }));
         res.json(apiAreas);
     }
     catch (error) {
         console.error('Get public areas error:', error);
         res.status(500).json({ error: 'Internal server error' });
+    }
+});
+router.get('/created', async (req, res) => {
+    try {
+        const areas = await index_1.prisma.area.findMany({
+            where: { userId: req.user.id },
+            orderBy: { createdAt: 'desc' }
+        });
+        const apiAreas = await Promise.all(areas.map(async (area) => {
+            const memberCount = await index_1.prisma.areaMember.count({
+                where: { areaId: area.id }
+            });
+            const onlineCount = await index_1.prisma.areaMember.count({
+                where: {
+                    areaId: area.id,
+                    user: {
+                        updatedAt: {
+                            gte: new Date(Date.now() - 5 * 60 * 1000)
+                        }
+                    }
+                }
+            });
+            return {
+                id: area.id,
+                name: area.name,
+                coordinates: area.coordinates,
+                userId: area.userId,
+                isPublic: area.isPublic,
+                imageUrl: area.imageUrl,
+                createdAt: area.createdAt,
+                updatedAt: area.updatedAt,
+                memberCount,
+                onlineCount,
+                isOwner: true
+            };
+        }));
+        return res.json(apiAreas);
+    }
+    catch (error) {
+        console.error('Get created areas error:', error);
+        return res.status(500).json({ error: 'Internal server error' });
+    }
+});
+router.get('/joined', async (req, res) => {
+    try {
+        const memberships = await index_1.prisma.areaMember.findMany({
+            where: { userId: req.user.id },
+            include: { area: true },
+            orderBy: { createdAt: 'desc' }
+        });
+        const joinedAreas = memberships
+            .filter(m => m.area && m.area.userId !== req.user.id)
+            .map(m => m.area);
+        const apiAreas = await Promise.all(joinedAreas.map(async (area) => {
+            const memberCount = await index_1.prisma.areaMember.count({
+                where: { areaId: area.id }
+            });
+            const onlineCount = await index_1.prisma.areaMember.count({
+                where: {
+                    areaId: area.id,
+                    user: {
+                        updatedAt: {
+                            gte: new Date(Date.now() - 5 * 60 * 1000)
+                        }
+                    }
+                }
+            });
+            return {
+                id: area.id,
+                name: area.name,
+                coordinates: area.coordinates,
+                userId: area.userId,
+                isPublic: area.isPublic,
+                imageUrl: area.imageUrl,
+                createdAt: area.createdAt,
+                updatedAt: area.updatedAt,
+                memberCount,
+                onlineCount,
+                isOwner: false
+            };
+        }));
+        return res.json(apiAreas);
+    }
+    catch (error) {
+        console.error('Get joined areas error:', error);
+        return res.status(500).json({ error: 'Internal server error' });
+    }
+});
+router.get('/invites', async (req, res) => {
+    try {
+        if (!req.user?.id) {
+            return res.status(401).json({ error: '認証が必要です' });
+        }
+        const invites = await index_1.prisma.areaInvitation.findMany({
+            where: {
+                invitedUserId: req.user.id,
+                status: 'PENDING'
+            },
+            include: {
+                area: {
+                    select: {
+                        id: true,
+                        name: true,
+                        coordinates: true,
+                        isPublic: true
+                    }
+                },
+                invitedByUser: {
+                    select: {
+                        id: true,
+                        name: true,
+                        areaId: true,
+                        profileImage: true
+                    }
+                }
+            },
+            orderBy: { createdAt: 'desc' }
+        });
+        const apiInvites = invites.map(invite => ({
+            id: invite.id,
+            areaId: invite.areaId,
+            areaName: invite.area.name,
+            areaCoordinates: invite.area.coordinates,
+            areaIsPublic: invite.area.isPublic,
+            fromUserId: invite.invitedBy,
+            fromUserName: invite.invitedByUser?.name || 'Unknown',
+            fromUserAreaId: invite.invitedByUser?.areaId || 'Unknown',
+            fromUserProfileImage: invite.invitedByUser?.profileImage || null,
+            toUserId: invite.invitedUserId,
+            status: invite.status.toLowerCase(),
+            createdAt: invite.createdAt,
+            updatedAt: invite.updatedAt
+        }));
+        return res.json({
+            invites: apiInvites,
+            count: apiInvites.length
+        });
+    }
+    catch (error) {
+        console.error('Get area invites error:', error);
+        if (error instanceof Error) {
+            console.error('Error details:', error.message);
+            console.error('Stack trace:', error.stack);
+        }
+        return res.status(500).json({
+            error: 'エリア招待の取得に失敗しました',
+            details: process.env.NODE_ENV === 'development' ? (error instanceof Error ? error.message : String(error)) : undefined
+        });
     }
 });
 router.get('/:id', async (req, res) => {
@@ -98,49 +293,36 @@ router.get('/:id', async (req, res) => {
         return res.status(500).json({ error: 'Internal server error' });
     }
 });
-router.get('/:id/members', async (req, res) => {
-    try {
-        const { id } = req.params;
-        const members = await index_1.prisma.areaMember.findMany({
-            where: { areaId: id },
-            include: {
-                user: {
-                    select: {
-                        id: true,
-                        name: true,
-                        areaId: true
-                    }
-                }
-            }
-        });
-        const memberIds = members.map(member => member.user.id);
-        return res.json(memberIds);
-    }
-    catch (error) {
-        console.error('Get area members error:', error);
-        return res.status(500).json({ error: 'Internal server error' });
-    }
-});
 router.post('/', async (req, res) => {
     try {
         const { name, coordinates, isPublic = false } = createAreaSchema.parse(req.body);
-        const area = await index_1.prisma.area.create({
-            data: {
-                name,
-                coordinates,
-                isPublic,
-                userId: req.user.id
-            }
+        const result = await index_1.prisma.$transaction(async (tx) => {
+            const area = await tx.area.create({
+                data: {
+                    name,
+                    coordinates,
+                    isPublic,
+                    userId: req.user.id
+                }
+            });
+            await tx.areaMember.create({
+                data: {
+                    areaId: area.id,
+                    userId: req.user.id,
+                    addedBy: req.user.id
+                }
+            });
+            return area;
         });
         const apiArea = {
-            id: area.id,
-            name: area.name,
-            coordinates: area.coordinates,
-            userId: area.userId,
-            isPublic: area.isPublic,
-            imageUrl: area.imageUrl,
-            createdAt: area.createdAt,
-            updatedAt: area.updatedAt
+            id: result.id,
+            name: result.name,
+            coordinates: result.coordinates,
+            userId: result.userId,
+            isPublic: result.isPublic,
+            imageUrl: result.imageUrl,
+            createdAt: result.createdAt,
+            updatedAt: result.updatedAt
         };
         return res.status(201).json(apiArea);
     }
@@ -155,7 +337,7 @@ router.post('/', async (req, res) => {
         return res.status(500).json({ error: 'エリアの作成に失敗しました' });
     }
 });
-router.put('/:id', async (req, res) => {
+router.patch('/:id', async (req, res) => {
     try {
         const { id } = req.params;
         const updateData = updateAreaSchema.parse(req.body);
@@ -233,14 +415,49 @@ router.get('/:id/members', async (req, res) => {
                         id: true,
                         name: true,
                         areaId: true,
-                        profileImage: true
+                        profileImage: true,
+                        createdAt: true,
+                        updatedAt: true
                     }
                 }
             },
             orderBy: { createdAt: 'asc' }
         });
-        const memberIds = members.map(member => member.user.id);
-        return res.json(memberIds);
+        let filteredMembers = members;
+        if (area.userId !== req.user.id) {
+            const memberIds = members.map(m => m.user.id);
+            const friendships = await index_1.prisma.friend.findMany({
+                where: {
+                    OR: [
+                        { userId: req.user.id, friendId: { in: memberIds } },
+                        { friendId: req.user.id, userId: { in: memberIds } }
+                    ]
+                }
+            });
+            const friendIds = new Set();
+            friendships.forEach(friendship => {
+                if (friendship.userId === req.user.id) {
+                    friendIds.add(friendship.friendId);
+                }
+                else {
+                    friendIds.add(friendship.userId);
+                }
+            });
+            filteredMembers = members.filter(member => friendIds.has(member.user.id));
+            console.log(`エリアメンバー取得: 全${members.length}人中、友達は${filteredMembers.length}人`);
+        }
+        else {
+            console.log(`エリアメンバー取得（作成者）: 全${members.length}人`);
+        }
+        const memberUsers = filteredMembers.map(member => ({
+            id: member.user.id,
+            name: member.user.name,
+            areaId: member.user.areaId,
+            profileImage: member.user.profileImage,
+            createdAt: member.user.createdAt || new Date(),
+            updatedAt: member.user.updatedAt || new Date()
+        }));
+        return res.json(memberUsers);
     }
     catch (error) {
         console.error('Get area members error:', error);
@@ -365,6 +582,270 @@ router.get('/memberships', async (req, res) => {
     catch (error) {
         console.error('Get area memberships error:', error);
         return res.status(500).json({ error: 'Internal server error' });
+    }
+});
+router.post('/:id/invite', async (req, res) => {
+    try {
+        const { id } = req.params;
+        const { userId } = req.body;
+        if (!userId) {
+            return res.status(400).json({ error: 'User ID is required' });
+        }
+        const area = await index_1.prisma.area.findFirst({
+            where: {
+                id,
+                userId: req.user.id
+            }
+        });
+        if (!area) {
+            return res.status(404).json({ error: 'Area not found or access denied' });
+        }
+        const friendship = await index_1.prisma.friend.findFirst({
+            where: {
+                OR: [
+                    { userId: req.user.id, friendId: userId },
+                    { userId: userId, friendId: req.user.id }
+                ]
+            }
+        });
+        if (!friendship) {
+            return res.status(400).json({ error: 'Can only invite friends to areas' });
+        }
+        const existingMember = await index_1.prisma.areaMember.findFirst({
+            where: {
+                areaId: id,
+                userId: userId
+            }
+        });
+        if (existingMember) {
+            return res.status(400).json({ error: 'User is already a member of this area' });
+        }
+        const existingInvite = await index_1.prisma.areaInvitation.findFirst({
+            where: {
+                areaId: id,
+                invitedUserId: userId,
+                status: 'PENDING'
+            }
+        });
+        if (existingInvite) {
+            return res.status(400).json({ error: 'Invitation already sent' });
+        }
+        const invitation = await index_1.prisma.areaInvitation.create({
+            data: {
+                areaId: id,
+                invitedUserId: userId,
+                invitedBy: req.user.id
+            }
+        });
+        try {
+            await index_1.prisma.notification.create({
+                data: {
+                    type: 'AREA_INVITE',
+                    title: 'エリア招待',
+                    message: `${req.user.name}さんが「${area.name}」エリアに招待しています`,
+                    data: {
+                        invitationId: invitation.id,
+                        areaId: area.id,
+                        areaName: area.name,
+                        senderId: req.user.id,
+                        senderName: req.user.name
+                    },
+                    recipientId: userId,
+                    senderId: req.user.id
+                }
+            });
+        }
+        catch (notificationError) {
+            console.error('Failed to create area invite notification:', notificationError);
+        }
+        return res.status(201).json({
+            message: 'Invitation sent successfully',
+            invitation
+        });
+    }
+    catch (error) {
+        console.error('Invite to area error:', error);
+        return res.status(500).json({ error: 'Internal server error' });
+    }
+});
+router.post('/:id/join', async (req, res) => {
+    try {
+        const { id } = req.params;
+        const area = await index_1.prisma.area.findFirst({
+            where: {
+                id,
+                isPublic: true
+            }
+        });
+        if (!area) {
+            return res.status(404).json({ error: 'Area not found or not public' });
+        }
+        const existingMember = await index_1.prisma.areaMember.findFirst({
+            where: {
+                areaId: id,
+                userId: req.user.id
+            }
+        });
+        if (existingMember) {
+            return res.status(400).json({ error: 'Already a member of this area' });
+        }
+        const member = await index_1.prisma.areaMember.create({
+            data: {
+                areaId: id,
+                userId: req.user.id,
+                addedBy: req.user.id
+            }
+        });
+        return res.status(201).json({
+            message: 'Joined area successfully',
+            member
+        });
+    }
+    catch (error) {
+        console.error('Join area error:', error);
+        return res.status(500).json({ error: 'Internal server error' });
+    }
+});
+router.delete('/:id/leave', async (req, res) => {
+    try {
+        const { id } = req.params;
+        const member = await index_1.prisma.areaMember.findFirst({
+            where: {
+                areaId: id,
+                userId: req.user.id
+            }
+        });
+        if (!member) {
+            return res.status(404).json({ error: 'Not a member of this area' });
+        }
+        const area = await index_1.prisma.area.findFirst({
+            where: { id }
+        });
+        if (area?.userId === req.user.id) {
+            return res.status(400).json({ error: 'Cannot leave area you own' });
+        }
+        await index_1.prisma.areaMember.delete({
+            where: { id: member.id }
+        });
+        return res.json({ message: 'Left area successfully' });
+    }
+    catch (error) {
+        console.error('Leave area error:', error);
+        return res.status(500).json({ error: 'Internal server error' });
+    }
+});
+router.get('/search', async (req, res) => {
+    try {
+        const { q, lat, lng, radius = 10 } = req.query;
+        let whereClause = {};
+        if (q) {
+            whereClause.name = {
+                contains: q,
+                mode: 'insensitive'
+            };
+        }
+        if (lat && lng) {
+            whereClause.isPublic = true;
+        }
+        const areas = await index_1.prisma.area.findMany({
+            where: whereClause,
+            include: {
+                user: {
+                    select: {
+                        id: true,
+                        name: true,
+                        areaId: true
+                    }
+                }
+            },
+            orderBy: { createdAt: 'desc' },
+            take: 20
+        });
+        res.json(areas);
+    }
+    catch (error) {
+        console.error('Search areas error:', error);
+        res.status(500).json({ error: 'Internal server error' });
+    }
+});
+router.get('/nearby', async (req, res) => {
+    try {
+        const { lat, lng, radius = 10 } = req.query;
+        if (!lat || !lng) {
+            return res.status(400).json({ error: 'Latitude and longitude are required' });
+        }
+        const areas = await index_1.prisma.area.findMany({
+            where: { isPublic: true },
+            include: {
+                user: {
+                    select: {
+                        id: true,
+                        name: true,
+                        areaId: true
+                    }
+                }
+            },
+            orderBy: { createdAt: 'desc' },
+            take: 20
+        });
+        const nearbyAreas = areas.filter(area => {
+            const coords = area.coordinates;
+            if (!coords || !Array.isArray(coords) || coords.length === 0)
+                return false;
+            const centerLat = coords.reduce((sum, coord) => sum + coord.latitude, 0) / coords.length;
+            const centerLng = coords.reduce((sum, coord) => sum + coord.longitude, 0) / coords.length;
+            const distance = Math.sqrt(Math.pow(parseFloat(lat) - centerLat, 2) +
+                Math.pow(parseFloat(lng) - centerLng, 2)) * 111;
+            return distance <= parseFloat(radius);
+        });
+        res.json(nearbyAreas);
+    }
+    catch (error) {
+        console.error('Get nearby areas error:', error);
+        res.status(500).json({ error: 'Internal server error' });
+    }
+});
+router.patch('/invites/:inviteId', async (req, res) => {
+    try {
+        const { inviteId } = req.params;
+        const { action } = req.body;
+        if (!action || !['accept', 'reject'].includes(action)) {
+            return res.status(400).json({ error: 'アクションは "accept" または "reject" である必要があります' });
+        }
+        const invite = await index_1.prisma.areaInvitation.findFirst({
+            where: {
+                id: inviteId,
+                invitedUserId: req.user.id,
+                status: 'PENDING'
+            }
+        });
+        if (!invite) {
+            return res.status(404).json({ error: 'エリア招待が見つかりません' });
+        }
+        const status = action === 'accept' ? 'ACCEPTED' : 'REJECTED';
+        await index_1.prisma.areaInvitation.update({
+            where: { id: inviteId },
+            data: {
+                status,
+                updatedAt: new Date()
+            }
+        });
+        if (action === 'accept') {
+            await index_1.prisma.areaMember.create({
+                data: {
+                    areaId: invite.areaId,
+                    userId: req.user.id,
+                    addedBy: invite.invitedBy
+                }
+            });
+        }
+        return res.json({
+            message: `エリア招待を${action === 'accept' ? '承認' : '拒否'}しました`
+        });
+    }
+    catch (error) {
+        console.error('Respond to area invite error:', error);
+        return res.status(500).json({ error: 'エリア招待への応答に失敗しました' });
     }
 });
 exports.default = router;

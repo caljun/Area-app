@@ -19,6 +19,7 @@ const friends_1 = __importDefault(require("./routes/friends"));
 const locations_1 = __importDefault(require("./routes/locations"));
 const images_1 = __importDefault(require("./routes/images"));
 const notifications_1 = __importDefault(require("./routes/notifications"));
+const chat_1 = __importDefault(require("./routes/chat"));
 const errorHandler_1 = require("./middleware/errorHandler");
 const auth_2 = require("./middleware/auth");
 const client_1 = require("@prisma/client");
@@ -82,7 +83,6 @@ app.use((0, cors_1.default)({
     origin: process.env.CORS_ORIGIN || "http://localhost:8081",
     credentials: true
 }));
-app.use(limiter);
 app.use(express_1.default.json({ limit: '10mb' }));
 app.use(express_1.default.urlencoded({ extended: true }));
 app.get('/health', (req, res) => {
@@ -135,10 +135,19 @@ app.get('/api/session', authLimiter, auth_2.authMiddleware, async (req, res) => 
 app.use('/api/auth', authLimiter, auth_1.default);
 app.use('/api/users', auth_2.authMiddleware, users_1.default);
 app.use('/api/areas', auth_2.authMiddleware, areas_1.default);
-app.use('/api/friends', auth_2.authMiddleware, friends_1.default);
-app.use('/api/locations', auth_2.authMiddleware, locations_1.default);
+const authedKeyedLimiter = (0, express_rate_limit_1.default)({
+    windowMs: 60 * 1000,
+    max: 600,
+    standardHeaders: true,
+    legacyHeaders: false,
+    keyGenerator: (req) => req.user?.id || req.ip,
+});
+app.use('/api/friends', auth_2.authMiddleware, authedKeyedLimiter, friends_1.default);
+app.use('/api/locations', auth_2.authMiddleware, authedKeyedLimiter, locations_1.default);
+app.use('/api/location', auth_2.authMiddleware, locations_1.default);
 app.use('/api/images', images_1.default);
 app.use('/api/notifications', auth_2.authMiddleware, notifications_1.default);
+app.use('/api/chat', auth_2.authMiddleware, chat_1.default);
 io.on('connection', (socket) => {
     console.log('User connected:', socket.id);
     socket.on('authenticate', async (token) => {
