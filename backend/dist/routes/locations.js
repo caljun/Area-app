@@ -141,42 +141,45 @@ router.get('/friends', async (req, res) => {
         });
         const friendsWithLocations = friends
             .map(friend => {
-            const location = locations.find(loc => loc.userId === friend.friend.id);
+            const friendId = friend.userId === req.user.id ? friend.friend.id : friend.user.id;
+            const friendName = friend.userId === req.user.id ? friend.friend.name : friend.user.name;
+            const friendProfileImage = friend.userId === req.user.id ? friend.friend.profileImage : friend.user.profileImage;
+            const location = locations.find(loc => loc.userId === friendId);
             if (!location) {
-                console.log(`友達の位置情報がありません - userId: ${friend.friend.id}, name: ${friend.friend.name}`);
+                console.log(`友達の位置情報がありません - userId: ${friendId}, name: ${friendName}`);
                 return {
-                    userId: friend.friend.id,
+                    userId: friendId,
                     latitude: null,
                     longitude: null,
                     accuracy: null,
                     timestamp: new Date().toISOString(),
                     areaId: null,
-                    userName: friend.friend.name,
-                    profileImage: friend.friend.profileImage
+                    userName: friendName,
+                    profileImage: friendProfileImage
                 };
             }
             if (location.latitude === 0 && location.longitude === 0) {
-                console.log(`友達の位置情報が無効です (0,0) - userId: ${friend.friend.id}, name: ${friend.friend.name}`);
+                console.log(`友達の位置情報が無効です (0,0) - userId: ${friendId}, name: ${friendName}`);
                 return {
-                    userId: friend.friend.id,
+                    userId: friendId,
                     latitude: null,
                     longitude: null,
                     accuracy: null,
                     timestamp: new Date().toISOString(),
                     areaId: null,
-                    userName: friend.friend.name,
-                    profileImage: friend.friend.profileImage
+                    userName: friendName,
+                    profileImage: friendProfileImage
                 };
             }
             return {
-                userId: friend.friend.id,
+                userId: friendId,
                 latitude: location.latitude,
                 longitude: location.longitude,
                 accuracy: 10.0,
                 timestamp: location.createdAt.toISOString(),
                 areaId: location.areaId || null,
-                userName: friend.friend.name,
-                profileImage: friend.friend.profileImage
+                userName: friendName,
+                profileImage: friendProfileImage
             };
         });
         console.log('友達位置情報レスポンス:', JSON.stringify(friendsWithLocations, null, 2));
