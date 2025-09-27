@@ -23,6 +23,7 @@ const sendAreaRequestSchema = z.object({
 // Get friends list
 router.get('/', async (req: AuthRequest, res: Response) => {
   try {
+    console.log(`友達一覧取得開始 - userId: ${req.user!.id}`);
     const friends = await prisma.friend.findMany({
       where: {
         OR: [
@@ -102,6 +103,12 @@ router.get('/', async (req: AuthRequest, res: Response) => {
 router.get('/:friendId', async (req: AuthRequest, res: Response) => {
   try {
     const { friendId } = req.params;
+
+    // MongoDB ObjectIDの形式チェック
+    if (!friendId || friendId === 'requests' || !/^[0-9a-fA-F]{24}$/.test(friendId)) {
+      console.log(`無効な友達ID: ${friendId}`);
+      return res.status(400).json({ error: 'Invalid friend ID' });
+    }
 
     // 友達関係をチェック
     const friendship = await prisma.friend.findFirst({

@@ -82,6 +82,10 @@ router.get('/', async (req, res) => {
 router.get('/:friendId', async (req, res) => {
     try {
         const { friendId } = req.params;
+        if (!friendId || friendId === 'requests' || !/^[0-9a-fA-F]{24}$/.test(friendId)) {
+            console.log(`無効な友達ID: ${friendId}`);
+            return res.status(400).json({ error: 'Invalid friend ID' });
+        }
         const friendship = await index_1.prisma.friend.findFirst({
             where: {
                 OR: [
