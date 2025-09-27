@@ -542,10 +542,12 @@ router.get('/:id/members', async (req: AuthRequest, res: Response) => {
         }
       });
 
-      // 友達関係があるメンバーのみフィルタリング
-      filteredMembers = members.filter(member => friendIds.has(member.user.id));
+      // 友達関係があるメンバーのみフィルタリング（本人も含める）
+      filteredMembers = members.filter(member => 
+        friendIds.has(member.user.id) || member.user.id === req.user!.id
+      );
       
-      console.log(`エリアメンバー取得: 全${members.length}人中、友達は${filteredMembers.length}人`);
+      console.log(`エリアメンバー取得: 全${members.length}人中、友達は${filteredMembers.length}人（本人含む）`);
     } else {
       console.log(`エリアメンバー取得（作成者）: 全${members.length}人`);
     }

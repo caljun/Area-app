@@ -443,8 +443,8 @@ router.get('/:id/members', async (req, res) => {
                     friendIds.add(friendship.userId);
                 }
             });
-            filteredMembers = members.filter(member => friendIds.has(member.user.id));
-            console.log(`エリアメンバー取得: 全${members.length}人中、友達は${filteredMembers.length}人`);
+            filteredMembers = members.filter(member => friendIds.has(member.user.id) || member.user.id === req.user.id);
+            console.log(`エリアメンバー取得: 全${members.length}人中、友達は${filteredMembers.length}人（本人含む）`);
         }
         else {
             console.log(`エリアメンバー取得（作成者）: 全${members.length}人`);
