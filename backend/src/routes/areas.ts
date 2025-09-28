@@ -216,6 +216,15 @@ router.get('/joined', async (req: AuthRequest, res: Response) => {
 
     console.log(`参加エリアメンバーシップ取得完了 - 件数: ${memberships.length}`);
 
+    // 各メンバーシップの詳細をログ出力
+    for (const membership of memberships) {
+      if (membership.area) {
+        console.log(`メンバーシップ詳細 - areaId: ${membership.area.id}, areaName: ${membership.area.name}, areaOwner: ${membership.area.userId}, currentUser: ${req.user!.id}, isOwner: ${membership.area.userId === req.user!.id}`);
+      } else {
+        console.log(`メンバーシップ詳細 - areaId: ${membership.areaId}, area: null`);
+      }
+    }
+
     // Exclude areas owned by the user to ensure "joined" means non-owned memberships
     const joinedAreas = memberships
       .filter(m => m.area && m.area.userId !== req.user!.id)
