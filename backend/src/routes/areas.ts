@@ -193,16 +193,35 @@ router.get('/created', async (req: AuthRequest, res: Response) => {
 // Get areas the authenticated user has joined (member but not owner)
 router.get('/joined', async (req: AuthRequest, res: Response) => {
   try {
+    console.log(`参加エリア一覧取得開始 - userId: ${req.user!.id}`);
+
     const memberships = await prisma.areaMember.findMany({
       where: { userId: req.user!.id },
-      include: { area: true },
+      include: { 
+        area: {
+          select: {
+            id: true,
+            name: true,
+            coordinates: true,
+            userId: true,
+            isPublic: true,
+            imageUrl: true,
+            createdAt: true,
+            updatedAt: true
+          }
+        }
+      },
       orderBy: { createdAt: 'desc' }
     });
+
+    console.log(`参加エリアメンバーシップ取得完了 - 件数: ${memberships.length}`);
 
     // Exclude areas owned by the user to ensure "joined" means non-owned memberships
     const joinedAreas = memberships
       .filter(m => m.area && m.area.userId !== req.user!.id)
       .map(m => m.area!);
+
+    console.log(`参加エリアフィルタリング完了 - 参加エリア数: ${joinedAreas.length}`);
 
     const apiAreas = await Promise.all(joinedAreas.map(async (area) => {
       // メンバー数を取得（所有者も含む）
@@ -222,6 +241,8 @@ router.get('/joined', async (req: AuthRequest, res: Response) => {
         }
       });
 
+      console.log(`参加エリア詳細 - 名前: ${area.name}, ID: ${area.id}, メンバー数: ${memberCount}`);
+
       return {
         id: area.id,
         name: area.name,
@@ -237,6 +258,7 @@ router.get('/joined', async (req: AuthRequest, res: Response) => {
       };
     }));
 
+    console.log(`参加エリア一覧取得完了 - エリア数: ${apiAreas.length}`);
     return res.json(apiAreas);
   } catch (error) {
     console.error('Get joined areas error:', error);
@@ -1059,7 +1081,7 @@ router.patch('/invites/:inviteId', async (req: AuthRequest, res: Response) => {
       });
 
       if (existingMember) {
-        console.log(`既にエリアメンバーです - areaId: ${invite.areaId}, userId: ${req.user!.id}`);
+        console.log(`既にエリアメンバーです - areaId: ${invite.areaId}, userId: ${req.user!.id}, memberId: ${existingMember.id}`);
       } else {
         // エリアメンバーとして追加
         const newMember = await prisma.areaMember.create({
@@ -1069,7 +1091,30 @@ router.patch('/invites/:inviteId', async (req: AuthRequest, res: Response) => {
             addedBy: invite.invitedBy
           }
         });
-        console.log(`エリアメンバー追加完了 - memberId: ${newMember.id}, areaId: ${invite.areaId}, userId: ${req.user!.id}`);
+        console.log(`エリアメンバー追加完了 - memberId: ${newMember.id}, areaId: ${invite.areaId}, userId: ${req.user!.id}, addedBy: ${invite.invitedBy}`);
+        
+        // 追加後に確認のため、作成されたレコードを再取得
+        const verifyMember = await prisma.areaMember.findFirst({
+          where: {
+            areaId: invite.areaId,
+            userId: req.user!.id
+          },
+          include: {
+            area: {
+              select: {
+                id: true,
+                name: true,
+                userId: true
+              }
+            }
+          }
+        });
+        
+        if (verifyMember) {
+          console.log(`エリアメンバー追加確認完了 - エリア名: ${verifyMember.area.name}, エリア所有者: ${verifyMember.area.userId}, メンバー: ${verifyMember.userId}`);
+        } else {
+          console.error(`エリアメンバー追加確認失敗 - areaId: ${invite.areaId}, userId: ${req.user!.id}`);
+        }
       }
     }
 
