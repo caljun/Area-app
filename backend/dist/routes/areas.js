@@ -156,14 +156,38 @@ router.get('/created', async (req, res) => {
 });
 router.get('/joined', async (req, res) => {
     try {
+        console.log(`参加エリア一覧取得開始 - userId: ${req.user.id}`);
         const memberships = await index_1.prisma.areaMember.findMany({
             where: { userId: req.user.id },
-            include: { area: true },
+            include: {
+                area: {
+                    select: {
+                        id: true,
+                        name: true,
+                        coordinates: true,
+                        userId: true,
+                        isPublic: true,
+                        imageUrl: true,
+                        createdAt: true,
+                        updatedAt: true
+                    }
+                }
+            },
             orderBy: { createdAt: 'desc' }
         });
+        console.log(`参加エリアメンバーシップ取得完了 - 件数: ${memberships.length}`);
+        for (const membership of memberships) {
+            if (membership.area) {
+                console.log(`メンバーシップ詳細 - areaId: ${membership.area.id}, areaName: ${membership.area.name}, areaOwner: ${membership.area.userId}, currentUser: ${req.user.id}, isOwner: ${membership.area.userId === req.user.id}`);
+            }
+            else {
+                console.log(`メンバーシップ詳細 - areaId: ${membership.areaId}, area: null`);
+            }
+        }
         const joinedAreas = memberships
             .filter(m => m.area && m.area.userId !== req.user.id)
             .map(m => m.area);
+        console.log(`参加エリアフィルタリング完了 - 参加エリア数: ${joinedAreas.length}`);
         const apiAreas = await Promise.all(joinedAreas.map(async (area) => {
             const memberCount = await index_1.prisma.areaMember.count({
                 where: { areaId: area.id }
@@ -178,6 +202,7 @@ router.get('/joined', async (req, res) => {
                     }
                 }
             });
+            console.log(`参加エリア詳細 - 名前: ${area.name}, ID: ${area.id}, メンバー数: ${memberCount}`);
             return {
                 id: area.id,
                 name: area.name,
@@ -192,6 +217,7 @@ router.get('/joined', async (req, res) => {
                 isOwner: false
             };
         }));
+        console.log(`参加エリア一覧取得完了 - エリア数: ${apiAreas.length}`);
         return res.json(apiAreas);
     }
     catch (error) {
@@ -398,18 +424,28 @@ router.delete('/:id', async (req, res) => {
 router.get('/:id/members', async (req, res) => {
     try {
         const { id } = req.params;
+        console.log(`エリアメンバー取得リクエスト - areaId: ${id}, userId: ${req.user.id}`);
         const area = await index_1.prisma.area.findFirst({
             where: {
                 id,
                 OR: [
                     { userId: req.user.id },
-                    { isPublic: true }
+                    { isPublic: true },
+                    {
+                        areaMembers: {
+                            some: {
+                                userId: req.user.id
+                            }
+                        }
+                    }
                 ]
             }
         });
         if (!area) {
+            console.log(`エリアアクセス拒否 - areaId: ${id}, userId: ${req.user.id}`);
             return res.status(404).json({ error: 'Area not found' });
         }
+        console.log(`エリアアクセス許可 - areaId: ${id}, areaName: ${area.name}, isOwner: ${area.userId === req.user.id}`);
         const members = await index_1.prisma.areaMember.findMany({
             where: { areaId: id },
             include: {
@@ -633,12 +669,23 @@ router.post('/:id/invite', async (req, res) => {
             where: {
                 areaId: id,
                 invitedUserId: userId,
-                status: 'PENDING'
+                status: {
+                    in: ['PENDING', 'REJECTED']
+                }
             }
         });
         if (existingInvite) {
-            console.log(`既に招待済みです - areaId: ${id}, userId: ${userId}`);
-            return res.status(400).json({ error: 'Invitation already sent' });
+            if (existingInvite.status === 'PENDING') {
+                console.log(`既に招待済みです - areaId: ${id}, userId: ${userId}, status: PENDING`);
+                return res.status(400).json({ error: 'Invitation already sent' });
+            }
+            else if (existingInvite.status === 'REJECTED') {
+                console.log(`以前に拒否された招待があります - areaId: ${id}, userId: ${userId}, status: REJECTED`);
+                await index_1.prisma.areaInvitation.delete({
+                    where: { id: existingInvite.id }
+                });
+                console.log(`古い招待を削除しました - invitationId: ${existingInvite.id}`);
+            }
         }
         const invitation = await index_1.prisma.areaInvitation.create({
             data: {
@@ -822,6 +869,8 @@ router.patch('/invites/:inviteId', async (req, res) => {
         const { inviteId } = req.params;
         const { action } = req.body;
         console.log(`エリア招待応答リクエスト - inviteId: ${inviteId}, action: ${action}, userId: ${req.user.id}`);
+        console.log(`リクエストボディ全体:`, JSON.stringify(req.body, null, 2));
+        console.log(`actionの型: ${typeof action}, 値: "${action}"`);
         if (!action || !['accept', 'reject'].includes(action)) {
             console.log(`無効なアクション: ${action}`);
             return res.status(400).json({ error: 'アクションは "accept" または "reject" である必要があります' });
@@ -855,7 +904,7 @@ router.patch('/invites/:inviteId', async (req, res) => {
                 }
             });
             if (existingMember) {
-                console.log(`既にエリアメンバーです - areaId: ${invite.areaId}, userId: ${req.user.id}`);
+                console.log(`既にエリアメンバーです - areaId: ${invite.areaId}, userId: ${req.user.id}, memberId: ${existingMember.id}`);
             }
             else {
                 const newMember = await index_1.prisma.areaMember.create({
@@ -865,7 +914,28 @@ router.patch('/invites/:inviteId', async (req, res) => {
                         addedBy: invite.invitedBy
                     }
                 });
-                console.log(`エリアメンバー追加完了 - memberId: ${newMember.id}, areaId: ${invite.areaId}, userId: ${req.user.id}`);
+                console.log(`エリアメンバー追加完了 - memberId: ${newMember.id}, areaId: ${invite.areaId}, userId: ${req.user.id}, addedBy: ${invite.invitedBy}`);
+                const verifyMember = await index_1.prisma.areaMember.findFirst({
+                    where: {
+                        areaId: invite.areaId,
+                        userId: req.user.id
+                    },
+                    include: {
+                        area: {
+                            select: {
+                                id: true,
+                                name: true,
+                                userId: true
+                            }
+                        }
+                    }
+                });
+                if (verifyMember) {
+                    console.log(`エリアメンバー追加確認完了 - エリア名: ${verifyMember.area.name}, エリア所有者: ${verifyMember.area.userId}, メンバー: ${verifyMember.userId}`);
+                }
+                else {
+                    console.error(`エリアメンバー追加確認失敗 - areaId: ${invite.areaId}, userId: ${req.user.id}`);
+                }
             }
         }
         return res.json({

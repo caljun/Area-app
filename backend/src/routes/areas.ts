@@ -520,20 +520,33 @@ router.get('/:id/members', async (req: AuthRequest, res: Response) => {
   try {
     const { id } = req.params;
 
-    // Check if user has access to this area
+    console.log(`エリアメンバー取得リクエスト - areaId: ${id}, userId: ${req.user!.id}`);
+
+    // Check if user has access to this area (owner, public, or member)
     const area = await prisma.area.findFirst({
       where: {
         id,
         OR: [
-          { userId: req.user!.id },
-          { isPublic: true }
+          { userId: req.user!.id }, // エリアの所有者
+          { isPublic: true }, // 公開エリア
+          { 
+            // エリアのメンバーとして参加している
+            areaMembers: {
+              some: {
+                userId: req.user!.id
+              }
+            }
+          }
         ]
       } as any
     });
 
     if (!area) {
+      console.log(`エリアアクセス拒否 - areaId: ${id}, userId: ${req.user!.id}`);
       return res.status(404).json({ error: 'Area not found' });
     }
+
+    console.log(`エリアアクセス許可 - areaId: ${id}, areaName: ${area.name}, isOwner: ${area.userId === req.user!.id}`);
 
     // AreaMemberテーブルからメンバーを取得（所有者も含む）
     const members = await prisma.areaMember.findMany({
