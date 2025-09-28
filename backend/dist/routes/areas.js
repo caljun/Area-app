@@ -204,6 +204,7 @@ router.get('/invites', async (req, res) => {
         if (!req.user?.id) {
             return res.status(401).json({ error: '認証が必要です' });
         }
+        console.log(`エリア招待一覧取得開始 - userId: ${req.user.id}`);
         const invites = await index_1.prisma.areaInvitation.findMany({
             where: {
                 invitedUserId: req.user.id,
@@ -229,6 +230,7 @@ router.get('/invites', async (req, res) => {
             },
             orderBy: { createdAt: 'desc' }
         });
+        console.log(`エリア招待一覧取得完了 - 招待数: ${invites.length}`);
         const apiInvites = invites.map(invite => ({
             id: invite.id,
             areaId: invite.areaId,
@@ -244,6 +246,7 @@ router.get('/invites', async (req, res) => {
             createdAt: invite.createdAt,
             updatedAt: invite.updatedAt
         }));
+        console.log(`エリア招待API形式変換完了 - 招待数: ${apiInvites.length}`);
         return res.json({
             invites: apiInvites,
             count: apiInvites.length
@@ -588,6 +591,7 @@ router.post('/:id/invite', async (req, res) => {
     try {
         const { id } = req.params;
         const { userId } = req.body;
+        console.log(`エリア招待リクエスト - areaId: ${id}, userId: ${userId}, invitedBy: ${req.user.id}`);
         if (!userId) {
             return res.status(400).json({ error: 'User ID is required' });
         }
@@ -598,8 +602,10 @@ router.post('/:id/invite', async (req, res) => {
             }
         });
         if (!area) {
+            console.log(`エリアが見つからないかアクセス拒否 - areaId: ${id}, userId: ${req.user.id}`);
             return res.status(404).json({ error: 'Area not found or access denied' });
         }
+        console.log(`エリア確認完了 - areaName: ${area.name}`);
         const friendship = await index_1.prisma.friend.findFirst({
             where: {
                 OR: [
@@ -609,8 +615,10 @@ router.post('/:id/invite', async (req, res) => {
             }
         });
         if (!friendship) {
+            console.log(`友達関係がありません - userId: ${req.user.id}, friendId: ${userId}`);
             return res.status(400).json({ error: 'Can only invite friends to areas' });
         }
+        console.log(`友達関係確認完了`);
         const existingMember = await index_1.prisma.areaMember.findFirst({
             where: {
                 areaId: id,
@@ -618,6 +626,7 @@ router.post('/:id/invite', async (req, res) => {
             }
         });
         if (existingMember) {
+            console.log(`既にエリアメンバーです - areaId: ${id}, userId: ${userId}`);
             return res.status(400).json({ error: 'User is already a member of this area' });
         }
         const existingInvite = await index_1.prisma.areaInvitation.findFirst({
@@ -628,6 +637,7 @@ router.post('/:id/invite', async (req, res) => {
             }
         });
         if (existingInvite) {
+            console.log(`既に招待済みです - areaId: ${id}, userId: ${userId}`);
             return res.status(400).json({ error: 'Invitation already sent' });
         }
         const invitation = await index_1.prisma.areaInvitation.create({
@@ -637,6 +647,7 @@ router.post('/:id/invite', async (req, res) => {
                 invitedBy: req.user.id
             }
         });
+        console.log(`エリア招待作成完了 - invitationId: ${invitation.id}`);
         try {
             await index_1.prisma.notification.create({
                 data: {
@@ -654,6 +665,7 @@ router.post('/:id/invite', async (req, res) => {
                     senderId: req.user.id
                 }
             });
+            console.log(`エリア招待通知作成完了`);
         }
         catch (notificationError) {
             console.error('Failed to create area invite notification:', notificationError);
@@ -809,7 +821,9 @@ router.patch('/invites/:inviteId', async (req, res) => {
     try {
         const { inviteId } = req.params;
         const { action } = req.body;
+        console.log(`エリア招待応答リクエスト - inviteId: ${inviteId}, action: ${action}, userId: ${req.user.id}`);
         if (!action || !['accept', 'reject'].includes(action)) {
+            console.log(`無効なアクション: ${action}`);
             return res.status(400).json({ error: 'アクションは "accept" または "reject" である必要があります' });
         }
         const invite = await index_1.prisma.areaInvitation.findFirst({
@@ -820,8 +834,10 @@ router.patch('/invites/:inviteId', async (req, res) => {
             }
         });
         if (!invite) {
+            console.log(`エリア招待が見つかりません - inviteId: ${inviteId}, userId: ${req.user.id}`);
             return res.status(404).json({ error: 'エリア招待が見つかりません' });
         }
+        console.log(`エリア招待を発見 - areaId: ${invite.areaId}, invitedBy: ${invite.invitedBy}`);
         const status = action === 'accept' ? 'ACCEPTED' : 'REJECTED';
         await index_1.prisma.areaInvitation.update({
             where: { id: inviteId },
@@ -830,14 +846,27 @@ router.patch('/invites/:inviteId', async (req, res) => {
                 updatedAt: new Date()
             }
         });
+        console.log(`エリア招待ステータス更新完了 - status: ${status}`);
         if (action === 'accept') {
-            await index_1.prisma.areaMember.create({
-                data: {
+            const existingMember = await index_1.prisma.areaMember.findFirst({
+                where: {
                     areaId: invite.areaId,
-                    userId: req.user.id,
-                    addedBy: invite.invitedBy
+                    userId: req.user.id
                 }
             });
+            if (existingMember) {
+                console.log(`既にエリアメンバーです - areaId: ${invite.areaId}, userId: ${req.user.id}`);
+            }
+            else {
+                const newMember = await index_1.prisma.areaMember.create({
+                    data: {
+                        areaId: invite.areaId,
+                        userId: req.user.id,
+                        addedBy: invite.invitedBy
+                    }
+                });
+                console.log(`エリアメンバー追加完了 - memberId: ${newMember.id}, areaId: ${invite.areaId}, userId: ${req.user.id}`);
+            }
         }
         return res.json({
             message: `エリア招待を${action === 'accept' ? '承認' : '拒否'}しました`

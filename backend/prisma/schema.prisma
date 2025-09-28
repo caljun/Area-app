@@ -17,6 +17,7 @@ model User {
   name      String?  // Apple IDユーザーは名前がない場合があるためオプショナル
   password  String?  // Apple IDユーザーはパスワードなしの場合があるためオプショナル
   profileImage String?
+  deviceToken String? // プッシュ通知用のデバイストークン
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
