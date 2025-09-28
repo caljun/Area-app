@@ -798,18 +798,29 @@ router.post('/:id/invite', async (req: AuthRequest, res: Response) => {
       return res.status(400).json({ error: 'User is already a member of this area' });
     }
 
-    // Check if invitation already exists
+    // Check if invitation already exists (PENDING or REJECTED)
     const existingInvite = await prisma.areaInvitation.findFirst({
       where: {
         areaId: id,
         invitedUserId: userId,
-        status: 'PENDING'
+        status: {
+          in: ['PENDING', 'REJECTED']
+        }
       }
     });
 
     if (existingInvite) {
-      console.log(`既に招待済みです - areaId: ${id}, userId: ${userId}`);
-      return res.status(400).json({ error: 'Invitation already sent' });
+      if (existingInvite.status === 'PENDING') {
+        console.log(`既に招待済みです - areaId: ${id}, userId: ${userId}, status: PENDING`);
+        return res.status(400).json({ error: 'Invitation already sent' });
+      } else if (existingInvite.status === 'REJECTED') {
+        console.log(`以前に拒否された招待があります - areaId: ${id}, userId: ${userId}, status: REJECTED`);
+        // 拒否された招待がある場合は、新しい招待を作成する前に古い招待を削除
+        await prisma.areaInvitation.delete({
+          where: { id: existingInvite.id }
+        });
+        console.log(`古い招待を削除しました - invitationId: ${existingInvite.id}`);
+      }
     }
 
     // Create invitation
