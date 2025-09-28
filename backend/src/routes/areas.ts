@@ -1038,6 +1038,8 @@ router.patch('/invites/:inviteId', async (req: AuthRequest, res: Response) => {
     const { action } = req.body; // "accept" or "reject"
 
     console.log(`エリア招待応答リクエスト - inviteId: ${inviteId}, action: ${action}, userId: ${req.user!.id}`);
+    console.log(`リクエストボディ全体:`, JSON.stringify(req.body, null, 2));
+    console.log(`actionの型: ${typeof action}, 値: "${action}"`);
 
     if (!action || !['accept', 'reject'].includes(action)) {
       console.log(`無効なアクション: ${action}`);
