@@ -369,4 +369,113 @@ router.put('/settings', async (req: AuthRequest, res: Response) => {
   }
 });
 
+// デバイストークンを登録
+router.post('/device-token', async (req: AuthRequest, res: Response) => {
+  try {
+    const { deviceToken } = z.object({
+      deviceToken: z.string().min(1, 'デバイストークンは必須です')
+    }).parse(req.body);
+
+    // デバイストークンを更新または作成
+    await prisma.user.update({
+      where: { id: req.user!.id },
+      data: { deviceToken }
+    });
+
+    return res.json({
+      message: 'デバイストークンが登録されました',
+      deviceToken
+    });
+  } catch (error) {
+    if (error instanceof z.ZodError) {
+      return res.status(400).json({
+        error: '入力内容に問題があります',
+        details: error.errors
+      });
+    }
+    
+    console.error('Device token registration error:', error);
+    return res.status(500).json({ error: 'デバイストークンの登録に失敗しました' });
+  }
+});
+
+// プッシュ通知を送信
+router.post('/send-push', async (req: AuthRequest, res: Response) => {
+  try {
+    const { recipientId, title, body, data } = z.object({
+      recipientId: z.string().min(1, '受信者IDは必須です'),
+      title: z.string().min(1, 'タイトルは必須です'),
+      body: z.string().min(1, 'メッセージは必須です'),
+      data: z.record(z.any()).optional()
+    }).parse(req.body);
+
+    // 受信者のデバイストークンを取得
+    const recipient = await prisma.user.findUnique({
+      where: { id: recipientId },
+      select: { deviceToken: true, name: true }
+    });
+
+    if (!recipient || !recipient.deviceToken) {
+      return res.status(404).json({ error: '受信者のデバイストークンが見つかりません' });
+    }
+
+    // プッシュ通知を送信（APNsを使用）
+    const apn = require('apn');
+    const options = {
+      token: {
+        key: process.env.APNS_KEY_PATH || './AuthKey_ZUS86W8Y8Q.p8',
+        keyId: process.env.APNS_KEY_ID || 'ZUS86W8Y8Q',
+        teamId: process.env.APNS_TEAM_ID || 'YOUR_TEAM_ID'
+      },
+      production: process.env.NODE_ENV === 'production'
+    };
+
+    const apnProvider = new apn.Provider(options);
+    const notification = new apn.Notification();
+    
+    notification.alert = {
+      title: title,
+      body: body
+    };
+    notification.badge = 1;
+    notification.sound = 'default';
+    notification.payload = data || {};
+    notification.topic = process.env.APNS_BUNDLE_ID || 'com.anonymous.Area';
+
+    const result = await apnProvider.send(notification, recipient.deviceToken);
+    
+    if (result.failed.length > 0) {
+      console.error('Push notification failed:', result.failed);
+      return res.status(500).json({ error: 'プッシュ通知の送信に失敗しました' });
+    }
+
+    // 通知をデータベースに保存
+    await prisma.notification.create({
+      data: {
+        type: 'GENERAL',
+        title,
+        message: body,
+        data: data || {},
+        recipientId,
+        senderId: req.user!.id
+      }
+    });
+
+    return res.json({
+      message: 'プッシュ通知が送信されました',
+      result: result.sent
+    });
+  } catch (error) {
+    if (error instanceof z.ZodError) {
+      return res.status(400).json({
+        error: '入力内容に問題があります',
+        details: error.errors
+      });
+    }
+    
+    console.error('Send push notification error:', error);
+    return res.status(500).json({ error: 'プッシュ通知の送信に失敗しました' });
+  }
+});
+
 export default router;

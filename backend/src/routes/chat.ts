@@ -167,6 +167,72 @@ router.post('/:id/messages', async (req: AuthRequest, res: Response) => {
       data: { updatedAt: new Date() }
     });
 
+    // 受信者の情報を取得
+    const recipientId = chat.user1Id === userId ? chat.user2Id : chat.user1Id;
+    const sender = await prisma.user.findUnique({
+      where: { id: userId },
+      select: { name: true }
+    });
+
+    // プッシュ通知を送信
+    try {
+      const apn = require('apn');
+      const options = {
+        token: {
+          key: process.env.APNS_KEY_PATH || './AuthKey_ZUS86W8Y8Q.p8',
+          keyId: process.env.APNS_KEY_ID || 'ZUS86W8Y8Q',
+          teamId: process.env.APNS_TEAM_ID || 'YOUR_TEAM_ID'
+        },
+        production: process.env.NODE_ENV === 'production'
+      };
+
+      const apnProvider = new apn.Provider(options);
+      const notification = new apn.Notification();
+      
+      notification.alert = {
+        title: `${sender?.name || '友達'}さんからのメッセージ`,
+        body: content.length > 50 ? content.substring(0, 50) + '...' : content
+      };
+      notification.badge = 1;
+      notification.sound = 'default';
+      notification.payload = {
+        type: 'chat_message',
+        chatId: id,
+        senderId: userId
+      };
+      notification.topic = process.env.APNS_BUNDLE_ID || 'com.anonymous.Area';
+
+      // 受信者のデバイストークンを取得
+      const recipient = await prisma.user.findUnique({
+        where: { id: recipientId },
+        select: { deviceToken: true }
+      });
+
+      if (recipient?.deviceToken) {
+        const result = await apnProvider.send(notification, recipient.deviceToken);
+        console.log('Push notification sent:', result.sent.length, 'successful,', result.failed.length, 'failed');
+      }
+
+      // 通知をデータベースに保存
+      await prisma.notification.create({
+        data: {
+          type: 'GENERAL',
+          title: `${sender?.name || '友達'}さんからのメッセージ`,
+          message: content,
+          data: {
+            type: 'chat_message',
+            chatId: id,
+            senderId: userId
+          },
+          recipientId,
+          senderId: userId
+        }
+      });
+    } catch (pushError) {
+      console.error('Push notification error:', pushError);
+      // プッシュ通知のエラーはメッセージ送信を妨げない
+    }
+
     // フロントエンドの期待する形式でレスポンスを返す
     const formattedMessage = {
       id: message.id,

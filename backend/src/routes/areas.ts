@@ -252,6 +252,8 @@ router.get('/invites', async (req: AuthRequest, res: Response) => {
       return res.status(401).json({ error: '認証が必要です' });
     }
 
+    console.log(`エリア招待一覧取得開始 - userId: ${req.user.id}`);
+
     const invites = await prisma.areaInvitation.findMany({
       where: { 
         invitedUserId: req.user.id,
@@ -278,6 +280,8 @@ router.get('/invites', async (req: AuthRequest, res: Response) => {
       orderBy: { createdAt: 'desc' }
     });
 
+    console.log(`エリア招待一覧取得完了 - 招待数: ${invites.length}`);
+
     // SwiftUIアプリの期待する形式でレスポンスを返す
     const apiInvites = invites.map(invite => ({
       id: invite.id,
@@ -294,6 +298,8 @@ router.get('/invites', async (req: AuthRequest, res: Response) => {
       createdAt: invite.createdAt,
       updatedAt: invite.updatedAt
     }));
+
+    console.log(`エリア招待API形式変換完了 - 招待数: ${apiInvites.length}`);
 
     return res.json({
       invites: apiInvites,
@@ -719,6 +725,8 @@ router.post('/:id/invite', async (req: AuthRequest, res: Response) => {
     const { id } = req.params;
     const { userId } = req.body; // フロントエンドのAreaAPI.swiftに合わせてuserIdに変更
 
+    console.log(`エリア招待リクエスト - areaId: ${id}, userId: ${userId}, invitedBy: ${req.user!.id}`);
+
     if (!userId) {
       return res.status(400).json({ error: 'User ID is required' });
     }
@@ -732,8 +740,11 @@ router.post('/:id/invite', async (req: AuthRequest, res: Response) => {
     });
 
     if (!area) {
+      console.log(`エリアが見つからないかアクセス拒否 - areaId: ${id}, userId: ${req.user!.id}`);
       return res.status(404).json({ error: 'Area not found or access denied' });
     }
+
+    console.log(`エリア確認完了 - areaName: ${area.name}`);
 
     // Check if they are friends
     const friendship = await prisma.friend.findFirst({
@@ -746,8 +757,11 @@ router.post('/:id/invite', async (req: AuthRequest, res: Response) => {
     });
 
     if (!friendship) {
+      console.log(`友達関係がありません - userId: ${req.user!.id}, friendId: ${userId}`);
       return res.status(400).json({ error: 'Can only invite friends to areas' });
     }
+
+    console.log(`友達関係確認完了`);
 
     // Check if already a member
     const existingMember = await prisma.areaMember.findFirst({
@@ -758,6 +772,7 @@ router.post('/:id/invite', async (req: AuthRequest, res: Response) => {
     });
 
     if (existingMember) {
+      console.log(`既にエリアメンバーです - areaId: ${id}, userId: ${userId}`);
       return res.status(400).json({ error: 'User is already a member of this area' });
     }
 
@@ -771,6 +786,7 @@ router.post('/:id/invite', async (req: AuthRequest, res: Response) => {
     });
 
     if (existingInvite) {
+      console.log(`既に招待済みです - areaId: ${id}, userId: ${userId}`);
       return res.status(400).json({ error: 'Invitation already sent' });
     }
 
@@ -782,6 +798,8 @@ router.post('/:id/invite', async (req: AuthRequest, res: Response) => {
         invitedBy: req.user!.id
       }
     });
+
+    console.log(`エリア招待作成完了 - invitationId: ${invitation.id}`);
 
     // 通知を作成
     try {
@@ -801,6 +819,7 @@ router.post('/:id/invite', async (req: AuthRequest, res: Response) => {
           senderId: req.user!.id
         }
       });
+      console.log(`エリア招待通知作成完了`);
     } catch (notificationError) {
       console.error('Failed to create area invite notification:', notificationError);
       // 通知作成に失敗しても招待は成功とする
@@ -996,7 +1015,10 @@ router.patch('/invites/:inviteId', async (req: AuthRequest, res: Response) => {
     const { inviteId } = req.params;
     const { action } = req.body; // "accept" or "reject"
 
+    console.log(`エリア招待応答リクエスト - inviteId: ${inviteId}, action: ${action}, userId: ${req.user!.id}`);
+
     if (!action || !['accept', 'reject'].includes(action)) {
+      console.log(`無効なアクション: ${action}`);
       return res.status(400).json({ error: 'アクションは "accept" または "reject" である必要があります' });
     }
 
@@ -1009,8 +1031,11 @@ router.patch('/invites/:inviteId', async (req: AuthRequest, res: Response) => {
     });
 
     if (!invite) {
+      console.log(`エリア招待が見つかりません - inviteId: ${inviteId}, userId: ${req.user!.id}`);
       return res.status(404).json({ error: 'エリア招待が見つかりません' });
     }
+
+    console.log(`エリア招待を発見 - areaId: ${invite.areaId}, invitedBy: ${invite.invitedBy}`);
 
     const status = action === 'accept' ? 'ACCEPTED' : 'REJECTED';
 
@@ -1022,15 +1047,30 @@ router.patch('/invites/:inviteId', async (req: AuthRequest, res: Response) => {
       }
     });
 
+    console.log(`エリア招待ステータス更新完了 - status: ${status}`);
+
     if (action === 'accept') {
-      // エリアメンバーとして追加
-      await prisma.areaMember.create({
-        data: {
+      // 既にメンバーかどうかチェック
+      const existingMember = await prisma.areaMember.findFirst({
+        where: {
           areaId: invite.areaId,
-          userId: req.user!.id,
-          addedBy: invite.invitedBy
+          userId: req.user!.id
         }
       });
+
+      if (existingMember) {
+        console.log(`既にエリアメンバーです - areaId: ${invite.areaId}, userId: ${req.user!.id}`);
+      } else {
+        // エリアメンバーとして追加
+        const newMember = await prisma.areaMember.create({
+          data: {
+            areaId: invite.areaId,
+            userId: req.user!.id,
+            addedBy: invite.invitedBy
+          }
+        });
+        console.log(`エリアメンバー追加完了 - memberId: ${newMember.id}, areaId: ${invite.areaId}, userId: ${req.user!.id}`);
+      }
     }
 
     return res.json({
