@@ -178,16 +178,19 @@ router.get('/joined', async (req, res) => {
         console.log(`参加エリアメンバーシップ取得完了 - 件数: ${memberships.length}`);
         for (const membership of memberships) {
             if (membership.area) {
-                console.log(`メンバーシップ詳細 - areaId: ${membership.area.id}, areaName: ${membership.area.name}, areaOwner: ${membership.area.userId}, currentUser: ${req.user.id}, isOwner: ${membership.area.userId === req.user.id}`);
+                console.log(`メンバーシップ詳細 - areaId: ${membership.area.id}, areaName: ${membership.area.name}, areaOwner: ${membership.area.userId}, currentUser: ${req.user.id}, isOwner: ${membership.area.userId === req.user.id}, addedBy: ${membership.addedBy}`);
             }
             else {
                 console.log(`メンバーシップ詳細 - areaId: ${membership.areaId}, area: null`);
             }
         }
         const joinedAreas = memberships
-            .filter(m => m.area && m.area.userId !== req.user.id)
+            .filter(m => m.area && m.area.userId !== req.user.id && m.addedBy !== req.user.id)
             .map(m => m.area);
         console.log(`参加エリアフィルタリング完了 - 参加エリア数: ${joinedAreas.length}`);
+        for (const area of joinedAreas) {
+            console.log(`参加エリア詳細 - areaId: ${area.id}, areaName: ${area.name}, areaOwner: ${area.userId}`);
+        }
         const apiAreas = await Promise.all(joinedAreas.map(async (area) => {
             const memberCount = await index_1.prisma.areaMember.count({
                 where: { areaId: area.id }

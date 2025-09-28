@@ -219,18 +219,24 @@ router.get('/joined', async (req: AuthRequest, res: Response) => {
     // 各メンバーシップの詳細をログ出力
     for (const membership of memberships) {
       if (membership.area) {
-        console.log(`メンバーシップ詳細 - areaId: ${membership.area.id}, areaName: ${membership.area.name}, areaOwner: ${membership.area.userId}, currentUser: ${req.user!.id}, isOwner: ${membership.area.userId === req.user!.id}`);
+        console.log(`メンバーシップ詳細 - areaId: ${membership.area.id}, areaName: ${membership.area.name}, areaOwner: ${membership.area.userId}, currentUser: ${req.user!.id}, isOwner: ${membership.area.userId === req.user!.id}, addedBy: ${membership.addedBy}`);
       } else {
         console.log(`メンバーシップ詳細 - areaId: ${membership.areaId}, area: null`);
       }
     }
 
     // Exclude areas owned by the user to ensure "joined" means non-owned memberships
+    // Also exclude memberships where the user was added by themselves (owner auto-membership)
     const joinedAreas = memberships
-      .filter(m => m.area && m.area.userId !== req.user!.id)
+      .filter(m => m.area && m.area.userId !== req.user!.id && m.addedBy !== req.user!.id)
       .map(m => m.area!);
 
     console.log(`参加エリアフィルタリング完了 - 参加エリア数: ${joinedAreas.length}`);
+    
+    // フィルタリング後の詳細ログ
+    for (const area of joinedAreas) {
+      console.log(`参加エリア詳細 - areaId: ${area.id}, areaName: ${area.name}, areaOwner: ${area.userId}`);
+    }
 
     const apiAreas = await Promise.all(joinedAreas.map(async (area) => {
       // メンバー数を取得（所有者も含む）
