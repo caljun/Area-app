@@ -81,7 +81,7 @@ const app = express();
 // プロキシ設定をより安全に設定
 app.set('trust proxy', 1); // または特定のプロキシIPを指定
 const server = createServer(app);
-const io = new Server(server, {
+export const io = new Server(server, {
   cors: {
     origin: process.env.CORS_ORIGIN || "http://localhost:8081",
     methods: ["GET", "POST"]

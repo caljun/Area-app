@@ -1,6 +1,6 @@
 import { Router, Request, Response } from 'express';
 import { z } from 'zod';
-import { prisma } from '../index';
+import { prisma, io } from '../index';
 import { AuthRequest } from '../middleware/auth';
 
 const router = Router();
@@ -9,6 +9,88 @@ const router = Router();
 const updateLocationSchema = z.object({
   latitude: z.number().min(-90).max(90),
   longitude: z.number().min(-180).max(180)
+});
+
+// Spec-compliant: POST /location
+// { userId, latitude, longitude, timestamp }
+router.post('/', async (req: Request, res: Response) => {
+  try {
+    const { userId, latitude, longitude, timestamp } = req.body || {};
+
+    if (!userId || typeof userId !== 'string') {
+      return res.status(400).json({ error: 'userId は必須です' });
+    }
+    if (typeof latitude !== 'number' || typeof longitude !== 'number') {
+      return res.status(400).json({ error: 'latitude と longitude は数値で必須です' });
+    }
+    if (latitude < -90 || latitude > 90 || longitude < -180 || longitude > 180) {
+      return res.status(400).json({ error: '緯度経度の範囲が不正です' });
+    }
+    if (latitude === 0 && longitude === 0) {
+      return res.status(400).json({ error: '無効な位置情報です' });
+    }
+
+    const createdAt = timestamp ? new Date(timestamp) : undefined;
+
+    const location = await prisma.location.create({
+      data: {
+        userId,
+        latitude,
+        longitude,
+        ...(createdAt ? { createdAt } : {})
+      }
+    });
+
+    // WebSocket push to all clients (or clients can filter by userId)
+    io.emit('locationUpdate', {
+      userId,
+      latitude,
+      longitude,
+      timestamp: location.createdAt
+    });
+
+    return res.status(201).json({
+      success: true,
+      location: {
+        userId: location.userId,
+        latitude: location.latitude,
+        longitude: location.longitude,
+        timestamp: location.createdAt
+      }
+    });
+  } catch (error) {
+    console.error('POST /location error:', error);
+    return res.status(500).json({ error: '位置情報の保存に失敗しました' });
+  }
+});
+
+// Spec-compliant: GET /location/:userId -> latest
+router.get('/:userId', async (req: Request, res: Response) => {
+  try {
+    const { userId } = req.params;
+    if (!userId) {
+      return res.status(400).json({ error: 'userId は必須です' });
+    }
+
+    const latest = await prisma.location.findFirst({
+      where: { userId },
+      orderBy: { createdAt: 'desc' }
+    });
+
+    if (!latest) {
+      return res.status(404).json({ error: '位置情報が見つかりません' });
+    }
+
+    return res.json({
+      userId: latest.userId,
+      latitude: latest.latitude,
+      longitude: latest.longitude,
+      timestamp: latest.createdAt
+    });
+  } catch (error) {
+    console.error('GET /location/:userId error:', error);
+    return res.status(500).json({ error: '最新位置情報の取得に失敗しました' });
+  }
 });
 
 // Update user location
@@ -152,18 +234,27 @@ router.get('/friends', async (req: AuthRequest, res: Response) => {
     });
     console.log(`友達ID一覧: ${JSON.stringify(friendIds)}`);
     
-    // 最新の位置情報を取得
-    const locations = await prisma.location.findMany({
-      where: {
-        userId: { in: friendIds }
-      },
-      orderBy: { createdAt: 'desc' },
-      distinct: ['userId']
+    // ユーザーごとに「本当に最新の1件」を厳密に取得
+    const latestLocationList = await Promise.all(
+      friendIds.map(async (fid) => {
+        return prisma.location.findFirst({
+          where: { userId: fid },
+          orderBy: { createdAt: 'desc' }
+        });
+      })
+    );
+
+    // userId -> 最新位置 のマップを作成
+    const userIdToLatestLocation = new Map<string, typeof latestLocationList[number]>();
+    latestLocationList.forEach((loc) => {
+      if (loc) {
+        userIdToLatestLocation.set(loc.userId, loc);
+      }
     });
-    
-    console.log(`取得した位置情報数: ${locations.length}`);
-    locations.forEach(loc => {
-      console.log(`位置情報 - userId: ${loc.userId}, lat: ${loc.latitude}, lng: ${loc.longitude}, areaId: ${loc.areaId}`);
+
+    console.log(`取得した位置情報数: ${userIdToLatestLocation.size}`);
+    userIdToLatestLocation.forEach((loc) => {
+      console.log(`位置情報 - userId: ${loc!.userId}, lat: ${loc!.latitude}, lng: ${loc!.longitude}, areaId: ${loc!.areaId}`);
     });
 
     // 友達情報と位置情報を結合
@@ -174,7 +265,7 @@ router.get('/friends', async (req: AuthRequest, res: Response) => {
         const friendName = friend.userId === req.user!.id ? friend.friend!.name : friend.user!.name;
         const friendProfileImage = friend.userId === req.user!.id ? friend.friend!.profileImage : friend.user!.profileImage;
         
-        const location = locations.find(loc => loc.userId === friendId);
+        const location = userIdToLatestLocation.get(friendId);
         
         // 位置情報がない場合は、位置情報なしとして返す
         if (!location) {
