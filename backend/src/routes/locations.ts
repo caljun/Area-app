@@ -65,7 +65,8 @@ router.post('/', async (req: Request, res: Response) => {
 });
 
 // Spec-compliant: GET /location/:userId -> latest
-router.get('/:userId', async (req: Request, res: Response) => {
+// Note: Restrict :userId to a 24-hex MongoDB ObjectId to avoid matching static routes like 'sharing' or 'friends'
+router.get('/:userId([a-f0-9]{24})', async (req: Request, res: Response) => {
   try {
     const { userId } = req.params;
     if (!userId) {
