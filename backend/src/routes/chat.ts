@@ -284,6 +284,48 @@ router.patch('/messages/:messageId/read', async (req: AuthRequest, res: Response
   }
 });
 
+// 未読メッセージ数取得
+router.get('/unread-count', async (req: AuthRequest, res: Response) => {
+  try {
+    const userId = req.user?.id;
+    
+    if (!userId) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    // ユーザーが参加しているチャットルームを取得
+    const userChats = await prisma.chat.findMany({
+      where: {
+        OR: [
+          { user1Id: userId },
+          { user2Id: userId }
+        ]
+      },
+      select: {
+        id: true
+      }
+    });
+
+    const chatIds = userChats.map(chat => chat.id);
+
+    // 未読メッセージ数を計算（自分が送ったメッセージ以外で、未読のメッセージ）
+    const unreadCount = await prisma.message.count({
+      where: {
+        chatId: { in: chatIds },
+        senderId: { not: userId },
+        isRead: false
+      }
+    });
+
+    console.log(`未読メッセージ数取得 - userId: ${userId}, count: ${unreadCount}`);
+
+    res.json({ unreadCount });
+  } catch (error) {
+    console.error('Error fetching unread message count:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
 // チャットルーム作成
 router.post('/rooms', async (req: AuthRequest, res: Response) => {
   try {

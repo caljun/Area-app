@@ -210,27 +210,61 @@ app.use('/api/chat', authMiddleware, chatRoutes);
 io.on('connection', (socket) => {
   console.log('User connected:', socket.id);
 
-  // 認証処理
-  socket.on('authenticate', async (token: string) => {
-    try {
-      const decoded = jwt.verify(token, process.env.JWT_SECRET || 'fallback-secret') as JWTPayload;
-      const user = await prisma.user.findUnique({
-        where: { id: decoded.userId },
-        select: { id: true, name: true }
-      });
-      
-      if (user) {
-        socket.data.userId = user.id;
-        socket.data.userName = user.name;
-        socket.emit('authenticated', { userId: user.id });
-        console.log(`User ${user.name} (${user.id}) authenticated`);
-      } else {
-        socket.emit('auth_error', { message: 'Invalid user' });
+  // 認証処理（クエリパラメータから認証情報を取得）
+  const token = socket.handshake.query.token as string;
+  const userId = socket.handshake.query.userId as string;
+  
+  if (token && userId) {
+    // クエリパラメータから認証
+    jwt.verify(token, process.env.JWT_SECRET || 'fallback-secret', async (err, decoded) => {
+      if (err) {
+        console.log('WebSocket authentication failed:', err.message);
+        socket.emit('auth_error', { message: 'Invalid token' });
+        return;
       }
-    } catch (error) {
-      socket.emit('auth_error', { message: 'Invalid token' });
-    }
-  });
+      
+      try {
+        const user = await prisma.user.findUnique({
+          where: { id: (decoded as JWTPayload).userId },
+          select: { id: true, name: true }
+        });
+        
+        if (user) {
+          socket.data.userId = user.id;
+          socket.data.userName = user.name;
+          socket.emit('authenticated', { userId: user.id });
+          console.log(`User ${user.name} (${user.id}) authenticated via query params`);
+        } else {
+          socket.emit('auth_error', { message: 'Invalid user' });
+        }
+      } catch (error) {
+        console.error('WebSocket user lookup error:', error);
+        socket.emit('auth_error', { message: 'User lookup failed' });
+      }
+    });
+  } else {
+    // 従来の認証イベント処理
+    socket.on('authenticate', async (token: string) => {
+      try {
+        const decoded = jwt.verify(token, process.env.JWT_SECRET || 'fallback-secret') as JWTPayload;
+        const user = await prisma.user.findUnique({
+          where: { id: decoded.userId },
+          select: { id: true, name: true }
+        });
+        
+        if (user) {
+          socket.data.userId = user.id;
+          socket.data.userName = user.name;
+          socket.emit('authenticated', { userId: user.id });
+          console.log(`User ${user.name} (${user.id}) authenticated`);
+        } else {
+          socket.emit('auth_error', { message: 'Invalid user' });
+        }
+      } catch (error) {
+        socket.emit('auth_error', { message: 'Invalid token' });
+      }
+    });
+  }
 
   socket.on('join', (userId: string) => {
     if (socket.data.userId === userId) {
