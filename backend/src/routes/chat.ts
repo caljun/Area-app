@@ -49,21 +49,32 @@ router.get('/rooms', async (req: AuthRequest, res: Response) => {
     });
 
     // フロントエンドの期待する形式に変換
-    const formattedRooms = chatRooms.map(room => ({
-      id: room.id,
-      participants: [room.user1Id, room.user2Id],
-      lastMessage: room.messages[0] ? {
-        id: room.messages[0].id,
-        chatId: room.messages[0].chatId,
-        senderId: room.messages[0].senderId,
-        content: room.messages[0].content,
-        messageType: room.messages[0].messageType.toLowerCase(),
-        createdAt: room.messages[0].createdAt,
-        updatedAt: room.messages[0].updatedAt
-      } : null,
-      unreadCount: 0, // 簡易版 - 実際の実装では未読数を計算
-      createdAt: room.createdAt,
-      updatedAt: room.updatedAt
+    const formattedRooms = await Promise.all(chatRooms.map(async (room) => {
+      // 各チャットルームの未読メッセージ数を計算
+      const unreadCount = await prisma.message.count({
+        where: {
+          chatId: room.id,
+          senderId: { not: userId }, // 自分が送ったメッセージ以外
+          isRead: false
+        }
+      });
+
+      return {
+        id: room.id,
+        participants: [room.user1Id, room.user2Id],
+        lastMessage: room.messages[0] ? {
+          id: room.messages[0].id,
+          chatId: room.messages[0].chatId,
+          senderId: room.messages[0].senderId,
+          content: room.messages[0].content,
+          messageType: room.messages[0].messageType.toLowerCase(),
+          createdAt: room.messages[0].createdAt,
+          updatedAt: room.messages[0].updatedAt
+        } : null,
+        unreadCount: unreadCount,
+        createdAt: room.createdAt,
+        updatedAt: room.updatedAt
+      };
     }));
 
     res.json(formattedRooms);
