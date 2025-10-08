@@ -3,7 +3,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.prisma = void 0;
+exports.prisma = exports.io = void 0;
 const express_1 = __importDefault(require("express"));
 const cors_1 = __importDefault(require("cors"));
 const helmet_1 = __importDefault(require("helmet"));
@@ -45,7 +45,7 @@ if (process.env.NODE_ENV === 'development') {
 const app = (0, express_1.default)();
 app.set('trust proxy', 1);
 const server = (0, http_1.createServer)(app);
-const io = new socket_io_1.Server(server, {
+exports.io = new socket_io_1.Server(server, {
     cors: {
         origin: process.env.CORS_ORIGIN || "http://localhost:8081",
         methods: ["GET", "POST"]
@@ -148,58 +148,159 @@ app.use('/api/location', auth_2.authMiddleware, locations_1.default);
 app.use('/api/images', images_1.default);
 app.use('/api/notifications', auth_2.authMiddleware, notifications_1.default);
 app.use('/api/chat', auth_2.authMiddleware, chat_1.default);
-io.on('connection', (socket) => {
-    console.log('User connected:', socket.id);
-    socket.on('authenticate', async (token) => {
-        try {
-            const decoded = jsonwebtoken_1.default.verify(token, process.env.JWT_SECRET || 'fallback-secret');
-            const user = await exports.prisma.user.findUnique({
-                where: { id: decoded.userId },
-                select: { id: true, name: true }
-            });
-            if (user) {
-                socket.data.userId = user.id;
-                socket.data.userName = user.name;
-                socket.emit('authenticated', { userId: user.id });
-                console.log(`User ${user.name} (${user.id}) authenticated`);
+exports.io.on('connection', (socket) => {
+    console.log('WebSocket: User connected:', socket.id);
+    const token = socket.handshake.query.token;
+    const userId = socket.handshake.query.userId;
+    if (token && userId) {
+        jsonwebtoken_1.default.verify(token, process.env.JWT_SECRET || 'fallback-secret', async (err, decoded) => {
+            if (err) {
+                console.log('WebSocket authentication failed:', err.message);
+                socket.emit('auth_error', { message: 'Invalid token' });
+                return;
             }
-            else {
-                socket.emit('auth_error', { message: 'Invalid user' });
+            try {
+                const user = await exports.prisma.user.findUnique({
+                    where: { id: decoded.userId },
+                    select: { id: true, name: true, profileImage: true }
+                });
+                if (user) {
+                    socket.data.userId = user.id;
+                    socket.data.userName = user.name;
+                    socket.data.profileImage = user.profileImage;
+                    socket.join(`user_${user.id}`);
+                    socket.emit('connection', {
+                        type: 'connection',
+                        data: {
+                            status: 'connected',
+                            userId: user.id,
+                            userName: user.name
+                        }
+                    });
+                    console.log(`WebSocket: User ${user.name} (${user.id}) authenticated and joined room`);
+                    socket.broadcast.emit('friendStatusUpdate', {
+                        userId: user.id,
+                        isOnline: true,
+                        lastSeen: new Date()
+                    });
+                }
+                else {
+                    socket.emit('auth_error', { message: 'Invalid user' });
+                }
+            }
+            catch (error) {
+                console.error('WebSocket user lookup error:', error);
+                socket.emit('auth_error', { message: 'User lookup failed' });
+            }
+        });
+    }
+    else {
+        socket.on('authenticate', async (token) => {
+            try {
+                const decoded = jsonwebtoken_1.default.verify(token, process.env.JWT_SECRET || 'fallback-secret');
+                const user = await exports.prisma.user.findUnique({
+                    where: { id: decoded.userId },
+                    select: { id: true, name: true, profileImage: true }
+                });
+                if (user) {
+                    socket.data.userId = user.id;
+                    socket.data.userName = user.name;
+                    socket.data.profileImage = user.profileImage;
+                    socket.join(`user_${user.id}`);
+                    socket.emit('authenticated', { userId: user.id });
+                    console.log(`WebSocket: User ${user.name} (${user.id}) authenticated`);
+                }
+                else {
+                    socket.emit('auth_error', { message: 'Invalid user' });
+                }
+            }
+            catch (error) {
+                socket.emit('auth_error', { message: 'Invalid token' });
+            }
+        });
+    }
+    socket.on('location_update', async (data) => {
+        await handleLocationUpdate(socket, data);
+    });
+    socket.on('message', async (message) => {
+        try {
+            const data = JSON.parse(message);
+            if (data.latitude !== undefined && data.longitude !== undefined) {
+                await handleLocationUpdate(socket, data);
             }
         }
         catch (error) {
-            socket.emit('auth_error', { message: 'Invalid token' });
+            console.error('WebSocket: Failed to parse message:', error);
         }
     });
+    async function handleLocationUpdate(socket, data) {
+        if (!socket.data.userId) {
+            socket.emit('error', { message: 'Not authenticated' });
+            return;
+        }
+        try {
+            console.log(`WebSocket: Location update from ${socket.data.userId}:`, data);
+            const location = await exports.prisma.location.create({
+                data: {
+                    userId: socket.data.userId,
+                    latitude: data.latitude,
+                    longitude: data.longitude,
+                    areaId: data.areaId || null
+                }
+            });
+            const friends = await exports.prisma.friend.findMany({
+                where: {
+                    OR: [
+                        { userId: socket.data.userId },
+                        { friendId: socket.data.userId }
+                    ]
+                },
+                include: {
+                    user: { select: { id: true } },
+                    friend: { select: { id: true } }
+                }
+            });
+            const friendIds = [];
+            friends.forEach(friend => {
+                if (friend.userId === socket.data.userId && friend.friend) {
+                    friendIds.push(friend.friend.id);
+                }
+                else if (friend.friendId === socket.data.userId && friend.user) {
+                    friendIds.push(friend.user.id);
+                }
+            });
+            const locationUpdateData = {
+                action: 'friend_location_update',
+                userId: socket.data.userId,
+                userName: socket.data.userName,
+                profileImage: socket.data.profileImage,
+                latitude: data.latitude,
+                longitude: data.longitude,
+                areaId: data.areaId,
+                timestamp: location.createdAt.getTime()
+            };
+            friendIds.forEach(friendId => {
+                exports.io.to(`user_${friendId}`).emit('location', {
+                    type: 'location',
+                    data: locationUpdateData
+                });
+            });
+            console.log(`WebSocket: Location update sent to ${friendIds.length} friends`);
+        }
+        catch (error) {
+            console.error('WebSocket: Failed to process location update:', error);
+            socket.emit('error', { message: 'Failed to update location' });
+        }
+    }
     socket.on('join', (userId) => {
         if (socket.data.userId === userId) {
             socket.join(`user_${userId}`);
-            console.log(`User ${userId} joined their room`);
+            console.log(`WebSocket: User ${userId} joined their room`);
             socket.broadcast.emit('friendStatusUpdate', {
                 userId: userId,
                 isOnline: true,
                 lastSeen: new Date()
             });
-        }
-    });
-    socket.on('updateLocation', async (data) => {
-        if (socket.data.userId === data.userId) {
-            try {
-                await exports.prisma.location.create({
-                    data: {
-                        userId: data.userId,
-                        latitude: data.latitude,
-                        longitude: data.longitude
-                    }
-                });
-                socket.broadcast.emit('locationUpdate', {
-                    ...data,
-                    timestamp: new Date()
-                });
-            }
-            catch (error) {
-                console.error('Failed to save location:', error);
-            }
         }
     });
     socket.on('updateStatus', (data) => {
@@ -218,7 +319,7 @@ io.on('connection', (socket) => {
                 isOnline: false,
                 lastSeen: new Date()
             });
-            console.log(`User ${socket.data.userName} (${socket.data.userId}) disconnected`);
+            console.log(`WebSocket: User ${socket.data.userName} (${socket.data.userId}) disconnected`);
         }
     });
 });
@@ -262,7 +363,7 @@ process.on('unhandledRejection', (reason, promise) => {
     console.error('🚨 Unhandled Rejection at:', promise, 'reason:', reason);
     process.exit(1);
 });
-io.on('error', (error) => {
+exports.io.on('error', (error) => {
     console.error('🚨 WebSocket error:', error);
 });
 server.on('error', (error) => {

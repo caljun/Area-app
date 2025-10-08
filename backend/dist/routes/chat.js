@@ -43,21 +43,30 @@ router.get('/rooms', async (req, res) => {
                 updatedAt: 'desc'
             }
         });
-        const formattedRooms = chatRooms.map(room => ({
-            id: room.id,
-            participants: [room.user1Id, room.user2Id],
-            lastMessage: room.messages[0] ? {
-                id: room.messages[0].id,
-                chatId: room.messages[0].chatId,
-                senderId: room.messages[0].senderId,
-                content: room.messages[0].content,
-                messageType: room.messages[0].messageType.toLowerCase(),
-                createdAt: room.messages[0].createdAt,
-                updatedAt: room.messages[0].updatedAt
-            } : null,
-            unreadCount: 0,
-            createdAt: room.createdAt,
-            updatedAt: room.updatedAt
+        const formattedRooms = await Promise.all(chatRooms.map(async (room) => {
+            const unreadCount = await prisma.message.count({
+                where: {
+                    chatId: room.id,
+                    senderId: { not: userId },
+                    isRead: false
+                }
+            });
+            return {
+                id: room.id,
+                participants: [room.user1Id, room.user2Id],
+                lastMessage: room.messages[0] ? {
+                    id: room.messages[0].id,
+                    chatId: room.messages[0].chatId,
+                    senderId: room.messages[0].senderId,
+                    content: room.messages[0].content,
+                    messageType: room.messages[0].messageType.toLowerCase(),
+                    createdAt: room.messages[0].createdAt,
+                    updatedAt: room.messages[0].updatedAt
+                } : null,
+                unreadCount: unreadCount,
+                createdAt: room.createdAt,
+                updatedAt: room.updatedAt
+            };
         }));
         res.json(formattedRooms);
     }
@@ -238,6 +247,39 @@ router.patch('/messages/:messageId/read', async (req, res) => {
     }
     catch (error) {
         console.error('Error updating message read status:', error);
+        res.status(500).json({ error: 'Internal server error' });
+    }
+});
+router.get('/unread-count', async (req, res) => {
+    try {
+        const userId = req.user?.id;
+        if (!userId) {
+            return res.status(401).json({ error: 'Unauthorized' });
+        }
+        const userChats = await prisma.chat.findMany({
+            where: {
+                OR: [
+                    { user1Id: userId },
+                    { user2Id: userId }
+                ]
+            },
+            select: {
+                id: true
+            }
+        });
+        const chatIds = userChats.map(chat => chat.id);
+        const unreadCount = await prisma.message.count({
+            where: {
+                chatId: { in: chatIds },
+                senderId: { not: userId },
+                isRead: false
+            }
+        });
+        console.log(`未読メッセージ数取得 - userId: ${userId}, count: ${unreadCount}`);
+        res.json({ unreadCount });
+    }
+    catch (error) {
+        console.error('Error fetching unread message count:', error);
         res.status(500).json({ error: 'Internal server error' });
     }
 });

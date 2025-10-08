@@ -139,42 +139,62 @@ router.post('/update', async (req: AuthRequest, res: Response) => {
       }
     }
 
-    // 友達に位置情報更新通知を送信
+    // 友達に位置情報更新通知を送信（WebSocket経由）
     try {
       const friends = await prisma.friend.findMany({
-        where: { userId: req.user!.id },
+        where: {
+          OR: [
+            { userId: req.user!.id },
+            { friendId: req.user!.id }
+          ]
+        },
         include: {
-          friend: {
-            select: {
-              id: true,
-              name: true
-            }
-          }
+          user: { select: { id: true, name: true, profileImage: true } },
+          friend: { select: { id: true, name: true, profileImage: true } }
         }
       });
 
-      // 各友達に通知を作成
-      for (const friend of friends) {
-        await prisma.notification.create({
-          data: {
-            type: 'LOCATION_UPDATE',
-            title: '位置情報更新',
-            message: `${req.user!.name}さんの位置情報が更新されました`,
-            data: {
-              userId: req.user!.id,
-              userName: req.user!.name,
-              latitude,
-              longitude,
-              timestamp: new Date()
-            },
-            recipientId: friend.friend.id,
-            senderId: req.user!.id
-          }
+      // 友達IDを抽出
+      const friendIds: string[] = [];
+      friends.forEach(friend => {
+        if (friend.userId === req.user!.id && friend.friend) {
+          friendIds.push(friend.friend.id);
+        } else if (friend.friendId === req.user!.id && friend.user) {
+          friendIds.push(friend.user.id);
+        }
+      });
+
+      // ユーザー情報を取得（profileImageを含む）
+      const user = await prisma.user.findUnique({
+        where: { id: req.user!.id },
+        select: { id: true, name: true, profileImage: true }
+      });
+
+      // WebSocket経由で友達に位置情報更新を通知
+      const locationUpdateData = {
+        action: 'friend_location_update',
+        userId: req.user!.id,
+        userName: user?.name || req.user!.name,
+        profileImage: user?.profileImage,
+        latitude,
+        longitude,
+        areaId: areaId,
+        timestamp: new Date().getTime()
+      };
+
+      // 各友達のルームに送信
+      friendIds.forEach(friendId => {
+        io.to(`user_${friendId}`).emit('location', {
+          type: 'location',
+          data: locationUpdateData
         });
-      }
+      });
+
+      console.log(`Location API: Position update sent to ${friendIds.length} friends via WebSocket`);
+      
     } catch (notificationError) {
-      console.error('Failed to create location update notifications:', notificationError);
-      // 通知作成に失敗しても位置情報更新は成功とする
+      console.error('Failed to send location update via WebSocket:', notificationError);
+      // WebSocket送信に失敗しても位置情報更新は成功とする
     }
 
     return res.status(200).json({

@@ -208,7 +208,7 @@ app.use('/api/chat', authMiddleware, chatRoutes);
 
 // WebSocket connection handling
 io.on('connection', (socket) => {
-  console.log('User connected:', socket.id);
+  console.log('WebSocket: User connected:', socket.id);
 
   // 認証処理（クエリパラメータから認証情報を取得）
   const token = socket.handshake.query.token as string;
@@ -226,14 +226,35 @@ io.on('connection', (socket) => {
       try {
         const user = await prisma.user.findUnique({
           where: { id: (decoded as JWTPayload).userId },
-          select: { id: true, name: true }
+          select: { id: true, name: true, profileImage: true }
         });
         
         if (user) {
           socket.data.userId = user.id;
           socket.data.userName = user.name;
-          socket.emit('authenticated', { userId: user.id });
-          console.log(`User ${user.name} (${user.id}) authenticated via query params`);
+          socket.data.profileImage = user.profileImage;
+          
+          // ユーザールームに参加
+          socket.join(`user_${user.id}`);
+          
+          // 認証成功を通知
+          socket.emit('connection', {
+            type: 'connection',
+            data: {
+              status: 'connected',
+              userId: user.id,
+              userName: user.name
+            }
+          });
+          
+          console.log(`WebSocket: User ${user.name} (${user.id}) authenticated and joined room`);
+          
+          // オンライン状態を友達に通知
+          socket.broadcast.emit('friendStatusUpdate', {
+            userId: user.id,
+            isOnline: true,
+            lastSeen: new Date()
+          });
         } else {
           socket.emit('auth_error', { message: 'Invalid user' });
         }
@@ -249,14 +270,17 @@ io.on('connection', (socket) => {
         const decoded = jwt.verify(token, process.env.JWT_SECRET || 'fallback-secret') as JWTPayload;
         const user = await prisma.user.findUnique({
           where: { id: decoded.userId },
-          select: { id: true, name: true }
+          select: { id: true, name: true, profileImage: true }
         });
         
         if (user) {
           socket.data.userId = user.id;
           socket.data.userName = user.name;
+          socket.data.profileImage = user.profileImage;
+          
+          socket.join(`user_${user.id}`);
           socket.emit('authenticated', { userId: user.id });
-          console.log(`User ${user.name} (${user.id}) authenticated`);
+          console.log(`WebSocket: User ${user.name} (${user.id}) authenticated`);
         } else {
           socket.emit('auth_error', { message: 'Invalid user' });
         }
@@ -266,10 +290,99 @@ io.on('connection', (socket) => {
     });
   }
 
+  // 位置情報更新の処理（Socket.ioイベント）
+  socket.on('location_update', async (data: any) => {
+    await handleLocationUpdate(socket, data);
+  });
+  
+  // 位置情報更新の処理（標準WebSocketメッセージ）
+  socket.on('message', async (message: string) => {
+    try {
+      const data = JSON.parse(message);
+      if (data.latitude !== undefined && data.longitude !== undefined) {
+        await handleLocationUpdate(socket, data);
+      }
+    } catch (error) {
+      console.error('WebSocket: Failed to parse message:', error);
+    }
+  });
+  
+  // 位置情報更新の共通処理関数
+  async function handleLocationUpdate(socket: any, data: any) {
+    if (!socket.data.userId) {
+      socket.emit('error', { message: 'Not authenticated' });
+      return;
+    }
+    
+    try {
+      console.log(`WebSocket: Location update from ${socket.data.userId}:`, data);
+      
+      // データベースに位置情報を保存
+      const location = await prisma.location.create({
+        data: {
+          userId: socket.data.userId,
+          latitude: data.latitude,
+          longitude: data.longitude,
+          areaId: data.areaId || null
+        }
+      });
+
+      // 友達の位置情報を取得
+      const friends = await prisma.friend.findMany({
+        where: {
+          OR: [
+            { userId: socket.data.userId },
+            { friendId: socket.data.userId }
+          ]
+        },
+        include: {
+          user: { select: { id: true } },
+          friend: { select: { id: true } }
+        }
+      });
+
+      // 友達IDを抽出
+      const friendIds: string[] = [];
+      friends.forEach(friend => {
+        if (friend.userId === socket.data.userId && friend.friend) {
+          friendIds.push(friend.friend.id);
+        } else if (friend.friendId === socket.data.userId && friend.user) {
+          friendIds.push(friend.user.id);
+        }
+      });
+
+      // 友達に位置情報更新を通知
+      const locationUpdateData = {
+        action: 'friend_location_update',
+        userId: socket.data.userId,
+        userName: socket.data.userName,
+        profileImage: socket.data.profileImage,
+        latitude: data.latitude,
+        longitude: data.longitude,
+        areaId: data.areaId,
+        timestamp: location.createdAt.getTime()
+      };
+
+      // 各友達のルームに送信
+      friendIds.forEach(friendId => {
+        io.to(`user_${friendId}`).emit('location', {
+          type: 'location',
+          data: locationUpdateData
+        });
+      });
+
+      console.log(`WebSocket: Location update sent to ${friendIds.length} friends`);
+      
+    } catch (error) {
+      console.error('WebSocket: Failed to process location update:', error);
+      socket.emit('error', { message: 'Failed to update location' });
+    }
+  }
+
   socket.on('join', (userId: string) => {
     if (socket.data.userId === userId) {
       socket.join(`user_${userId}`);
-      console.log(`User ${userId} joined their room`);
+      console.log(`WebSocket: User ${userId} joined their room`);
       
       // オンライン状態を友達に通知
       socket.broadcast.emit('friendStatusUpdate', {
@@ -277,29 +390,6 @@ io.on('connection', (socket) => {
         isOnline: true,
         lastSeen: new Date()
       });
-    }
-  });
-
-  socket.on('updateLocation', async (data: any) => {
-    if (socket.data.userId === data.userId) {
-      try {
-        // データベースに位置情報を保存
-        await prisma.location.create({
-          data: {
-            userId: data.userId,
-            latitude: data.latitude,
-            longitude: data.longitude
-          }
-        });
-
-        // 友達に位置情報をブロードキャスト
-        socket.broadcast.emit('locationUpdate', {
-          ...data,
-          timestamp: new Date()
-        });
-      } catch (error) {
-        console.error('Failed to save location:', error);
-      }
     }
   });
 
@@ -321,7 +411,7 @@ io.on('connection', (socket) => {
         isOnline: false,
         lastSeen: new Date()
       });
-      console.log(`User ${socket.data.userName} (${socket.data.userId}) disconnected`);
+      console.log(`WebSocket: User ${socket.data.userName} (${socket.data.userId}) disconnected`);
     }
   });
 });
