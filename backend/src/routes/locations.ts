@@ -109,7 +109,14 @@ router.post('/update', async (req: AuthRequest, res: Response) => {
       return res.status(400).json({ error: '無効な位置情報です' });
     }
 
-    console.log(`位置情報更新 - userId: ${req.user!.id}, lat: ${latitude}, lng: ${longitude}, areaId: ${areaId}`);
+    // 📍 詳細ログ出力
+    console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+    console.log('📍 HTTP API: 位置情報更新受信');
+    console.log(`👤 userId: ${req.user!.id}`);
+    console.log(`🗺️  位置: (${latitude}, ${longitude})`);
+    console.log(`📏 精度: ${accuracy || 'N/A'}m`);
+    console.log(`🏠 エリアID: ${areaId || 'なし'}`);
+    console.log(`⏰ 時刻: ${new Date().toLocaleString('ja-JP', { timeZone: 'Asia/Tokyo' })}`);
     
     const location = await prisma.location.create({
       data: {
@@ -120,7 +127,8 @@ router.post('/update', async (req: AuthRequest, res: Response) => {
       }
     });
     
-    console.log(`位置情報保存完了 - locationId: ${location.id}`);
+    console.log(`✅ 位置情報保存完了 - locationId: ${location.id}`);
+    console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
 
     // エリア内にいるかチェック
     let isInArea = false;
@@ -190,7 +198,10 @@ router.post('/update', async (req: AuthRequest, res: Response) => {
         });
       });
 
-      console.log(`Location API: Position update sent to ${friendIds.length} friends via WebSocket`);
+      console.log(`🌐 WebSocket通知送信: ${friendIds.length}人の友達に送信完了`);
+      if (friendIds.length > 0) {
+        console.log(`📤 送信先友達ID: ${friendIds.join(', ')}`);
+      }
       
     } catch (notificationError) {
       console.error('Failed to send location update via WebSocket:', notificationError);

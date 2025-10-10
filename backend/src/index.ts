@@ -304,7 +304,13 @@ io.on('connection', (socket) => {
     }
     
     try {
-      console.log(`WebSocket: Location update from ${socket.data.userId}:`, data);
+      // 📍 詳細ログ出力
+      console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+      console.log('🌐 WebSocket: 位置情報更新受信');
+      console.log(`👤 userId: ${socket.data.userId}`);
+      console.log(`🗺️  位置: (${data.latitude}, ${data.longitude})`);
+      console.log(`🏠 エリアID: ${data.areaId || 'なし'}`);
+      console.log(`⏰ 時刻: ${new Date().toLocaleString('ja-JP', { timeZone: 'Asia/Tokyo' })}`);
       
       // データベースに位置情報を保存
       const location = await prisma.location.create({
@@ -315,6 +321,8 @@ io.on('connection', (socket) => {
           areaId: data.areaId || null
         }
       });
+      
+      console.log(`✅ 位置情報保存完了 - locationId: ${location.id}`);
 
       // 友達の位置情報を取得
       const friends = await prisma.friend.findMany({
@@ -360,7 +368,11 @@ io.on('connection', (socket) => {
         });
       });
 
-      console.log(`WebSocket: Location update sent to ${friendIds.length} friends`);
+      console.log(`🌐 WebSocket通知送信: ${friendIds.length}人の友達に送信完了`);
+      if (friendIds.length > 0) {
+        console.log(`📤 送信先友達ID: ${friendIds.join(', ')}`);
+      }
+      console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
       
     } catch (error) {
       console.error('WebSocket: Failed to process location update:', error);
