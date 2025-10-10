@@ -290,21 +290,10 @@ io.on('connection', (socket) => {
     });
   }
 
-  // 位置情報更新の処理（Socket.ioイベント）
+  // 位置情報更新の処理（Socket.ioイベントのみ）
+  // 標準WebSocketメッセージハンドラーは削除して重複を防ぐ
   socket.on('location_update', async (data: any) => {
     await handleLocationUpdate(socket, data);
-  });
-  
-  // 位置情報更新の処理（標準WebSocketメッセージ）
-  socket.on('message', async (message: string) => {
-    try {
-      const data = JSON.parse(message);
-      if (data.latitude !== undefined && data.longitude !== undefined) {
-        await handleLocationUpdate(socket, data);
-      }
-    } catch (error) {
-      console.error('WebSocket: Failed to parse message:', error);
-    }
   });
   
   // 位置情報更新の共通処理関数
