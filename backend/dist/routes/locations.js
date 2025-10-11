@@ -88,7 +88,13 @@ router.post('/update', async (req, res) => {
             console.log(`無効な位置情報が送信されました (0,0) - userId: ${req.user.id}`);
             return res.status(400).json({ error: '無効な位置情報です' });
         }
-        console.log(`位置情報更新 - userId: ${req.user.id}, lat: ${latitude}, lng: ${longitude}, areaId: ${areaId}`);
+        console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+        console.log('📍 HTTP API: 位置情報更新受信');
+        console.log(`👤 userId: ${req.user.id}`);
+        console.log(`🗺️  位置: (${latitude}, ${longitude})`);
+        console.log(`📏 精度: ${accuracy || 'N/A'}m`);
+        console.log(`🏠 エリアID: ${areaId || 'なし'}`);
+        console.log(`⏰ 時刻: ${new Date().toLocaleString('ja-JP', { timeZone: 'Asia/Tokyo' })}`);
         const location = await index_1.prisma.location.create({
             data: {
                 userId: req.user.id,
@@ -97,7 +103,8 @@ router.post('/update', async (req, res) => {
                 areaId: areaId || null
             }
         });
-        console.log(`位置情報保存完了 - locationId: ${location.id}`);
+        console.log(`✅ 位置情報保存完了 - locationId: ${location.id}`);
+        console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
         let isInArea = false;
         if (areaId) {
             const area = await index_1.prisma.area.findUnique({
@@ -152,7 +159,10 @@ router.post('/update', async (req, res) => {
                     data: locationUpdateData
                 });
             });
-            console.log(`Location API: Position update sent to ${friendIds.length} friends via WebSocket`);
+            console.log(`🌐 WebSocket通知送信: ${friendIds.length}人の友達に送信完了`);
+            if (friendIds.length > 0) {
+                console.log(`📤 送信先友達ID: ${friendIds.join(', ')}`);
+            }
         }
         catch (notificationError) {
             console.error('Failed to send location update via WebSocket:', notificationError);

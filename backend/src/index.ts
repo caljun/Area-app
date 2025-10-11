@@ -324,6 +324,37 @@ io.on('connection', (socket) => {
       
       console.log(`✅ 位置情報保存完了 - locationId: ${location.id}`);
 
+      // 位置情報更新データ
+      const locationUpdateData = {
+        action: 'friend_location_update',
+        userId: socket.data.userId,
+        userName: socket.data.userName,
+        profileImage: socket.data.profileImage,
+        latitude: data.latitude,
+        longitude: data.longitude,
+        areaId: data.areaId,
+        timestamp: location.createdAt.getTime()
+      };
+
+      // エリアが指定されている場合はエリア単位でbroadcast（優先）
+      if (data.areaId && socket.data.currentAreaId === data.areaId) {
+        // 同じエリアの全員に送信（自分以外）
+        socket.to(`area_${data.areaId}`).emit('location', {
+          type: 'location',
+          data: locationUpdateData
+        });
+        
+        console.log(`🌐 WebSocket通知送信: エリア単位broadcast完了`);
+        console.log(`📍 送信先エリアID: ${data.areaId}`);
+        console.log(`━━━━━━━━━━━━━━━━━━━━━━━━━━━━`);
+        
+        // エリアbroadcastで送信したのでreturn
+        return;
+      }
+      
+      // エリアが指定されていない場合は友達単位で個別送信（従来の方式・フォールバック）
+      console.log(`🔄 エリアID未指定またはエリア未参加 - 友達単位で個別送信`);
+      
       // 友達の位置情報を取得
       const friends = await prisma.friend.findMany({
         where: {
@@ -348,18 +379,6 @@ io.on('connection', (socket) => {
         }
       });
 
-      // 友達に位置情報更新を通知
-      const locationUpdateData = {
-        action: 'friend_location_update',
-        userId: socket.data.userId,
-        userName: socket.data.userName,
-        profileImage: socket.data.profileImage,
-        latitude: data.latitude,
-        longitude: data.longitude,
-        areaId: data.areaId,
-        timestamp: location.createdAt.getTime()
-      };
-
       // 各友達のルームに送信
       friendIds.forEach(friendId => {
         io.to(`user_${friendId}`).emit('location', {
@@ -368,7 +387,7 @@ io.on('connection', (socket) => {
         });
       });
 
-      console.log(`🌐 WebSocket通知送信: ${friendIds.length}人の友達に送信完了`);
+      console.log(`🌐 WebSocket通知送信: ${friendIds.length}人の友達に個別送信完了`);
       if (friendIds.length > 0) {
         console.log(`📤 送信先友達ID: ${friendIds.join(', ')}`);
       }
@@ -379,6 +398,85 @@ io.on('connection', (socket) => {
       socket.emit('error', { message: 'Failed to update location' });
     }
   }
+
+  // エリアに参加（エリア単位のRoom作成）
+  socket.on('joinArea', async (data: { areaId: string }) => {
+    if (!socket.data.userId) {
+      socket.emit('error', { message: 'Not authenticated' });
+      return;
+    }
+    
+    const { areaId } = data;
+    
+    // エリアのRoomに参加
+    socket.join(`area_${areaId}`);
+    
+    // 現在のエリアを記録
+    socket.data.currentAreaId = areaId;
+    
+    console.log(`━━━━━━━━━━━━━━━━━━━━━━━━━━━━`);
+    console.log(`🏠 WebSocket: ユーザーがエリアに参加`);
+    console.log(`👤 userId: ${socket.data.userId}`);
+    console.log(`🗺️  areaId: ${areaId}`);
+    console.log(`⏰ 時刻: ${new Date().toLocaleString('ja-JP', { timeZone: 'Asia/Tokyo' })}`);
+    console.log(`━━━━━━━━━━━━━━━━━━━━━━━━━━━━`);
+    
+    // エリア内の他のユーザーに通知
+    socket.to(`area_${areaId}`).emit('location', {
+      type: 'location',
+      data: {
+        action: 'user_joined_area',
+        userId: socket.data.userId,
+        userName: socket.data.userName,
+        profileImage: socket.data.profileImage,
+        areaId: areaId,
+        timestamp: Date.now()
+      }
+    });
+    
+    // 参加確認を送信
+    socket.emit('areaJoined', { areaId, success: true });
+  });
+  
+  // エリアから退出
+  socket.on('leaveArea', async (data: { areaId: string }) => {
+    if (!socket.data.userId) {
+      socket.emit('error', { message: 'Not authenticated' });
+      return;
+    }
+    
+    const { areaId } = data;
+    
+    // エリアのRoomから退出
+    socket.leave(`area_${areaId}`);
+    
+    // 現在のエリアをクリア
+    if (socket.data.currentAreaId === areaId) {
+      socket.data.currentAreaId = null;
+    }
+    
+    console.log(`━━━━━━━━━━━━━━━━━━━━━━━━━━━━`);
+    console.log(`🚪 WebSocket: ユーザーがエリアから退出`);
+    console.log(`👤 userId: ${socket.data.userId}`);
+    console.log(`🗺️  areaId: ${areaId}`);
+    console.log(`⏰ 時刻: ${new Date().toLocaleString('ja-JP', { timeZone: 'Asia/Tokyo' })}`);
+    console.log(`━━━━━━━━━━━━━━━━━━━━━━━━━━━━`);
+    
+    // エリア内の他のユーザーに通知
+    socket.to(`area_${areaId}`).emit('location', {
+      type: 'location',
+      data: {
+        action: 'user_left_area',
+        userId: socket.data.userId,
+        userName: socket.data.userName,
+        areaId: areaId,
+        timestamp: Date.now()
+      }
+    });
+    
+    // 退出確認を送信
+    socket.emit('areaLeft', { areaId, success: true });
+  });
 
   socket.on('join', (userId: string) => {
     if (socket.data.userId === userId) {

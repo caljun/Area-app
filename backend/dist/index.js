@@ -222,24 +222,18 @@ exports.io.on('connection', (socket) => {
     socket.on('location_update', async (data) => {
         await handleLocationUpdate(socket, data);
     });
-    socket.on('message', async (message) => {
-        try {
-            const data = JSON.parse(message);
-            if (data.latitude !== undefined && data.longitude !== undefined) {
-                await handleLocationUpdate(socket, data);
-            }
-        }
-        catch (error) {
-            console.error('WebSocket: Failed to parse message:', error);
-        }
-    });
     async function handleLocationUpdate(socket, data) {
         if (!socket.data.userId) {
             socket.emit('error', { message: 'Not authenticated' });
             return;
         }
         try {
-            console.log(`WebSocket: Location update from ${socket.data.userId}:`, data);
+            console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+            console.log('🌐 WebSocket: 位置情報更新受信');
+            console.log(`👤 userId: ${socket.data.userId}`);
+            console.log(`🗺️  位置: (${data.latitude}, ${data.longitude})`);
+            console.log(`🏠 エリアID: ${data.areaId || 'なし'}`);
+            console.log(`⏰ 時刻: ${new Date().toLocaleString('ja-JP', { timeZone: 'Asia/Tokyo' })}`);
             const location = await exports.prisma.location.create({
                 data: {
                     userId: socket.data.userId,
@@ -248,6 +242,28 @@ exports.io.on('connection', (socket) => {
                     areaId: data.areaId || null
                 }
             });
+            console.log(`✅ 位置情報保存完了 - locationId: ${location.id}`);
+            const locationUpdateData = {
+                action: 'friend_location_update',
+                userId: socket.data.userId,
+                userName: socket.data.userName,
+                profileImage: socket.data.profileImage,
+                latitude: data.latitude,
+                longitude: data.longitude,
+                areaId: data.areaId,
+                timestamp: location.createdAt.getTime()
+            };
+            if (data.areaId && socket.data.currentAreaId === data.areaId) {
+                socket.to(`area_${data.areaId}`).emit('location', {
+                    type: 'location',
+                    data: locationUpdateData
+                });
+                console.log(`🌐 WebSocket通知送信: エリア単位broadcast完了`);
+                console.log(`📍 送信先エリアID: ${data.areaId}`);
+                console.log(`━━━━━━━━━━━━━━━━━━━━━━━━━━━━`);
+                return;
+            }
+            console.log(`🔄 エリアID未指定またはエリア未参加 - 友達単位で個別送信`);
             const friends = await exports.prisma.friend.findMany({
                 where: {
                     OR: [
@@ -269,29 +285,78 @@ exports.io.on('connection', (socket) => {
                     friendIds.push(friend.user.id);
                 }
             });
-            const locationUpdateData = {
-                action: 'friend_location_update',
-                userId: socket.data.userId,
-                userName: socket.data.userName,
-                profileImage: socket.data.profileImage,
-                latitude: data.latitude,
-                longitude: data.longitude,
-                areaId: data.areaId,
-                timestamp: location.createdAt.getTime()
-            };
             friendIds.forEach(friendId => {
                 exports.io.to(`user_${friendId}`).emit('location', {
                     type: 'location',
                     data: locationUpdateData
                 });
             });
-            console.log(`WebSocket: Location update sent to ${friendIds.length} friends`);
+            console.log(`🌐 WebSocket通知送信: ${friendIds.length}人の友達に個別送信完了`);
+            if (friendIds.length > 0) {
+                console.log(`📤 送信先友達ID: ${friendIds.join(', ')}`);
+            }
+            console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
         }
         catch (error) {
             console.error('WebSocket: Failed to process location update:', error);
             socket.emit('error', { message: 'Failed to update location' });
         }
     }
+    socket.on('joinArea', async (data) => {
+        if (!socket.data.userId) {
+            socket.emit('error', { message: 'Not authenticated' });
+            return;
+        }
+        const { areaId } = data;
+        socket.join(`area_${areaId}`);
+        socket.data.currentAreaId = areaId;
+        console.log(`━━━━━━━━━━━━━━━━━━━━━━━━━━━━`);
+        console.log(`🏠 WebSocket: ユーザーがエリアに参加`);
+        console.log(`👤 userId: ${socket.data.userId}`);
+        console.log(`🗺️  areaId: ${areaId}`);
+        console.log(`⏰ 時刻: ${new Date().toLocaleString('ja-JP', { timeZone: 'Asia/Tokyo' })}`);
+        console.log(`━━━━━━━━━━━━━━━━━━━━━━━━━━━━`);
+        socket.to(`area_${areaId}`).emit('location', {
+            type: 'location',
+            data: {
+                action: 'user_joined_area',
+                userId: socket.data.userId,
+                userName: socket.data.userName,
+                profileImage: socket.data.profileImage,
+                areaId: areaId,
+                timestamp: Date.now()
+            }
+        });
+        socket.emit('areaJoined', { areaId, success: true });
+    });
+    socket.on('leaveArea', async (data) => {
+        if (!socket.data.userId) {
+            socket.emit('error', { message: 'Not authenticated' });
+            return;
+        }
+        const { areaId } = data;
+        socket.leave(`area_${areaId}`);
+        if (socket.data.currentAreaId === areaId) {
+            socket.data.currentAreaId = null;
+        }
+        console.log(`━━━━━━━━━━━━━━━━━━━━━━━━━━━━`);
+        console.log(`🚪 WebSocket: ユーザーがエリアから退出`);
+        console.log(`👤 userId: ${socket.data.userId}`);
+        console.log(`🗺️  areaId: ${areaId}`);
+        console.log(`⏰ 時刻: ${new Date().toLocaleString('ja-JP', { timeZone: 'Asia/Tokyo' })}`);
+        console.log(`━━━━━━━━━━━━━━━━━━━━━━━━━━━━`);
+        socket.to(`area_${areaId}`).emit('location', {
+            type: 'location',
+            data: {
+                action: 'user_left_area',
+                userId: socket.data.userId,
+                userName: socket.data.userName,
+                areaId: areaId,
+                timestamp: Date.now()
+            }
+        });
+        socket.emit('areaLeft', { areaId, success: true });
+    });
     socket.on('join', (userId) => {
         if (socket.data.userId === userId) {
             socket.join(`user_${userId}`);
