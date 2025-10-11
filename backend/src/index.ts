@@ -25,6 +25,9 @@ import { authMiddleware } from './middleware/auth';
 // Import database
 import { PrismaClient } from '@prisma/client';
 
+// Import Firebase Admin
+import { initializeFirebaseAdmin, sendPushNotificationToMultiple } from './services/firebaseAdmin';
+
 // 型の問題を回避
 declare global {
   namespace NodeJS {
@@ -97,6 +100,8 @@ export const prisma = new PrismaClient({
 prisma.$connect()
   .then(() => {
     console.log('✅ Database connected successfully');
+    // Firebase Admin SDKの初期化
+    initializeFirebaseAdmin();
   })
   .catch((error) => {
     console.error('❌ Database connection failed:', error);
@@ -392,6 +397,54 @@ io.on('connection', (socket) => {
         console.log(`📤 送信先友達ID: ${friendIds.join(', ')}`);
       }
       console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+      
+      // 📱 Push通知送信（WebSocket未接続の友達向け）
+      if (friendIds.length > 0) {
+        try {
+          // 友達のデバイストークンを取得
+          const friendsWithTokens = await prisma.user.findMany({
+            where: {
+              id: { in: friendIds },
+              deviceToken: { not: null }
+            },
+            select: {
+              id: true,
+              deviceToken: true,
+              name: true
+            }
+          });
+          
+          const deviceTokens = friendsWithTokens
+            .map(friend => friend.deviceToken)
+            .filter((token): token is string => token !== null);
+          
+          if (deviceTokens.length > 0) {
+            const userName = socket.data.userName || 'ユーザー';
+            const areaName = data.areaId ? 'エリア内' : '';
+            
+            // Push通知送信
+            await sendPushNotificationToMultiple(
+              deviceTokens,
+              '友達が移動しました',
+              `${userName}さんが${areaName}位置を更新しました`,
+              {
+                action: 'friend_moved',
+                userId: socket.data.userId,
+                userName: userName,
+                areaId: data.areaId || '',
+                latitude: String(data.latitude),
+                longitude: String(data.longitude),
+                timestamp: String(Date.now())
+              }
+            );
+            
+            console.log(`📱 Push通知送信完了: ${deviceTokens.length}人の友達に送信`);
+          }
+        } catch (pushError) {
+          console.error('Push通知送信エラー:', pushError);
+          // Push通知のエラーはWebSocket送信には影響させない
+        }
+      }
       
     } catch (error) {
       console.error('WebSocket: Failed to process location update:', error);
