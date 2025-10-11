@@ -53,7 +53,7 @@ export function initializeFirebaseAdmin() {
 }
 
 /**
- * Push通知を送信
+ * Push通知を送信（サイレントPush）
  */
 export async function sendPushNotification(
   deviceToken: string,
@@ -69,17 +69,15 @@ export async function sendPushNotification(
   try {
     const message: admin.messaging.Message = {
       token: deviceToken,
-      notification: {
+      data: {
+        ...data,
         title,
         body,
       },
-      data: data || {},
       apns: {
         payload: {
           aps: {
             contentAvailable: true,
-            sound: 'default',
-            badge: 1,
           },
         },
       },
@@ -102,9 +100,65 @@ export async function sendPushNotification(
 }
 
 /**
- * 複数のデバイスにPush通知を送信
+ * 複数のデバイスにPush通知を送信（サイレントPush）
  */
 export async function sendPushNotificationToMultiple(
+  deviceTokens: string[],
+  title: string,
+  body: string,
+  data?: { [key: string]: string }
+): Promise<{ successCount: number; failureCount: number }> {
+  if (!isInitialized) {
+    console.warn('⚠️ Firebase Admin SDK が初期化されていません。Push通知を送信できません。');
+    return { successCount: 0, failureCount: deviceTokens.length };
+  }
+
+  if (deviceTokens.length === 0) {
+    return { successCount: 0, failureCount: 0 };
+  }
+
+  try {
+    const message: admin.messaging.MulticastMessage = {
+      tokens: deviceTokens,
+      data: {
+        ...data,
+        title,
+        body,
+      },
+      apns: {
+        payload: {
+          aps: {
+            contentAvailable: true,
+          },
+        },
+      },
+    };
+
+    const response = await admin.messaging().sendEachForMulticast(message);
+    
+    console.log(`✅ Push通知一括送信完了: 成功 ${response.successCount}, 失敗 ${response.failureCount}`);
+    
+    // 失敗したトークンをログ出力
+    response.responses.forEach((resp, idx) => {
+      if (!resp.success) {
+        console.error(`❌ デバイストークン ${deviceTokens[idx]} への送信失敗:`, resp.error);
+      }
+    });
+    
+    return {
+      successCount: response.successCount,
+      failureCount: response.failureCount,
+    };
+  } catch (error) {
+    console.error('❌ Push通知一括送信失敗:', error);
+    return { successCount: 0, failureCount: deviceTokens.length };
+  }
+}
+
+/**
+ * エリア入退場通知を送信（通知表示あり）
+ */
+export async function sendAreaEntryExitNotification(
   deviceTokens: string[],
   title: string,
   body: string,
@@ -130,9 +184,13 @@ export async function sendPushNotificationToMultiple(
       apns: {
         payload: {
           aps: {
-            contentAvailable: true,
+            alert: {
+              title,
+              body,
+            },
             sound: 'default',
             badge: 1,
+            category: 'AREA_ENTRY_EXIT',
           },
         },
       },
@@ -140,21 +198,14 @@ export async function sendPushNotificationToMultiple(
 
     const response = await admin.messaging().sendEachForMulticast(message);
     
-    console.log(`✅ Push通知一括送信完了: 成功 ${response.successCount}, 失敗 ${response.failureCount}`);
-    
-    // 失敗したトークンをログ出力
-    response.responses.forEach((resp, idx) => {
-      if (!resp.success) {
-        console.error(`❌ デバイストークン ${deviceTokens[idx]} への送信失敗:`, resp.error);
-      }
-    });
+    console.log(`✅ エリア入退場通知送信完了: 成功 ${response.successCount}, 失敗 ${response.failureCount}`);
     
     return {
       successCount: response.successCount,
       failureCount: response.failureCount,
     };
   } catch (error) {
-    console.error('❌ Push通知一括送信失敗:', error);
+    console.error('❌ エリア入退場通知送信失敗:', error);
     return { successCount: 0, failureCount: deviceTokens.length };
   }
 }

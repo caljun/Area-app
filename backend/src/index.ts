@@ -26,7 +26,7 @@ import { authMiddleware } from './middleware/auth';
 import { PrismaClient } from '@prisma/client';
 
 // Import Firebase Admin
-import { initializeFirebaseAdmin, sendPushNotificationToMultiple } from './services/firebaseAdmin';
+import { initializeFirebaseAdmin, sendPushNotificationToMultiple, sendAreaEntryExitNotification } from './services/firebaseAdmin';
 
 // 型の問題を回避
 declare global {
@@ -317,6 +317,12 @@ io.on('connection', (socket) => {
       console.log(`🏠 エリアID: ${data.areaId || 'なし'}`);
       console.log(`⏰ 時刻: ${new Date().toLocaleString('ja-JP', { timeZone: 'Asia/Tokyo' })}`);
       
+      // 前回の位置情報を取得（エリア入退場判定用）
+      const previousLocation = await prisma.location.findFirst({
+        where: { userId: socket.data.userId },
+        orderBy: { createdAt: 'desc' }
+      });
+      
       // データベースに位置情報を保存
       const location = await prisma.location.create({
         data: {
@@ -328,6 +334,17 @@ io.on('connection', (socket) => {
       });
       
       console.log(`✅ 位置情報保存完了 - locationId: ${location.id}`);
+      
+      // エリア入退場の判定
+      const previousAreaId = previousLocation?.areaId || null;
+      const currentAreaId = data.areaId || null;
+      const isAreaEntry = !previousAreaId && currentAreaId; // エリアに入った
+      const isAreaExit = previousAreaId && !currentAreaId; // エリアから出た
+      const isAreaChange = previousAreaId && currentAreaId && previousAreaId !== currentAreaId; // エリア変更
+      
+      if (isAreaEntry || isAreaExit || isAreaChange) {
+        console.log(`🎯 エリア状態変化検知: ${isAreaEntry ? '入場' : isAreaExit ? '退場' : '変更'} (${previousAreaId || 'なし'} → ${currentAreaId || 'なし'})`);
+      }
 
       // 位置情報更新データ
       const locationUpdateData = {
@@ -420,25 +437,60 @@ io.on('connection', (socket) => {
           
           if (deviceTokens.length > 0) {
             const userName = socket.data.userName || 'ユーザー';
-            const areaName = data.areaId ? 'エリア内' : '';
             
-            // Push通知送信
-            await sendPushNotificationToMultiple(
-              deviceTokens,
-              '友達が移動しました',
-              `${userName}さんが${areaName}位置を更新しました`,
-              {
-                action: 'friend_moved',
-                userId: socket.data.userId,
-                userName: userName,
-                areaId: data.areaId || '',
-                latitude: String(data.latitude),
-                longitude: String(data.longitude),
-                timestamp: String(Date.now())
+            // エリア入退場時のみ通知表示、通常移動はサイレントPush
+            if (isAreaEntry || isAreaExit || isAreaChange) {
+              // エリア入退場通知（通知表示あり）
+              let title = '';
+              let body = '';
+              
+              if (isAreaEntry) {
+                title = '友達がエリアに入りました';
+                body = `${userName}さんがエリアに入りました`;
+              } else if (isAreaExit) {
+                title = '友達がエリアから出ました';
+                body = `${userName}さんがエリアから出ました`;
+              } else if (isAreaChange) {
+                title = '友達がエリアを変更しました';
+                body = `${userName}さんがエリアを変更しました`;
               }
-            );
-            
-            console.log(`📱 Push通知送信完了: ${deviceTokens.length}人の友達に送信`);
+              
+              await sendAreaEntryExitNotification(
+                deviceTokens,
+                title,
+                body,
+                {
+                  action: 'area_entry_exit',
+                  userId: socket.data.userId,
+                  userName: userName,
+                  areaId: currentAreaId || '',
+                  previousAreaId: previousAreaId || '',
+                  latitude: String(data.latitude),
+                  longitude: String(data.longitude),
+                  timestamp: String(Date.now())
+                }
+              );
+              
+              console.log(`📱 エリア入退場通知送信完了: ${deviceTokens.length}人の友達に送信`);
+            } else {
+              // 通常の移動（サイレントPush）
+              await sendPushNotificationToMultiple(
+                deviceTokens,
+                '友達が移動しました',
+                `${userName}さんが位置を更新しました`,
+                {
+                  action: 'friend_moved',
+                  userId: socket.data.userId,
+                  userName: userName,
+                  areaId: data.areaId || '',
+                  latitude: String(data.latitude),
+                  longitude: String(data.longitude),
+                  timestamp: String(Date.now())
+                }
+              );
+              
+              console.log(`📱 サイレントPush送信完了: ${deviceTokens.length}人の友達に送信`);
+            }
           }
         } catch (pushError) {
           console.error('Push通知送信エラー:', pushError);
