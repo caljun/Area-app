@@ -14,11 +14,26 @@ export function initializeFirebaseAdmin() {
   }
 
   try {
-    // サービスアカウントキーのパスを環境変数から取得
+    // 方法1: 環境変数からJSON文字列を直接取得（Render本番環境用）
+    const serviceAccountJson = process.env.FIREBASE_SERVICE_ACCOUNT_JSON;
+    
+    if (serviceAccountJson) {
+      const serviceAccount = JSON.parse(serviceAccountJson);
+      
+      admin.initializeApp({
+        credential: admin.credential.cert(serviceAccount),
+        projectId: serviceAccount.project_id,
+      });
+      
+      console.log('✅ Firebase Admin SDK が初期化されました（環境変数JSON使用）');
+      isInitialized = true;
+      return;
+    }
+    
+    // 方法2: サービスアカウントキーファイルを使用（ローカル開発用）
     const serviceAccountPath = process.env.FIREBASE_SERVICE_ACCOUNT_PATH;
     
     if (serviceAccountPath && fs.existsSync(serviceAccountPath)) {
-      // サービスアカウントキーファイルを使用して初期化
       const serviceAccount = JSON.parse(fs.readFileSync(serviceAccountPath, 'utf-8'));
       
       admin.initializeApp({
@@ -26,26 +41,15 @@ export function initializeFirebaseAdmin() {
         projectId: serviceAccount.project_id,
       });
       
-      console.log('✅ Firebase Admin SDK が初期化されました（サービスアカウントキー使用）');
-    } else {
-      // Application Default Credentials（Renderなどのクラウド環境）を使用
-      // 環境変数FIREBASE_PROJECT_IDが必要
-      const projectId = process.env.FIREBASE_PROJECT_ID;
-      
-      if (!projectId) {
-        console.warn('⚠️ Firebase Admin SDK: プロジェクトIDが設定されていません');
-        console.warn('⚠️ FIREBASE_PROJECT_ID または FIREBASE_SERVICE_ACCOUNT_PATH を設定してください');
-        return;
-      }
-      
-      admin.initializeApp({
-        projectId: projectId,
-      });
-      
-      console.log('✅ Firebase Admin SDK が初期化されました（Application Default Credentials使用）');
+      console.log('✅ Firebase Admin SDK が初期化されました（ファイル使用）');
+      isInitialized = true;
+      return;
     }
     
-    isInitialized = true;
+    // どの方法も設定されていない
+    console.warn('⚠️ Firebase Admin SDK: 認証情報が設定されていません');
+    console.warn('⚠️ FIREBASE_SERVICE_ACCOUNT_JSON または FIREBASE_SERVICE_ACCOUNT_PATH を設定してください');
+    
   } catch (error) {
     console.error('❌ Firebase Admin SDK の初期化に失敗:', error);
     console.error('Push通知機能は利用できません');
