@@ -575,20 +575,66 @@ router.delete('/requests/:requestId', async (req, res) => {
 router.delete('/:friendId', async (req, res) => {
     try {
         const { friendId } = req.params;
-        const friendship = await index_1.prisma.friend.findFirst({
+        const currentUserId = req.user.id;
+        console.log(`友達削除開始 - userId: ${currentUserId}, friendId: ${friendId}`);
+        const friendships = await index_1.prisma.friend.findMany({
             where: {
                 OR: [
-                    { userId: req.user.id, friendId: friendId },
-                    { userId: friendId, friendId: req.user.id }
+                    { userId: currentUserId, friendId: friendId },
+                    { userId: friendId, friendId: currentUserId }
                 ]
             }
         });
-        if (!friendship) {
+        if (friendships.length === 0) {
             return res.status(404).json({ error: 'Friendship not found' });
         }
-        await index_1.prisma.friend.delete({
-            where: { id: friendship.id }
+        await index_1.prisma.$transaction(async (tx) => {
+            await tx.friend.deleteMany({
+                where: {
+                    OR: [
+                        { userId: currentUserId, friendId: friendId },
+                        { userId: friendId, friendId: currentUserId }
+                    ]
+                }
+            });
+            await tx.areaMember.deleteMany({
+                where: {
+                    OR: [
+                        { userId: currentUserId, area: { userId: friendId } },
+                        { userId: friendId, area: { userId: currentUserId } }
+                    ]
+                }
+            });
+            await tx.areaInvitation.deleteMany({
+                where: {
+                    OR: [
+                        { invitedUserId: currentUserId, invitedBy: friendId },
+                        { invitedUserId: friendId, invitedBy: currentUserId }
+                    ]
+                }
+            });
+            await tx.friendRequest.deleteMany({
+                where: {
+                    OR: [
+                        { senderId: currentUserId, receiverId: friendId },
+                        { senderId: friendId, receiverId: currentUserId }
+                    ]
+                }
+            });
+            await tx.notification.deleteMany({
+                where: {
+                    OR: [
+                        { senderId: currentUserId, recipientId: friendId },
+                        { senderId: friendId, recipientId: currentUserId }
+                    ],
+                    type: {
+                        in: ['FRIEND_REQUEST', 'AREA_INVITE']
+                    }
+                }
+            });
         });
+        console.log(`友達削除完了 - userId: ${currentUserId}, friendId: ${friendId}`);
+        console.log(`削除内容: 友達関係、エリアメンバーシップ、エリア招待、友達申請、通知`);
         return res.status(204).send();
     }
     catch (error) {

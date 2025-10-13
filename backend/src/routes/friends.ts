@@ -756,7 +756,7 @@ router.delete('/:friendId', async (req: AuthRequest, res: Response) => {
             { senderId: friendId, recipientId: currentUserId }
           ],
           type: {
-            in: ['FRIEND_REQUEST', 'AREA_INVITATION']
+            in: ['FRIEND_REQUEST', 'AREA_INVITE']
           }
         }
       });
