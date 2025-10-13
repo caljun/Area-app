@@ -297,15 +297,16 @@ exports.io.on('connection', (socket) => {
                     friend: { select: { id: true } }
                 }
             });
-            const friendIds = [];
+            const friendIdsSet = new Set();
             friends.forEach(friend => {
                 if (friend.userId === socket.data.userId && friend.friend) {
-                    friendIds.push(friend.friend.id);
+                    friendIdsSet.add(friend.friend.id);
                 }
                 else if (friend.friendId === socket.data.userId && friend.user) {
-                    friendIds.push(friend.user.id);
+                    friendIdsSet.add(friend.user.id);
                 }
             });
+            const friendIds = Array.from(friendIdsSet);
             friendIds.forEach(friendId => {
                 exports.io.to(`user_${friendId}`).emit('location', {
                     type: 'location',

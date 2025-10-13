@@ -211,16 +211,17 @@ router.get('/friends', async (req, res) => {
                 }
             }
         });
-        const friendIds = [];
+        const friendIdsSet = new Set();
         friends.forEach(friend => {
             if (friend.userId === req.user.id && friend.friend) {
-                friendIds.push(friend.friend.id);
+                friendIdsSet.add(friend.friend.id);
             }
             else if (friend.friendId === req.user.id && friend.user) {
-                friendIds.push(friend.user.id);
+                friendIdsSet.add(friend.user.id);
             }
         });
-        console.log(`友達ID一覧: ${JSON.stringify(friendIds)}`);
+        const friendIds = Array.from(friendIdsSet);
+        console.log(`友達ID一覧（重複排除後）: ${JSON.stringify(friendIds)}`);
         const latestLocationList = await Promise.all(friendIds.map(async (fid) => {
             return index_1.prisma.location.findFirst({
                 where: { userId: fid },
@@ -237,15 +238,18 @@ router.get('/friends', async (req, res) => {
         userIdToLatestLocation.forEach((loc) => {
             console.log(`位置情報 - userId: ${loc.userId}, lat: ${loc.latitude}, lng: ${loc.longitude}, areaId: ${loc.areaId}`);
         });
-        const friendsWithLocations = friends
-            .map(friend => {
+        const friendsWithLocationsMap = new Map();
+        friends.forEach(friend => {
             const friendId = friend.userId === req.user.id ? friend.friend.id : friend.user.id;
             const friendName = friend.userId === req.user.id ? friend.friend.name : friend.user.name;
             const friendProfileImage = friend.userId === req.user.id ? friend.friend.profileImage : friend.user.profileImage;
+            if (friendsWithLocationsMap.has(friendId)) {
+                return;
+            }
             const location = userIdToLatestLocation.get(friendId);
             if (!location) {
                 console.log(`友達の位置情報がありません - userId: ${friendId}, name: ${friendName}`);
-                return {
+                friendsWithLocationsMap.set(friendId, {
                     userId: friendId,
                     latitude: null,
                     longitude: null,
@@ -254,11 +258,12 @@ router.get('/friends', async (req, res) => {
                     areaId: null,
                     userName: friendName,
                     profileImage: friendProfileImage
-                };
+                });
+                return;
             }
             if (location.latitude === 0 && location.longitude === 0) {
                 console.log(`友達の位置情報が無効です (0,0) - userId: ${friendId}, name: ${friendName}`);
-                return {
+                friendsWithLocationsMap.set(friendId, {
                     userId: friendId,
                     latitude: null,
                     longitude: null,
@@ -267,9 +272,10 @@ router.get('/friends', async (req, res) => {
                     areaId: null,
                     userName: friendName,
                     profileImage: friendProfileImage
-                };
+                });
+                return;
             }
-            return {
+            friendsWithLocationsMap.set(friendId, {
                 userId: friendId,
                 latitude: location.latitude,
                 longitude: location.longitude,
@@ -278,8 +284,10 @@ router.get('/friends', async (req, res) => {
                 areaId: location.areaId || null,
                 userName: friendName,
                 profileImage: friendProfileImage
-            };
+            });
         });
+        const friendsWithLocations = Array.from(friendsWithLocationsMap.values());
+        console.log(`友達位置情報レスポンス（重複排除後）: ${friendsWithLocations.length}件`);
         console.log('友達位置情報レスポンス:', JSON.stringify(friendsWithLocations, null, 2));
         return res.json(friendsWithLocations);
     }

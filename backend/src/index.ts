@@ -399,15 +399,16 @@ io.on('connection', (socket) => {
         }
       });
 
-      // 友達IDを抽出
-      const friendIds: string[] = [];
+      // 友達IDを抽出（重複を排除）
+      const friendIdsSet = new Set<string>();
       friends.forEach(friend => {
         if (friend.userId === socket.data.userId && friend.friend) {
-          friendIds.push(friend.friend.id);
+          friendIdsSet.add(friend.friend.id);
         } else if (friend.friendId === socket.data.userId && friend.user) {
-          friendIds.push(friend.user.id);
+          friendIdsSet.add(friend.user.id);
         }
       });
+      const friendIds = Array.from(friendIdsSet);
 
       // 各友達のルームに送信
       friendIds.forEach(friendId => {

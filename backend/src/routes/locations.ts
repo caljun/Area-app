@@ -255,16 +255,17 @@ router.get('/friends', async (req: AuthRequest, res: Response) => {
       }
     });
 
-    // 双方向の友達関係から友達IDを抽出
-    const friendIds: string[] = [];
+    // 双方向の友達関係から友達IDを抽出（重複を排除）
+    const friendIdsSet = new Set<string>();
     friends.forEach(friend => {
       if (friend.userId === req.user!.id && friend.friend) {
-        friendIds.push(friend.friend.id);
+        friendIdsSet.add(friend.friend.id);
       } else if (friend.friendId === req.user!.id && friend.user) {
-        friendIds.push(friend.user.id);
+        friendIdsSet.add(friend.user.id);
       }
     });
-    console.log(`友達ID一覧: ${JSON.stringify(friendIds)}`);
+    const friendIds = Array.from(friendIdsSet);
+    console.log(`友達ID一覧（重複排除後）: ${JSON.stringify(friendIds)}`);
     
     // ユーザーごとに「本当に最新の1件」を厳密に取得
     const latestLocationList = await Promise.all(
@@ -289,59 +290,69 @@ router.get('/friends', async (req: AuthRequest, res: Response) => {
       console.log(`位置情報 - userId: ${loc!.userId}, lat: ${loc!.latitude}, lng: ${loc!.longitude}, areaId: ${loc!.areaId}`);
     });
 
-    // 友達情報と位置情報を結合
-    const friendsWithLocations = friends
-      .map(friend => {
-        // 双方向の友達関係から正しい友達IDを取得
-        const friendId = friend.userId === req.user!.id ? friend.friend!.id : friend.user!.id;
-        const friendName = friend.userId === req.user!.id ? friend.friend!.name : friend.user!.name;
-        const friendProfileImage = friend.userId === req.user!.id ? friend.friend!.profileImage : friend.user!.profileImage;
-        
-        const location = userIdToLatestLocation.get(friendId);
-        
-        // 位置情報がない場合は、位置情報なしとして返す
-        if (!location) {
-          console.log(`友達の位置情報がありません - userId: ${friendId}, name: ${friendName}`);
-          return {
-            userId: friendId,
-            latitude: null, // 位置情報なしを示す
-            longitude: null,
-            accuracy: null,
-            timestamp: new Date().toISOString(), // 現在時刻
-            areaId: null,
-            userName: friendName,
-            profileImage: friendProfileImage
-          };
-        }
-        
-        // 位置情報が0,0の場合は除外（無効な位置情報）
-        if (location.latitude === 0 && location.longitude === 0) {
-          console.log(`友達の位置情報が無効です (0,0) - userId: ${friendId}, name: ${friendName}`);
-          return {
-            userId: friendId,
-            latitude: null, // 位置情報なしを示す
-            longitude: null,
-            accuracy: null,
-            timestamp: new Date().toISOString(), // 現在時刻
-            areaId: null,
-            userName: friendName,
-            profileImage: friendProfileImage
-          };
-        }
-        
-        return {
+    // 友達情報と位置情報を結合（重複を排除）
+    const friendsWithLocationsMap = new Map();
+    friends.forEach(friend => {
+      // 双方向の友達関係から正しい友達IDを取得
+      const friendId = friend.userId === req.user!.id ? friend.friend!.id : friend.user!.id;
+      const friendName = friend.userId === req.user!.id ? friend.friend!.name : friend.user!.name;
+      const friendProfileImage = friend.userId === req.user!.id ? friend.friend!.profileImage : friend.user!.profileImage;
+      
+      // 既に処理済みの友達はスキップ（重複排除）
+      if (friendsWithLocationsMap.has(friendId)) {
+        return;
+      }
+      
+      const location = userIdToLatestLocation.get(friendId);
+      
+      // 位置情報がない場合は、位置情報なしとして返す
+      if (!location) {
+        console.log(`友達の位置情報がありません - userId: ${friendId}, name: ${friendName}`);
+        friendsWithLocationsMap.set(friendId, {
           userId: friendId,
-          latitude: location.latitude,
-          longitude: location.longitude,
-          accuracy: 10.0, // デフォルト精度
-          timestamp: location.createdAt.toISOString(),
-          areaId: location.areaId || null,
+          latitude: null, // 位置情報なしを示す
+          longitude: null,
+          accuracy: null,
+          timestamp: new Date().toISOString(), // 現在時刻
+          areaId: null,
           userName: friendName,
           profileImage: friendProfileImage
-        };
+        });
+        return;
+      }
+      
+      // 位置情報が0,0の場合は除外（無効な位置情報）
+      if (location.latitude === 0 && location.longitude === 0) {
+        console.log(`友達の位置情報が無効です (0,0) - userId: ${friendId}, name: ${friendName}`);
+        friendsWithLocationsMap.set(friendId, {
+          userId: friendId,
+          latitude: null, // 位置情報なしを示す
+          longitude: null,
+          accuracy: null,
+          timestamp: new Date().toISOString(), // 現在時刻
+          areaId: null,
+          userName: friendName,
+          profileImage: friendProfileImage
+        });
+        return;
+      }
+      
+      friendsWithLocationsMap.set(friendId, {
+        userId: friendId,
+        latitude: location.latitude,
+        longitude: location.longitude,
+        accuracy: 10.0, // デフォルト精度
+        timestamp: location.createdAt.toISOString(),
+        areaId: location.areaId || null,
+        userName: friendName,
+        profileImage: friendProfileImage
       });
+    });
+
+    const friendsWithLocations = Array.from(friendsWithLocationsMap.values());
 
     // デバッグログ: レスポンス内容を確認
+    console.log(`友達位置情報レスポンス（重複排除後）: ${friendsWithLocations.length}件`);
     console.log('友達位置情報レスポンス:', JSON.stringify(friendsWithLocations, null, 2));
     
     // Areaフロントエンドの期待する形式でレスポンスを返す

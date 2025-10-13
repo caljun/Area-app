@@ -231,12 +231,108 @@ router.get('/requests', ...)
 友達申請レスポンス: id=xxx, fromUser=田中太郎
 ```
 
+## 🐛 追加修正: 友達ID重複問題（2025-10-13）
+
+### 問題
+ユーザーから報告された問題：
+1. **友達位置情報が重複して表示される**
+2. **同じ友達が2回リストに含まれる**
+
+### 原因
+双方向の友達関係（A→BとB→Aの2レコード）から友達IDを抽出する際、`Set`を使った重複排除が不足していた。
+
+### 修正内容
+
+#### 1. `backend/src/routes/locations.ts` - GET /friends
+```typescript
+// ❌ 修正前: 重複が発生
+const friendIds: string[] = [];
+friends.forEach(friend => {
+  if (friend.userId === req.user!.id && friend.friend) {
+    friendIds.push(friend.friend.id);
+  } else if (friend.friendId === req.user!.id && friend.user) {
+    friendIds.push(friend.user.id);
+  }
+});
+
+// ✅ 修正後: Setで重複排除
+const friendIdsSet = new Set<string>();
+friends.forEach(friend => {
+  if (friend.userId === req.user!.id && friend.friend) {
+    friendIdsSet.add(friend.friend.id);
+  } else if (friend.friendId === req.user!.id && friend.user) {
+    friendIdsSet.add(friend.user.id);
+  }
+});
+const friendIds = Array.from(friendIdsSet);
+```
+
+#### 2. `backend/src/routes/locations.ts` - friendsWithLocations
+```typescript
+// ❌ 修正前: 位置情報レスポンスが重複
+const friendsWithLocations = friends.map(friend => { ... });
+
+// ✅ 修正後: Mapで重複排除
+const friendsWithLocationsMap = new Map();
+friends.forEach(friend => {
+  const friendId = ...;
+  
+  // 既に処理済みの友達はスキップ
+  if (friendsWithLocationsMap.has(friendId)) {
+    return;
+  }
+  
+  friendsWithLocationsMap.set(friendId, { ... });
+});
+const friendsWithLocations = Array.from(friendsWithLocationsMap.values());
+```
+
+#### 3. `backend/src/index.ts` - WebSocket位置情報更新
+```typescript
+// ❌ 修正前: WebSocket通知が重複送信
+const friendIds: string[] = [];
+friends.forEach(friend => {
+  if (friend.userId === socket.data.userId && friend.friend) {
+    friendIds.push(friend.friend.id);
+  } else if (friend.friendId === socket.data.userId && friend.user) {
+    friendIds.push(friend.user.id);
+  }
+});
+
+// ✅ 修正後: Setで重複排除
+const friendIdsSet = new Set<string>();
+friends.forEach(friend => {
+  if (friend.userId === socket.data.userId && friend.friend) {
+    friendIdsSet.add(friend.friend.id);
+  } else if (friend.friendId === socket.data.userId && friend.user) {
+    friendIdsSet.add(friend.user.id);
+  }
+});
+const friendIds = Array.from(friendIdsSet);
+```
+
+### 修正後の期待動作
+- ✅ 友達位置情報が1人につき1件だけ返される
+- ✅ WebSocket通知が友達1人につき1回だけ送信される
+- ✅ 友達ID一覧に重複がない
+
+```
+// 修正前のログ
+友達ID一覧: ["68c01c387a4633cc1606167d","68c01c387a4633cc1606167d"]  // ❌ 重複
+🌐 WebSocket通知送信: 2人の友達に送信完了  // ❌ 実際は1人
+
+// 修正後のログ
+友達ID一覧（重複排除後）: ["68c01c387a4633cc1606167d"]  // ✅ 重複なし
+🌐 WebSocket通知送信: 1人の友達に送信完了  // ✅ 正しい
+```
+
 ## 🎉 まとめ
 
-主な問題点は以下の3つでした：
+主な問題点は以下の4つでした：
 1. **Expressルート定義順序の問題** → 具体的なパスを先に定義するよう修正
 2. **iOSデコード処理の不備** → fromUser/toUserのデコードを追加
 3. **バックエンドレスポンス形式の不統一** → 承認時にfriend情報を含めるよう修正
+4. **友達ID抽出時の重複問題** → Set/Mapを使った重複排除を追加
 
-これらの修正により、友達申請システムが正常に動作するようになります。
+これらの修正により、友達申請システムと位置情報共有機能が正常に動作するようになります。
 
