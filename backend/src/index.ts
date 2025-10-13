@@ -361,13 +361,21 @@ io.on('connection', (socket) => {
       // エリアが指定されている場合はエリア単位でbroadcast（優先）
       if (data.areaId && socket.data.currentAreaId === data.areaId) {
         // 同じエリアの全員に送信（自分以外）
-        socket.to(`area_${data.areaId}`).emit('location', {
+        const roomName = `area_${data.areaId}`;
+        const socketsInRoom = await io.in(roomName).fetchSockets();
+        const recipientCount = socketsInRoom.length - 1; // 自分を除く
+        
+        socket.to(roomName).emit('location', {
           type: 'location',
           data: locationUpdateData
         });
         
         console.log(`🌐 WebSocket通知送信: エリア単位broadcast完了`);
         console.log(`📍 送信先エリアID: ${data.areaId}`);
+        console.log(`📍 Room名: ${roomName}`);
+        console.log(`👥 Room内のSocket数: ${socketsInRoom.length}人（自分含む）`);
+        console.log(`📤 送信先: ${recipientCount}人（自分除く）`);
+        console.log(`🔑 送信者socketId: ${socket.id}`);
         console.log(`━━━━━━━━━━━━━━━━━━━━━━━━━━━━`);
         
         // エリアbroadcastで送信したのでreturn
@@ -519,10 +527,16 @@ io.on('connection', (socket) => {
     // 現在のエリアを記録
     socket.data.currentAreaId = areaId;
     
+    // ルーム参加確認（デバッグ用）
+    const rooms = Array.from(socket.rooms);
+    
     console.log(`━━━━━━━━━━━━━━━━━━━━━━━━━━━━`);
     console.log(`🏠 WebSocket: ユーザーがエリアに参加`);
     console.log(`👤 userId: ${socket.data.userId}`);
+    console.log(`👤 userName: ${socket.data.userName || 'unknown'}`);
     console.log(`🗺️  areaId: ${areaId}`);
+    console.log(`🔑 socketId: ${socket.id}`);
+    console.log(`🚪 参加中のRooms: ${rooms.join(', ')}`);
     console.log(`⏰ 時刻: ${new Date().toLocaleString('ja-JP', { timeZone: 'Asia/Tokyo' })}`);
     console.log(`━━━━━━━━━━━━━━━━━━━━━━━━━━━━`);
     
