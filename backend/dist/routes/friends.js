@@ -80,6 +80,43 @@ router.get('/', async (req, res) => {
         res.status(500).json({ error: 'Internal server error' });
     }
 });
+router.get('/requests', async (req, res) => {
+    try {
+        const requests = await index_1.prisma.friendRequest.findMany({
+            where: {
+                receiverId: req.user.id,
+                status: 'PENDING'
+            },
+            include: {
+                sender: {
+                    select: {
+                        id: true,
+                        name: true,
+                        areaId: true
+                    }
+                }
+            },
+            orderBy: { createdAt: 'desc' }
+        });
+        const apiRequests = requests.map(request => ({
+            id: request.id,
+            fromUserId: request.senderId,
+            toUserId: request.receiverId,
+            status: request.status.toLowerCase(),
+            createdAt: request.createdAt,
+            fromUser: request.sender ? {
+                id: request.sender.id,
+                name: request.sender.name,
+                areaId: request.sender.areaId
+            } : undefined
+        }));
+        res.json(apiRequests);
+    }
+    catch (error) {
+        console.error('Get friend requests error:', error);
+        res.status(500).json({ error: 'Internal server error' });
+    }
+});
 router.get('/:friendId', async (req, res) => {
     try {
         const { friendId } = req.params;
@@ -123,43 +160,6 @@ router.get('/:friendId', async (req, res) => {
     catch (error) {
         console.error('Get friend profile error:', error);
         return res.status(500).json({ error: 'Internal server error' });
-    }
-});
-router.get('/requests', async (req, res) => {
-    try {
-        const requests = await index_1.prisma.friendRequest.findMany({
-            where: {
-                receiverId: req.user.id,
-                status: 'PENDING'
-            },
-            include: {
-                sender: {
-                    select: {
-                        id: true,
-                        name: true,
-                        areaId: true
-                    }
-                }
-            },
-            orderBy: { createdAt: 'desc' }
-        });
-        const apiRequests = requests.map(request => ({
-            id: request.id,
-            fromUserId: request.senderId,
-            toUserId: request.receiverId,
-            status: request.status.toLowerCase(),
-            createdAt: request.createdAt,
-            fromUser: request.sender ? {
-                id: request.sender.id,
-                name: request.sender.name,
-                areaId: request.sender.areaId
-            } : undefined
-        }));
-        res.json(apiRequests);
-    }
-    catch (error) {
-        console.error('Get friend requests error:', error);
-        res.status(500).json({ error: 'Internal server error' });
     }
 });
 router.post('/requests', async (req, res) => {

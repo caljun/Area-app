@@ -99,7 +99,48 @@ router.get('/', async (req: AuthRequest, res: Response) => {
   }
 });
 
-// Get friend profile by ID
+// Get friend requests (具体的なパスを先に定義)
+router.get('/requests', async (req: AuthRequest, res: Response) => {
+  try {
+    const requests = await prisma.friendRequest.findMany({
+      where: { 
+        receiverId: req.user!.id,
+        status: 'PENDING'
+      },
+      include: {
+        sender: {
+          select: {
+            id: true,
+            name: true,
+            areaId: true
+          }
+        }
+      },
+      orderBy: { createdAt: 'desc' }
+    });
+
+    // Areaフロントエンドの期待する形式でレスポンスを返す
+    const apiRequests = requests.map(request => ({
+      id: request.id,
+      fromUserId: request.senderId,
+      toUserId: request.receiverId,
+      status: request.status.toLowerCase(),
+      createdAt: request.createdAt,
+      fromUser: request.sender ? {
+        id: request.sender.id,
+        name: request.sender.name,
+        areaId: request.sender.areaId
+      } : undefined
+    }));
+
+    res.json(apiRequests);
+  } catch (error) {
+    console.error('Get friend requests error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// Get friend profile by ID (パラメータ化されたパスは後に定義)
 router.get('/:friendId', async (req: AuthRequest, res: Response) => {
   try {
     const { friendId } = req.params;
@@ -150,47 +191,6 @@ router.get('/:friendId', async (req: AuthRequest, res: Response) => {
   } catch (error) {
     console.error('Get friend profile error:', error);
     return res.status(500).json({ error: 'Internal server error' });
-  }
-});
-
-// Get friend requests
-router.get('/requests', async (req: AuthRequest, res: Response) => {
-  try {
-    const requests = await prisma.friendRequest.findMany({
-      where: { 
-        receiverId: req.user!.id,
-        status: 'PENDING'
-      },
-      include: {
-        sender: {
-          select: {
-            id: true,
-            name: true,
-            areaId: true
-          }
-        }
-      },
-      orderBy: { createdAt: 'desc' }
-    });
-
-    // Areaフロントエンドの期待する形式でレスポンスを返す
-    const apiRequests = requests.map(request => ({
-      id: request.id,
-      fromUserId: request.senderId,
-      toUserId: request.receiverId,
-      status: request.status.toLowerCase(),
-      createdAt: request.createdAt,
-      fromUser: request.sender ? {
-        id: request.sender.id,
-        name: request.sender.name,
-        areaId: request.sender.areaId
-      } : undefined
-    }));
-
-    res.json(apiRequests);
-  } catch (error) {
-    console.error('Get friend requests error:', error);
-    res.status(500).json({ error: 'Internal server error' });
   }
 });
 
