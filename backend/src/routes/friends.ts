@@ -102,6 +102,8 @@ router.get('/', async (req: AuthRequest, res: Response) => {
 // Get friend requests (具体的なパスを先に定義)
 router.get('/requests', async (req: AuthRequest, res: Response) => {
   try {
+    console.log(`友達申請一覧取得開始 - userId: ${req.user!.id}`);
+    
     const requests = await prisma.friendRequest.findMany({
       where: { 
         receiverId: req.user!.id,
@@ -112,26 +114,39 @@ router.get('/requests', async (req: AuthRequest, res: Response) => {
           select: {
             id: true,
             name: true,
-            areaId: true
+            areaId: true,
+            profileImage: true,
+            createdAt: true,
+            updatedAt: true
           }
         }
       },
       orderBy: { createdAt: 'desc' }
     });
 
+    console.log(`友達申請一覧取得完了 - 申請数: ${requests.length}`);
+
     // Areaフロントエンドの期待する形式でレスポンスを返す
-    const apiRequests = requests.map(request => ({
-      id: request.id,
-      fromUserId: request.senderId,
-      toUserId: request.receiverId,
-      status: request.status.toLowerCase(),
-      createdAt: request.createdAt,
-      fromUser: request.sender ? {
-        id: request.sender.id,
-        name: request.sender.name,
-        areaId: request.sender.areaId
-      } : undefined
-    }));
+    const apiRequests = requests.map(request => {
+      const apiRequest = {
+        id: request.id,
+        fromUserId: request.senderId,
+        toUserId: request.receiverId,
+        status: request.status.toLowerCase(),
+        createdAt: request.createdAt,
+        fromUser: request.sender ? {
+          id: request.sender.id,
+          name: request.sender.name,
+          areaId: request.sender.areaId,
+          profileImage: request.sender.profileImage,
+          createdAt: request.sender.createdAt,
+          updatedAt: request.sender.updatedAt
+        } : undefined
+      };
+      
+      console.log(`友達申請レスポンス: id=${apiRequest.id}, fromUser=${apiRequest.fromUser?.name || 'undefined'}`);
+      return apiRequest;
+    });
 
     res.json(apiRequests);
   } catch (error) {
@@ -322,6 +337,8 @@ router.patch('/requests/:requestId', async (req: AuthRequest, res: Response) => 
     const { requestId } = req.params;
     const { action } = respondToFriendRequestSchema.parse(req.body);
 
+    console.log(`友達申請応答開始 - requestId: ${requestId}, action: ${action}, userId: ${req.user!.id}`);
+
     const request = await prisma.friendRequest.findFirst({
       where: {
         id: requestId,
@@ -331,8 +348,11 @@ router.patch('/requests/:requestId', async (req: AuthRequest, res: Response) => 
     });
 
     if (!request) {
+      console.log(`友達申請が見つからない - requestId: ${requestId}`);
       return res.status(404).json({ error: 'Friend request not found' });
     }
+
+    console.log(`友達申請取得成功 - senderId: ${request.senderId}, receiverId: ${request.receiverId}`);
 
     const status = action === 'accept' ? 'ACCEPTED' : 'REJECTED';
 
@@ -341,10 +361,14 @@ router.patch('/requests/:requestId', async (req: AuthRequest, res: Response) => 
       data: { status }
     });
 
+    console.log(`友達申請ステータス更新完了 - status: ${status}`);
+
     if (action === 'accept') {
       // 双方向の友達関係を作成（存在しない場合のみ）
       const senderId = request.senderId;
       const receiverId = request.receiverId;
+
+      console.log(`友達関係作成開始 - senderId: ${senderId}, receiverId: ${receiverId}`);
 
       // 既存の友達関係をチェック
       const existingFriendship = await prisma.friend.findFirst({
@@ -357,6 +381,7 @@ router.patch('/requests/:requestId', async (req: AuthRequest, res: Response) => 
       });
 
       if (existingFriendship) {
+        console.log(`既に友達関係が存在 - friendshipId: ${existingFriendship.id}`);
         return res.status(400).json({ error: 'Already friends' });
       }
 
@@ -377,20 +402,26 @@ router.patch('/requests/:requestId', async (req: AuthRequest, res: Response) => 
           aToB = await tx.friend.create({
             data: { userId: senderId, friendId: receiverId }
           });
+          console.log(`友達関係作成(A→B) - id: ${aToB.id}`);
         } else {
           aToB = existingAtoB;
+          console.log(`友達関係(A→B)は既存 - id: ${aToB.id}`);
         }
 
         if (!existingBtoA) {
           bToA = await tx.friend.create({
             data: { userId: receiverId, friendId: senderId }
           });
+          console.log(`友達関係作成(B→A) - id: ${bToA.id}`);
         } else {
           bToA = existingBtoA;
+          console.log(`友達関係(B→A)は既存 - id: ${bToA.id}`);
         }
 
         return { aToB, bToA };
       });
+
+      console.log(`友達関係作成完了 - aToB: ${created.aToB.id}, bToA: ${created.bToA.id}`);
 
       // 通知を作成（友達申請承認）
       try {
@@ -414,12 +445,41 @@ router.patch('/requests/:requestId', async (req: AuthRequest, res: Response) => 
         // 通知作成に失敗しても友達関係は成功とする
       }
 
-      // 返却は受信者視点の関係を優先
-      return res.json(created.bToA);
+      // 友達情報を取得してレスポンスに含める
+      const friendUser = await prisma.user.findUnique({
+        where: { id: senderId },
+        select: {
+          id: true,
+          name: true,
+          areaId: true,
+          profileImage: true,
+          createdAt: true,
+          updatedAt: true
+        }
+      });
+
+      console.log(`友達ユーザー情報取得 - name: ${friendUser?.name || 'null'}`);
+
+      // iOS側のFriendモデルに合わせた形式で返す
+      const apiResponse = {
+        id: created.bToA.id,
+        userId: created.bToA.userId,
+        friendId: created.bToA.friendId,
+        status: 'accepted',
+        createdAt: created.bToA.createdAt,
+        updatedAt: created.bToA.createdAt,
+        friend: friendUser
+      };
+
+      console.log(`友達申請承認レスポンス送信 - friendId: ${apiResponse.friendId}, friendName: ${friendUser?.name}`);
+      return res.json(apiResponse);
     }
 
+    // 拒否の場合は200で成功メッセージを返す
+    console.log(`友達申請拒否レスポンス送信 - status: ${status}`);
     return res.json({
-      message: `Friend request ${status.toLowerCase()} successfully`
+      message: `Friend request ${status.toLowerCase()} successfully`,
+      success: true
     });
   } catch (error) {
     if (error instanceof z.ZodError) {
