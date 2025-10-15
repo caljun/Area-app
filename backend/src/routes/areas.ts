@@ -917,6 +917,40 @@ router.post('/:id/invite', async (req: AuthRequest, res: Response) => {
       // 通知作成に失敗しても招待は成功とする
     }
 
+    // プッシュ通知を送信
+    try {
+      // 招待されたユーザーのデバイストークンを取得
+      const invitedUser = await prisma.user.findUnique({
+        where: { id: userId },
+        select: { deviceToken: true, name: true }
+      });
+
+      if (invitedUser && invitedUser.deviceToken) {
+        const { sendPushNotificationToMultiple } = await import('../services/firebaseAdmin');
+        
+        await sendPushNotificationToMultiple(
+          [invitedUser.deviceToken],
+          'エリア招待',
+          `${req.user!.name}さんがあなたをエリア「${area.name}」に招待しました`,
+          {
+            type: 'area_invite',
+            invitationId: invitation.id,
+            areaId: area.id,
+            areaName: area.name,
+            senderId: req.user!.id,
+            senderName: req.user!.name || 'Unknown'
+          }
+        );
+        
+        console.log(`エリア招待プッシュ通知送信完了 - invitedUserId: ${userId}, areaName: ${area.name}`);
+      } else {
+        console.log(`プッシュ通知送信スキップ - デバイストークンなし (userId: ${userId})`);
+      }
+    } catch (pushError) {
+      console.error('Failed to send area invite push notification:', pushError);
+      // プッシュ通知送信に失敗しても招待は成功とする
+    }
+
     return res.status(201).json({
       message: 'Invitation sent successfully',
       invitation

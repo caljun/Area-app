@@ -211,6 +211,80 @@ app.use('/api/notifications', authMiddleware, notificationRoutes);
 app.use('/api/chat', authMiddleware, chatRoutes);
 // app.use('/api/images/upload', authMiddleware, uploadRoutes); 
 
+// Helper function to get friends of a user
+async function getFriends(userId: string) {
+  try {
+    const friends = await prisma.friend.findMany({
+      where: {
+        OR: [
+          { userId: userId },      // 現在のユーザーが起点の友達関係
+          { friendId: userId }     // 現在のユーザーが対象の友達関係
+        ]
+      },
+      include: {
+        user: {
+          select: {
+            id: true,
+            name: true,
+            deviceToken: true
+          }
+        },
+        friend: {
+          select: {
+            id: true,
+            name: true,
+            deviceToken: true
+          }
+        }
+      }
+    });
+
+    // 友達関係から現在のユーザー以外のユーザー情報を抽出
+    const friendUsers = friends.map(friend => {
+      const friendUser = friend.userId === userId ? friend.friend : friend.user;
+      return friendUser;
+    }).filter(user => user !== null);
+
+    // 重複を除去
+    const uniqueFriends = new Map();
+    friendUsers.forEach(friend => {
+      if (friend && !uniqueFriends.has(friend.id)) {
+        uniqueFriends.set(friend.id, friend);
+      }
+    });
+
+    return Array.from(uniqueFriends.values());
+  } catch (error) {
+    console.error('Error getting friends:', error);
+    return [];
+  }
+}
+
+// Helper function to send friend area notifications
+async function sendFriendAreaNotifications(userId: string, eventType: 'entered' | 'exited', areaName: string, userName: string) {
+  try {
+    const friends = await getFriends(userId);
+    
+    console.log(`友達のエリア${eventType === 'entered' ? '入場' : '退場'}通知送信開始 - 友達数: ${friends.length}`);
+    
+    for (const friend of friends) {
+      if (!friend) continue;
+      
+      // WebSocket通知
+      io.to(`user_${friend.id}`).emit('friend_area_event', {
+        friendName: userName,
+        event: eventType,
+        areaName: areaName,
+        timestamp: new Date().getTime()
+      });
+      
+      console.log(`友達エリア通知送信完了 - friendId: ${friend.id}, friendName: ${friend.name}, event: ${eventType}`);
+    }
+  } catch (error) {
+    console.error('Error sending friend area notifications:', error);
+  }
+}
+
 // WebSocket connection handling
 io.on('connection', (socket) => {
   console.log('WebSocket: User connected:', socket.id);
@@ -407,6 +481,20 @@ io.on('connection', (socket) => {
     
     const { areaId } = data;
     
+    // エリア情報を取得
+    let areaName = 'Unknown Area';
+    try {
+      const area = await prisma.area.findUnique({
+        where: { id: areaId },
+        select: { name: true }
+      });
+      if (area) {
+        areaName = area.name;
+      }
+    } catch (e) {
+      console.error('Failed to get area name:', e);
+    }
+    
     // エリアのRoomに参加
     socket.join(`area_${areaId}`);
     
@@ -431,6 +519,7 @@ io.on('connection', (socket) => {
     console.log(`👤 userId: ${socket.data.userId}`);
     console.log(`👤 userName: ${socket.data.userName || 'unknown'}`);
     console.log(`🗺️  areaId: ${areaId}`);
+    console.log(`🏷️  areaName: ${areaName}`);
     console.log(`🔑 socketId: ${socket.id}`);
     console.log(`🚪 参加中のRooms: ${rooms.join(', ')}`);
     console.log(`⏰ 時刻: ${new Date().toLocaleString('ja-JP', { timeZone: 'Asia/Tokyo' })}`);
@@ -449,6 +538,14 @@ io.on('connection', (socket) => {
       }
     });
     
+    // 友達にエリア入場通知を送信
+    await sendFriendAreaNotifications(
+      socket.data.userId,
+      'entered',
+      areaName,
+      socket.data.userName || 'Unknown User'
+    );
+    
     // 参加確認を送信
     socket.emit('areaJoined', { areaId, success: true });
   });
@@ -461,6 +558,20 @@ io.on('connection', (socket) => {
     }
     
     const { areaId } = data;
+    
+    // エリア情報を取得
+    let areaName = 'Unknown Area';
+    try {
+      const area = await prisma.area.findUnique({
+        where: { id: areaId },
+        select: { name: true }
+      });
+      if (area) {
+        areaName = area.name;
+      }
+    } catch (e) {
+      console.error('Failed to get area name:', e);
+    }
     
     // エリアのRoomから退出
     socket.leave(`area_${areaId}`);
@@ -483,7 +594,9 @@ io.on('connection', (socket) => {
     console.log(`━━━━━━━━━━━━━━━━━━━━━━━━━━━━`);
     console.log(`🚪 WebSocket: ユーザーがエリアから退出`);
     console.log(`👤 userId: ${socket.data.userId}`);
+    console.log(`👤 userName: ${socket.data.userName || 'unknown'}`);
     console.log(`🗺️  areaId: ${areaId}`);
+    console.log(`🏷️  areaName: ${areaName}`);
     console.log(`⏰ 時刻: ${new Date().toLocaleString('ja-JP', { timeZone: 'Asia/Tokyo' })}`);
     console.log(`━━━━━━━━━━━━━━━━━━━━━━━━━━━━`);
     
@@ -498,6 +611,14 @@ io.on('connection', (socket) => {
         timestamp: Date.now()
       }
     });
+    
+    // 友達にエリア退場通知を送信
+    await sendFriendAreaNotifications(
+      socket.data.userId,
+      'exited',
+      areaName,
+      socket.data.userName || 'Unknown User'
+    );
     
     // 退出確認を送信
     socket.emit('areaLeft', { areaId, success: true });
