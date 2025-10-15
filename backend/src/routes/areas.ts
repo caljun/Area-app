@@ -225,10 +225,10 @@ router.get('/joined', async (req: AuthRequest, res: Response) => {
       }
     }
 
-    // Exclude areas owned by the user to ensure "joined" means non-owned memberships
-    // Also exclude memberships where the user was added by themselves (owner auto-membership)
+    // Include all areas where user is a member, including owned areas
+    // This ensures that area owners can see their own areas in the joined list
     const joinedAreas = memberships
-      .filter(m => m.area && m.area.userId !== req.user!.id && m.addedBy !== req.user!.id)
+      .filter(m => m.area) // Only include memberships with valid areas
       .map(m => m.area!);
 
     console.log(`参加エリアフィルタリング完了 - 参加エリア数: ${joinedAreas.length}`);
@@ -269,7 +269,7 @@ router.get('/joined', async (req: AuthRequest, res: Response) => {
         updatedAt: area.updatedAt,
         memberCount,
         onlineCount,
-        isOwner: false
+        isOwner: area.userId === req.user!.id // 正しいisOwner判定
       };
     }));
 

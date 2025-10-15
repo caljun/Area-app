@@ -13,7 +13,7 @@ datasource db {
 model User {
   id        String   @id @default(auto()) @map("_id") @db.ObjectId
   email     String   @unique
-  areaId    String   @unique
+  areaId    String?  @unique
   name      String?  // Apple IDユーザーは名前がない場合があるためオプショナル
   password  String?  // Apple IDユーザーはパスワードなしの場合があるためオプショナル
   profileImage String?

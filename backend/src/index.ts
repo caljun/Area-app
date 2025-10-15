@@ -474,7 +474,7 @@ io.on('connection', (socket) => {
     try {
       await prisma.user.update({
         where: { id: socket.data.userId },
-        data: { areaId: null as any }
+        data: { areaId: null }
       });
     } catch (e) {
       console.error('DB update failed on leaveArea:', e);
