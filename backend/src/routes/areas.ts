@@ -403,6 +403,37 @@ router.post('/', async (req: AuthRequest, res: Response) => {
   try {
     const { name, coordinates, isPublic = false } = createAreaSchema.parse(req.body);
 
+    // Server-side validations aligned with iOS spec
+    // 1) Enforce max 5 areas per user
+    const existingCount = await prisma.area.count({ where: { userId: req.user!.id } });
+    if (existingCount >= 5) {
+      return res.status(400).json({ error: '作成できるエリアは最大5件までです' });
+    }
+
+    // 2) Enforce geofence radius within 100–800 meters using polygon's minimum enclosing circle (approx)
+    // Compute centroid and max distance to vertices as an approximation of circumradius
+    const latitudes = coordinates.map(c => c.latitude);
+    const longitudes = coordinates.map(c => c.longitude);
+    const centroidLat = latitudes.reduce((a, b) => a + b, 0) / latitudes.length;
+    const centroidLng = longitudes.reduce((a, b) => a + b, 0) / longitudes.length;
+
+    // Haversine distance in meters
+    const toRad = (deg: number) => (deg * Math.PI) / 180;
+    const earthRadiusM = 6371000;
+    const maxRadiusM = coordinates.reduce((max, c) => {
+      const dLat = toRad(c.latitude - centroidLat);
+      const dLng = toRad(c.longitude - centroidLng);
+      const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+                Math.cos(toRad(centroidLat)) * Math.cos(toRad(c.latitude)) *
+                Math.sin(dLng / 2) * Math.sin(dLng / 2);
+      const distance = 2 * earthRadiusM * Math.asin(Math.min(1, Math.sqrt(a)));
+      return Math.max(max, distance);
+    }, 0);
+
+    if (maxRadiusM < 100 || maxRadiusM > 800) {
+      return res.status(400).json({ error: 'エリアの半径は100m以上800m以下である必要があります' });
+    }
+
     // トランザクションでエリア作成と所有者のメンバー登録を同時に実行
     const result = await prisma.$transaction(async (tx) => {
       // エリアを作成
