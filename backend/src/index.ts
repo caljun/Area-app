@@ -308,6 +308,16 @@ io.on('connection', (socket) => {
       return;
     }
     
+    // エリア外は送受信ゼロ: currentAreaIdが未設定、areaId未指定、または不一致の場合は拒否
+    if (!socket.data.currentAreaId || !data?.areaId || socket.data.currentAreaId !== data.areaId) {
+      console.log('🚫 WebSocket: エリア外またはエリア不一致のため位置更新を拒否', {
+        currentAreaId: socket.data.currentAreaId || null,
+        dataAreaId: data?.areaId || null
+      });
+      socket.emit('error', { message: 'Location updates are allowed only inside the joined area' });
+      return;
+    }
+
     try {
       // 📍 詳細ログ出力
       console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
@@ -358,7 +368,7 @@ io.on('connection', (socket) => {
         timestamp: location.createdAt.getTime()
       };
 
-      // エリアが指定されている場合はエリア単位でbroadcast（優先）
+      // エリア参加かつ一致している場合のみエリア単位でbroadcast
       if (data.areaId && socket.data.currentAreaId === data.areaId) {
         // 同じエリアの全員に送信（自分以外）
         const roomName = `area_${data.areaId}`;
@@ -378,134 +388,9 @@ io.on('connection', (socket) => {
         console.log(`🔑 送信者socketId: ${socket.id}`);
         console.log(`━━━━━━━━━━━━━━━━━━━━━━━━━━━━`);
         
-        // エリアbroadcastで送信したのでreturn
-        return;
+        return; // 送信完了
       }
-      
-      // エリアが指定されていない場合は友達単位で個別送信（従来の方式・フォールバック）
-      console.log(`🔄 エリアID未指定またはエリア未参加 - 友達単位で個別送信`);
-      
-      // 友達の位置情報を取得
-      const friends = await prisma.friend.findMany({
-        where: {
-          OR: [
-            { userId: socket.data.userId },
-            { friendId: socket.data.userId }
-          ]
-        },
-        include: {
-          user: { select: { id: true } },
-          friend: { select: { id: true } }
-        }
-      });
-
-      // 友達IDを抽出（重複を排除）
-      const friendIdsSet = new Set<string>();
-      friends.forEach(friend => {
-        if (friend.userId === socket.data.userId && friend.friend) {
-          friendIdsSet.add(friend.friend.id);
-        } else if (friend.friendId === socket.data.userId && friend.user) {
-          friendIdsSet.add(friend.user.id);
-        }
-      });
-      const friendIds = Array.from(friendIdsSet);
-
-      // 各友達のルームに送信
-      friendIds.forEach(friendId => {
-        io.to(`user_${friendId}`).emit('location', {
-          type: 'location',
-          data: locationUpdateData
-        });
-      });
-
-      console.log(`🌐 WebSocket通知送信: ${friendIds.length}人の友達に個別送信完了`);
-      if (friendIds.length > 0) {
-        console.log(`📤 送信先友達ID: ${friendIds.join(', ')}`);
-      }
-      console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-      
-      // 📱 Push通知送信（WebSocket未接続の友達向け）
-      if (friendIds.length > 0) {
-        try {
-          // 友達のデバイストークンを取得
-          const friendsWithTokens = await prisma.user.findMany({
-            where: {
-              id: { in: friendIds },
-              deviceToken: { not: null }
-            },
-            select: {
-              id: true,
-              deviceToken: true,
-              name: true
-            }
-          });
-          
-          const deviceTokens = friendsWithTokens
-            .map(friend => friend.deviceToken)
-            .filter((token): token is string => token !== null);
-          
-          if (deviceTokens.length > 0) {
-            const userName = socket.data.userName || 'ユーザー';
-            
-            // エリア入退場時のみ通知表示、通常移動はサイレントPush
-            if (isAreaEntry || isAreaExit || isAreaChange) {
-              // エリア入退場通知（通知表示あり）
-              let title = '';
-              let body = '';
-              
-              if (isAreaEntry) {
-                title = '友達がエリアに入りました';
-                body = `${userName}さんがエリアに入りました`;
-              } else if (isAreaExit) {
-                title = '友達がエリアから出ました';
-                body = `${userName}さんがエリアから出ました`;
-              } else if (isAreaChange) {
-                title = '友達がエリアを変更しました';
-                body = `${userName}さんがエリアを変更しました`;
-              }
-              
-              await sendAreaEntryExitNotification(
-                deviceTokens,
-                title,
-                body,
-                {
-                  action: 'area_entry_exit',
-                  userId: socket.data.userId,
-                  userName: userName,
-                  areaId: currentAreaId || '',
-                  previousAreaId: previousAreaId || '',
-                  latitude: String(data.latitude),
-                  longitude: String(data.longitude),
-                  timestamp: String(Date.now())
-                }
-              );
-              
-              console.log(`📱 エリア入退場通知送信完了: ${deviceTokens.length}人の友達に送信`);
-            } else {
-              // 通常の移動（サイレントPush）
-              await sendPushNotificationToMultiple(
-                deviceTokens,
-                '友達が移動しました',
-                `${userName}さんが位置を更新しました`,
-                {
-                  action: 'friend_moved',
-                  userId: socket.data.userId,
-                  userName: userName,
-                  areaId: data.areaId || '',
-                  latitude: String(data.latitude),
-                  longitude: String(data.longitude),
-                  timestamp: String(Date.now())
-                }
-              );
-              
-              console.log(`📱 サイレントPush送信完了: ${deviceTokens.length}人の友達に送信`);
-            }
-          }
-        } catch (pushError) {
-          console.error('Push通知送信エラー:', pushError);
-          // Push通知のエラーはWebSocket送信には影響させない
-        }
-      }
+      // ここまで到達しない想定（不一致は前段でreturn）
       
     } catch (error) {
       console.error('WebSocket: Failed to process location update:', error);
@@ -527,6 +412,16 @@ io.on('connection', (socket) => {
     
     // 現在のエリアを記録
     socket.data.currentAreaId = areaId;
+
+    // DB上のユーザー状態を更新（現在エリア）
+    try {
+      await prisma.user.update({
+        where: { id: socket.data.userId },
+        data: { areaId }
+      });
+    } catch (e) {
+      console.error('DB update failed on joinArea:', e);
+    }
     
     // ルーム参加確認（デバッグ用）
     const rooms = Array.from(socket.rooms);
@@ -573,6 +468,16 @@ io.on('connection', (socket) => {
     // 現在のエリアをクリア
     if (socket.data.currentAreaId === areaId) {
       socket.data.currentAreaId = null;
+    }
+
+    // DB上のユーザー状態をクリア
+    try {
+      await prisma.user.update({
+        where: { id: socket.data.userId },
+        data: { areaId: null as any }
+      });
+    } catch (e) {
+      console.error('DB update failed on leaveArea:', e);
     }
     
     console.log(`━━━━━━━━━━━━━━━━━━━━━━━━━━━━`);

@@ -130,47 +130,19 @@ router.post('/update', async (req: AuthRequest, res: Response) => {
     console.log(`✅ 位置情報保存完了 - locationId: ${location.id}`);
     console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
 
-    // エリア内にいるかチェック
-    let isInArea = false;
-    if (areaId) {
-      const area = await prisma.area.findUnique({
-        where: { id: areaId }
-      });
-      
-      if (area) {
-        // 簡易的なエリア内判定（実際の実装ではより正確なポリゴン判定が必要）
-        const coords = area.coordinates as any;
-        if (coords && Array.isArray(coords) && coords.length >= 3) {
-          // ここでポリゴン内判定を行う（簡易版）
-          isInArea = true; // 仮実装
-        }
-      }
+    // ジオフェンス方式: サーバーはクライアント申告のareaIdを受理せず、ユーザーの現在エリア(user.areaId)と一致する場合のみ有効
+    const user = await prisma.user.findUnique({ where: { id: req.user!.id }, select: { areaId: true } });
+    const serverAreaId = user?.areaId || null;
+    const isInArea = !!serverAreaId && !!areaId && serverAreaId === areaId;
+
+    if (!isInArea) {
+      console.log(`🚫 HTTP API: エリア外またはエリア不一致のため更新を無視 user.areaId=${serverAreaId}, body.areaId=${areaId || 'null'}`);
+      return res.status(403).json({ success: false, message: 'Outside joined area', areaId: serverAreaId, isInArea: false });
     }
 
-    // 友達に位置情報更新通知を送信（WebSocket経由）
+    // 友達に位置情報更新通知を送信（WebSocket経由） - ただし同一エリアRoomに限定
     try {
-      const friends = await prisma.friend.findMany({
-        where: {
-          OR: [
-            { userId: req.user!.id },
-            { friendId: req.user!.id }
-          ]
-        },
-        include: {
-          user: { select: { id: true, name: true, profileImage: true } },
-          friend: { select: { id: true, name: true, profileImage: true } }
-        }
-      });
-
-      // 友達IDを抽出
-      const friendIds: string[] = [];
-      friends.forEach(friend => {
-        if (friend.userId === req.user!.id && friend.friend) {
-          friendIds.push(friend.friend.id);
-        } else if (friend.friendId === req.user!.id && friend.user) {
-          friendIds.push(friend.user.id);
-        }
-      });
+      const roomName = `area_${serverAreaId}`;
 
       // ユーザー情報を取得（profileImageを含む）
       const user = await prisma.user.findUnique({
@@ -178,7 +150,7 @@ router.post('/update', async (req: AuthRequest, res: Response) => {
         select: { id: true, name: true, profileImage: true }
       });
 
-      // WebSocket経由で友達に位置情報更新を通知
+      // WebSocket経由で同一エリアにbroadcast
       const locationUpdateData = {
         action: 'friend_location_update',
         userId: req.user!.id,
@@ -186,22 +158,11 @@ router.post('/update', async (req: AuthRequest, res: Response) => {
         profileImage: user?.profileImage,
         latitude,
         longitude,
-        areaId: areaId,
+        areaId: serverAreaId,
         timestamp: new Date().getTime()
       };
-
-      // 各友達のルームに送信
-      friendIds.forEach(friendId => {
-        io.to(`user_${friendId}`).emit('location', {
-          type: 'location',
-          data: locationUpdateData
-        });
-      });
-
-      console.log(`🌐 WebSocket通知送信: ${friendIds.length}人の友達に送信完了`);
-      if (friendIds.length > 0) {
-        console.log(`📤 送信先友達ID: ${friendIds.join(', ')}`);
-      }
+      io.to(roomName).emit('location', { type: 'location', data: locationUpdateData });
+      console.log(`🌐 WebSocket通知送信: エリアbroadcast room=${roomName}`);
       
     } catch (notificationError) {
       console.error('Failed to send location update via WebSocket:', notificationError);
@@ -211,8 +172,8 @@ router.post('/update', async (req: AuthRequest, res: Response) => {
     return res.status(200).json({
       success: true,
       message: '位置情報が更新されました',
-      areaId: areaId || null,
-      isInArea
+      areaId: serverAreaId,
+      isInArea: true
     });
   } catch (error) {
     if (error instanceof z.ZodError) {
@@ -230,6 +191,15 @@ router.post('/update', async (req: AuthRequest, res: Response) => {
 // Get friend locations
 router.get('/friends', async (req: AuthRequest, res: Response) => {
   try {
+    // サーバーが保持する現在エリア
+    const me = await prisma.user.findUnique({ where: { id: req.user!.id }, select: { areaId: true } });
+    const currentAreaId = me?.areaId || null;
+
+    if (!currentAreaId) {
+      console.log('🚫 友達位置情報: エリア外のため返却ゼロ');
+      return res.json([]);
+    }
+
     const friends = await prisma.friend.findMany({
       where: {
         OR: [
@@ -271,7 +241,7 @@ router.get('/friends', async (req: AuthRequest, res: Response) => {
     const latestLocationList = await Promise.all(
       friendIds.map(async (fid) => {
         return prisma.location.findFirst({
-          where: { userId: fid },
+          where: { userId: fid, areaId: currentAreaId },
           orderBy: { createdAt: 'desc' }
         });
       })
@@ -343,7 +313,7 @@ router.get('/friends', async (req: AuthRequest, res: Response) => {
         longitude: location.longitude,
         accuracy: 10.0, // デフォルト精度
         timestamp: location.createdAt.toISOString(),
-        areaId: location.areaId || null,
+        areaId: currentAreaId,
         userName: friendName,
         profileImage: friendProfileImage
       });
