@@ -175,6 +175,7 @@ app.get('/api/session', authLimiter, authMiddleware, async (req: any, res) => {
       select: {
         id: true,
         email: true,
+        displayId: true,
         areaId: true,
         name: true,
         profileImage: true,
@@ -189,7 +190,7 @@ app.get('/api/session', authLimiter, authMiddleware, async (req: any, res) => {
     // プロフィールの完全性をチェック
     const missingFields = [];
     if (!user.name) missingFields.push('name');
-    if (!user.areaId) missingFields.push('areaId');
+    if (!user.displayId) missingFields.push('displayId');
     if (!user.profileImage) missingFields.push('profileImage');
     const profileComplete = missingFields.length === 0;
 
@@ -198,6 +199,7 @@ app.get('/api/session', authLimiter, authMiddleware, async (req: any, res) => {
       user: {
         id: user.id,
         email: user.email,
+        displayId: user.displayId,
         areaId: user.areaId,
         name: user.name,
         profileImage: user.profileImage,

@@ -593,7 +593,7 @@ router.get('/:id/members', async (req: AuthRequest, res: Response) => {
           select: {
             id: true,
             name: true,
-            areaId: true,
+            displayId: true,
             profileImage: true,
             createdAt: true,
             updatedAt: true
@@ -633,7 +633,7 @@ router.get('/:id/members', async (req: AuthRequest, res: Response) => {
     const memberUsers = filteredMembers.map(member => ({
       id: member.user.id,
       name: member.user.name,
-      areaId: member.user.areaId,
+      displayId: member.user.displayId,
       profileImage: member.user.profileImage,
       createdAt: member.user.createdAt || new Date(),
       updatedAt: member.user.updatedAt || new Date(),

@@ -11,7 +11,8 @@ export interface AuthRequest extends Request {
   user?: {
     id: string;
     email: string;
-    areaId: string;
+    displayId: string;
+    areaId: string | null;
     name: string;
   };
   file?: Express.Multer.File;
@@ -45,6 +46,7 @@ export const authMiddleware = async (
         id: true,
         email: true,
         displayId: true,
+        areaId: true,
         name: true
       }
     });
