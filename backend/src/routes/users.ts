@@ -13,6 +13,7 @@ router.get('/profile', async (req: AuthRequest, res: Response) => {
       select: {
         id: true,
         email: true,
+        displayId: true,
         areaId: true,
         name: true,
         createdAt: true,
@@ -30,16 +31,27 @@ router.get('/profile', async (req: AuthRequest, res: Response) => {
 // Update current user's profile
 router.put('/profile', async (req: AuthRequest, res: Response) => {
   try {
-    const { profileImage, name } = req.body;
+    const { profileImage, name, displayId } = req.body;
 
     // 更新するデータを構築
     const updateData: any = {};
     if (profileImage !== undefined) updateData.profileImage = profileImage;
     if (name !== undefined) updateData.name = name;
+    if (displayId !== undefined) updateData.displayId = displayId;
 
     // 少なくとも1つのフィールドが提供されているかチェック
     if (Object.keys(updateData).length === 0) {
       return res.status(400).json({ error: '更新するフィールドが指定されていません' });
+    }
+
+    // displayIdが更新される場合、重複チェック
+    if (displayId && displayId !== req.user!.displayId) {
+      const existingUser = await prisma.user.findUnique({
+        where: { displayId }
+      });
+      if (existingUser) {
+        return res.status(409).json({ error: 'このDisplay IDは既に使用されています' });
+      }
     }
 
     const updatedUser = await prisma.user.update({
@@ -48,6 +60,7 @@ router.put('/profile', async (req: AuthRequest, res: Response) => {
       select: {
         id: true,
         email: true,
+        displayId: true,
         areaId: true,
         name: true,
         profileImage: true,
@@ -58,7 +71,7 @@ router.put('/profile', async (req: AuthRequest, res: Response) => {
     // プロフィールの完全性を再計算
     const missingFields = [];
     if (!updatedUser.name) missingFields.push('name');
-    if (!updatedUser.areaId) missingFields.push('areaId');
+    if (!updatedUser.displayId) missingFields.push('displayId');
     if (!updatedUser.profileImage) missingFields.push('profileImage');
     const profileComplete = missingFields.length === 0;
 
@@ -68,6 +81,7 @@ router.put('/profile', async (req: AuthRequest, res: Response) => {
       user: {
         id: updatedUser.id,
         email: updatedUser.email,
+        displayId: updatedUser.displayId,
         areaId: updatedUser.areaId,
         name: updatedUser.name,
         profileImage: updatedUser.profileImage,
@@ -99,7 +113,7 @@ router.patch('/me',
     console.log('📁 req.file の詳細:', req.file);
     console.log('📄 req.body の詳細:', req.body);
     
-    const { name, areaId } = req.body;
+    const { name, displayId } = req.body;
     let profileImage = req.body.profileImage;
 
     // 画像ファイルがアップロードされた場合の詳細ログ
@@ -155,7 +169,7 @@ router.patch('/me',
       }
     }
     if (name !== undefined && name.trim() !== '') updateData.name = name.trim();
-    if (areaId !== undefined && areaId.trim() !== '') updateData.areaId = areaId.trim();
+    if (displayId !== undefined && displayId.trim() !== '') updateData.displayId = displayId.trim();
 
     console.log('🔄 最終更新データ:', updateData);
 
@@ -164,13 +178,13 @@ router.patch('/me',
       return res.status(400).json({ error: '更新するフィールドが指定されていません' });
     }
 
-    // areaIdが更新される場合、重複チェック
-    if (areaId && areaId !== req.user!.areaId) {
+    // displayIdが更新される場合、重複チェック
+    if (displayId && displayId !== req.user!.displayId) {
       const existingUser = await prisma.user.findUnique({
-        where: { areaId }
+        where: { displayId }
       });
       if (existingUser) {
-        return res.status(409).json({ error: 'このArea IDは既に使用されています' });
+        return res.status(409).json({ error: 'このDisplay IDは既に使用されています' });
       }
     }
 
@@ -182,6 +196,7 @@ router.patch('/me',
       select: {
         id: true,
         email: true,
+        displayId: true,
         areaId: true,
         name: true,
         profileImage: true,
@@ -193,13 +208,13 @@ router.patch('/me',
       id: updatedUser.id,
       profileImage: updatedUser.profileImage,
       name: updatedUser.name,
-      areaId: updatedUser.areaId
+      displayId: updatedUser.displayId
     });
 
     // プロフィールの完全性を再計算
     const missingFields = [];
     if (!updatedUser.name) missingFields.push('name');
-    if (!updatedUser.areaId) missingFields.push('areaId');
+    if (!updatedUser.displayId) missingFields.push('displayId');
     if (!updatedUser.profileImage) missingFields.push('profileImage');
     const profileComplete = missingFields.length === 0;
 
@@ -211,6 +226,7 @@ router.patch('/me',
       user: {
         id: updatedUser.id,
         email: updatedUser.email,
+        displayId: updatedUser.displayId,
         areaId: updatedUser.areaId,
         name: updatedUser.name,
         profileImage: updatedUser.profileImage,
@@ -226,17 +242,18 @@ router.patch('/me',
   }
 });
 
-// Search users by Area ID
-router.get('/search/:areaId', async (req: AuthRequest, res: Response) => {
+// Search users by Display ID
+router.get('/search/:displayId', async (req: AuthRequest, res: Response) => {
   try {
-    const { areaId } = req.params;
+    const { displayId } = req.params;
 
     const user = await prisma.user.findUnique({
-      where: { areaId },
+      where: { displayId },
       select: {
         id: true,
         name: true,
-        areaId: true
+        displayId: true,
+        profileImage: true
       }
     });
 
@@ -269,15 +286,15 @@ router.get('/search', async (req: AuthRequest, res: Response) => {
       id: { not: req.user!.id } // 自分自身を除外
     };
 
-    if (type === 'areaId') {
-      whereClause.areaId = { contains: query, mode: 'insensitive' };
+    if (type === 'displayId') {
+      whereClause.displayId = { contains: query, mode: 'insensitive' };
     } else if (type === 'username') {
       whereClause.name = { contains: query, mode: 'insensitive' };
     } else {
       // デフォルトは両方で検索
       whereClause.OR = [
         { name: { contains: query, mode: 'insensitive' } },
-        { areaId: { contains: query, mode: 'insensitive' } }
+        { displayId: { contains: query, mode: 'insensitive' } }
       ];
     }
 
@@ -286,7 +303,7 @@ router.get('/search', async (req: AuthRequest, res: Response) => {
       select: {
         id: true,
         name: true,
-        areaId: true,
+        displayId: true,
         profileImage: true
       },
       take: 20
