@@ -237,11 +237,16 @@ router.get('/friends', async (req: AuthRequest, res: Response) => {
     const friendIds = Array.from(friendIdsSet);
     console.log(`友達ID一覧（重複排除後）: ${JSON.stringify(friendIds)}`);
     
-    // ユーザーごとに「本当に最新の1件」を厳密に取得
+    // ユーザーごとに「本当に最新の1件」を厳密に取得（30分以内の位置情報のみ有効）
+    const validSince = new Date(Date.now() - 30 * 60 * 1000); // 30分前
     const latestLocationList = await Promise.all(
       friendIds.map(async (fid) => {
         return prisma.location.findFirst({
-          where: { userId: fid, areaId: currentAreaId },
+          where: { 
+            userId: fid, 
+            areaId: currentAreaId,
+            createdAt: { gte: validSince }  // 30分以内の位置情報のみ
+          },
           orderBy: { createdAt: 'desc' }
         });
       })
@@ -255,9 +260,10 @@ router.get('/friends', async (req: AuthRequest, res: Response) => {
       }
     });
 
-    console.log(`取得した位置情報数: ${userIdToLatestLocation.size}`);
+    console.log(`取得した位置情報数: ${userIdToLatestLocation.size} (30分以内の有効データ)`);
     userIdToLatestLocation.forEach((loc) => {
-      console.log(`位置情報 - userId: ${loc!.userId}, lat: ${loc!.latitude}, lng: ${loc!.longitude}, areaId: ${loc!.areaId}`);
+      const timeAgo = Math.round((Date.now() - loc!.createdAt.getTime()) / 1000 / 60);
+      console.log(`位置情報 - userId: ${loc!.userId}, lat: ${loc!.latitude}, lng: ${loc!.longitude}, areaId: ${loc!.areaId}, ${timeAgo}分前`);
     });
 
     // 友達情報と位置情報を結合（重複を排除）

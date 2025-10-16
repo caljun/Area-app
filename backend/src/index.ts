@@ -96,12 +96,35 @@ export const prisma = new PrismaClient({
   log: process.env.NODE_ENV === 'development' ? ['query', 'error', 'warn'] : ['error'],
 });
 
+// 古い位置情報の自動削除機能
+async function cleanupOldLocations() {
+  try {
+    // 1時間前より古い位置情報を削除
+    const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000);
+    const result = await prisma.location.deleteMany({
+      where: {
+        createdAt: { lt: oneHourAgo }
+      }
+    });
+    
+    if (result.count > 0) {
+      console.log(`🧹 古い位置情報をクリーンアップ: ${result.count}件削除 (1時間前より古いデータ)`);
+    }
+  } catch (error) {
+    console.error('❌ 古い位置情報のクリーンアップに失敗:', error);
+  }
+}
+
 // データベース接続テスト
 prisma.$connect()
   .then(() => {
     console.log('✅ Database connected successfully');
     // Firebase Admin SDKの初期化
     initializeFirebaseAdmin();
+    
+    // サーバー起動時にクリーンアップを実行し、その後30分ごとに実行
+    cleanupOldLocations();
+    setInterval(cleanupOldLocations, 30 * 60 * 1000); // 30分間隔
   })
   .catch((error) => {
     console.error('❌ Database connection failed:', error);
@@ -305,16 +328,23 @@ io.on('connection', (socket) => {
       try {
         const user = await prisma.user.findUnique({
           where: { id: (decoded as JWTPayload).userId },
-          select: { id: true, name: true, profileImage: true }
+          select: { id: true, name: true, profileImage: true, areaId: true }
         });
         
         if (user) {
           socket.data.userId = user.id;
           socket.data.userName = user.name;
           socket.data.profileImage = user.profileImage;
+          socket.data.currentAreaId = user.areaId; // 現在のエリアIDを設定
           
           // ユーザールームに参加
           socket.join(`user_${user.id}`);
+          
+          // 現在のエリアに参加している場合は、エリアRoomにも自動参加
+          if (user.areaId) {
+            socket.join(`area_${user.areaId}`);
+            console.log(`WebSocket: User ${user.name} (${user.id}) 自動でエリアRoom参加 - areaId: ${user.areaId}`);
+          }
           
           // 認証成功を通知
           socket.emit('connection', {
@@ -322,7 +352,8 @@ io.on('connection', (socket) => {
             data: {
               status: 'connected',
               userId: user.id,
-              userName: user.name
+              userName: user.name,
+              currentAreaId: user.areaId
             }
           });
           
@@ -349,16 +380,24 @@ io.on('connection', (socket) => {
         const decoded = jwt.verify(token, process.env.JWT_SECRET || 'fallback-secret') as JWTPayload;
         const user = await prisma.user.findUnique({
           where: { id: decoded.userId },
-          select: { id: true, name: true, profileImage: true }
+          select: { id: true, name: true, profileImage: true, areaId: true }
         });
         
         if (user) {
           socket.data.userId = user.id;
           socket.data.userName = user.name;
           socket.data.profileImage = user.profileImage;
+          socket.data.currentAreaId = user.areaId; // 現在のエリアIDを設定
           
           socket.join(`user_${user.id}`);
-          socket.emit('authenticated', { userId: user.id });
+          
+          // 現在のエリアに参加している場合は、エリアRoomにも自動参加
+          if (user.areaId) {
+            socket.join(`area_${user.areaId}`);
+            console.log(`WebSocket: User ${user.name} (${user.id}) 自動でエリアRoom参加 - areaId: ${user.areaId}`);
+          }
+          
+          socket.emit('authenticated', { userId: user.id, currentAreaId: user.areaId });
           console.log(`WebSocket: User ${user.name} (${user.id}) authenticated`);
         } else {
           socket.emit('auth_error', { message: 'Invalid user' });
@@ -428,6 +467,36 @@ io.on('connection', (socket) => {
       
       if (isAreaEntry || isAreaExit || isAreaChange) {
         console.log(`🎯 エリア状態変化検知: ${isAreaEntry ? '入場' : isAreaExit ? '退場' : '変更'} (${previousAreaId || 'なし'} → ${currentAreaId || 'なし'})`);
+        
+        // エリア退場時は古い位置情報を削除
+        if (isAreaExit && previousAreaId) {
+          try {
+            const deletedCount = await prisma.location.deleteMany({
+              where: { 
+                userId: socket.data.userId,
+                areaId: previousAreaId 
+              }
+            });
+            console.log(`🗑️ エリア退場: 古い位置情報を削除 - ${deletedCount.count}件削除 (areaId: ${previousAreaId})`);
+          } catch (deleteError) {
+            console.error('❌ エリア退場時の位置情報削除に失敗:', deleteError);
+          }
+        }
+        
+        // エリア変更時も古いエリアの位置情報を削除
+        if (isAreaChange && previousAreaId) {
+          try {
+            const deletedCount = await prisma.location.deleteMany({
+              where: { 
+                userId: socket.data.userId,
+                areaId: previousAreaId 
+              }
+            });
+            console.log(`🗑️ エリア変更: 古いエリアの位置情報を削除 - ${deletedCount.count}件削除 (areaId: ${previousAreaId})`);
+          } catch (deleteError) {
+            console.error('❌ エリア変更時の位置情報削除に失敗:', deleteError);
+          }
+        }
       }
 
       // 位置情報更新データ
