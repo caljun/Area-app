@@ -12,7 +12,7 @@ datasource db {
 
 model User {
   id        String   @id @default(auto()) @map("_id") @db.ObjectId
-  displayId String   @unique              // ユーザー入力ID（検索用）
+  displayId String?                      // ユーザー入力ID（検索用）
   email     String   @unique
   areaId    String?  @unique
   name      String?  // Apple IDユーザーは名前がない場合があるためオプショナル

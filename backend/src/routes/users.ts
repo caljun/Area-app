@@ -46,8 +46,11 @@ router.put('/profile', async (req: AuthRequest, res: Response) => {
 
     // displayIdが更新される場合、重複チェック
     if (displayId && displayId !== req.user!.displayId) {
-      const existingUser = await prisma.user.findUnique({
-        where: { displayId }
+      const existingUser = await prisma.user.findFirst({
+        where: { 
+          displayId: displayId,
+          id: { not: req.user!.id }
+        }
       });
       if (existingUser) {
         return res.status(409).json({ error: 'このDisplay IDは既に使用されています' });
@@ -180,8 +183,11 @@ router.patch('/me',
 
     // displayIdが更新される場合、重複チェック
     if (displayId && displayId !== req.user!.displayId) {
-      const existingUser = await prisma.user.findUnique({
-        where: { displayId }
+      const existingUser = await prisma.user.findFirst({
+        where: { 
+          displayId: displayId,
+          id: { not: req.user!.id }
+        }
       });
       if (existingUser) {
         return res.status(409).json({ error: 'このDisplay IDは既に使用されています' });
