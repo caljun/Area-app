@@ -493,17 +493,14 @@ router.post('/apple', async (req: Request, res: Response) => {
       return res.status(401).json({ error: 'Apple IDトークンの検証に失敗しました' });
     }
 
-    // displayIdが提供されていない場合、userIDをdisplayIdとして使用
-    const finalDisplayId = userID;
+    // Apple認証ではdisplayIdを空にして、ユーザーが後で設定する
+    const finalDisplayId = "";
 
     try {
-      // Apple User IDまたはDisplay IDで既存ユーザーを検索
+      // Apple User IDで既存ユーザーを検索
       let user = await prisma.user.findFirst({
         where: {
-          OR: [
-            { email: `apple_${userID}@temp.com` }, // Apple IDユーザー用の一時メール
-            { displayId: finalDisplayId } // 指定されたDisplay IDまたはUser ID
-          ]
+          email: `apple_${userID}@temp.com` // Apple IDユーザー用の一時メール
         },
         select: {
           id: true,

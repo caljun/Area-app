@@ -106,10 +106,30 @@ router.patch('/me',
     console.log('🔄 プロフィール更新リクエスト開始');
     console.log('📋 リクエストヘッダー:', req.headers);
     console.log('📦 リクエストボディ:', req.body);
-    uploadSingleProfileImage(req, res, next);
+    
+    // Content-Typeがmultipart/form-dataかチェック
+    const contentType = req.headers['content-type'];
+    console.log('🔍 Content-Type:', contentType);
+    
+    if (contentType && contentType.includes('multipart/form-data')) {
+      console.log('📷 画像アップロードあり - multer処理実行');
+      uploadSingleProfileImage(req, res, next);
+    } else {
+      console.log('📝 テキストのみ - multer処理スキップ');
+      next();
+    }
   },
   handleUploadError,
-  validateCloudinaryUpload,
+  // 画像がアップロードされている場合のみCloudinary検証を実行
+  (req: any, res: any, next: any) => {
+    if (req.file) {
+      console.log('🔍 画像アップロード検出 - Cloudinary検証実行');
+      validateCloudinaryUpload(req, res, next);
+    } else {
+      console.log('📝 画像なし - Cloudinary検証スキップ');
+      next();
+    }
+  },
   async (req: AuthRequest, res: Response) => {
   try {
     console.log('🔍 プロフィール更新処理開始');

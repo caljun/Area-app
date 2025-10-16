@@ -113,16 +113,28 @@ export const uploadSingleProfileImage = (req: any, res: any, next: any) => {
   console.log('🔄 uploadSingleProfileImage開始');
   console.log('📋 リクエストヘッダー:', req.headers);
   console.log('📦 リクエストボディ:', req.body);
+  console.log('🔍 Content-Type:', req.headers['content-type']);
   
   return upload.single('profileImage')(req, res, async (err: any) => {
     if (err) {
       console.error('❌ multer.single エラー:', err);
+      console.error('❌ エラー詳細:', err.message);
       return next(err);
     }
     
     console.log('✅ multer.single 完了');
     console.log('📁 処理後のreq.file:', req.file);
     console.log('📄 処理後のreq.body:', req.body);
+    
+    // req.fileがundefinedの場合の詳細ログ
+    if (!req.file) {
+      console.log('⚠️ req.file が undefined です');
+      console.log('🔍 リクエストの詳細を確認:');
+      console.log('  - Content-Type:', req.headers['content-type']);
+      console.log('  - Content-Length:', req.headers['content-length']);
+      console.log('  - req.body keys:', Object.keys(req.body || {}));
+      console.log('  - req.body values:', req.body);
+    }
     
     // ファイルが存在する場合、Cloudinaryに直接アップロード
     if (req.file) {
