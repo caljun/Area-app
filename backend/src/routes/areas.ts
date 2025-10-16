@@ -225,17 +225,17 @@ router.get('/joined', async (req: AuthRequest, res: Response) => {
       }
     }
 
-    // Include all areas where user is a member, including owned areas
-    // This ensures that area owners can see their own areas in the joined list
+    // Exclude areas owned by the user to ensure "joined" means non-owned memberships
+    // エリア作成者（オーナー）は参加エリアから除外する
     const joinedAreas = memberships
-      .filter(m => m.area) // Only include memberships with valid areas
+      .filter(m => m.area && m.area.userId !== req.user!.id) // 作成者は除外
       .map(m => m.area!);
 
-    console.log(`参加エリアフィルタリング完了 - 参加エリア数: ${joinedAreas.length}`);
+    console.log(`参加エリアフィルタリング完了 - 参加エリア数: ${joinedAreas.length} (作成エリア除外後)`);
     
     // フィルタリング後の詳細ログ
     for (const area of joinedAreas) {
-      console.log(`参加エリア詳細 - areaId: ${area.id}, areaName: ${area.name}, areaOwner: ${area.userId}`);
+      console.log(`参加エリア詳細 - areaId: ${area.id}, areaName: ${area.name}, areaOwner: ${area.userId} (作成者: ${req.user!.id})`);
     }
 
     const apiAreas = await Promise.all(joinedAreas.map(async (area) => {
