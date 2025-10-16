@@ -124,7 +124,7 @@ router.post('/register/step2', async (req: Request, res: Response) => {
     const { email, displayId } = step2Schema.parse(req.body);
 
     // Display IDの重複チェック
-    const existingUser = await prisma.user.findUnique({
+    const existingUser = await prisma.user.findFirst({
       where: { displayId }
     });
 
@@ -546,7 +546,7 @@ router.post('/apple', async (req: Request, res: Response) => {
         });
       } else {
         // 新規ユーザーの場合、Display IDの重複チェック
-        const existingDisplayId = await prisma.user.findUnique({
+        const existingDisplayId = await prisma.user.findFirst({
           where: { displayId: finalDisplayId }
         });
 
