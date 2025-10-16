@@ -214,7 +214,7 @@ router.post('/requests', async (req: AuthRequest, res: Response) => {
   try {
     const { toUserId, message } = sendFriendRequestSchema.parse(req.body);
 
-    // Resolve receiver by id or areaId (handle)
+    // Resolve receiver by id or displayId (handle)
     const resolveReceiver = async (identifier: string) => {
       // Check if identifier is a valid ObjectID (24 hex characters)
       const isObjectId = /^[0-9a-fA-F]{24}$/.test(identifier);
@@ -225,9 +225,9 @@ router.post('/requests', async (req: AuthRequest, res: Response) => {
         if (byId) return byId;
       }
       
-      // Fallback to areaId (unique handle)
-      const byAreaId = await prisma.user.findUnique({ where: { areaId: identifier } });
-      return byAreaId;
+      // Fallback to displayId (unique handle)
+      const byDisplayId = await prisma.user.findUnique({ where: { displayId: identifier } });
+      return byDisplayId;
     };
 
     const receiver = await resolveReceiver(toUserId);
@@ -675,6 +675,94 @@ router.put('/area-request/:requestId', async (req: AuthRequest, res: Response) =
     }
     
     console.error('Respond to area request error:', error);
+    return res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// Search friends by displayId
+router.get('/search', async (req: AuthRequest, res: Response) => {
+  try {
+    const { query, type = 'displayId' } = req.query;
+    
+    if (!query) {
+      return res.status(400).json({ error: 'Search query is required' });
+    }
+
+    let users;
+    
+    if (type === 'displayId') {
+      // Search by displayId
+      users = await prisma.user.findMany({
+        where: {
+          displayId: {
+            contains: query as string,
+            mode: 'insensitive'
+          },
+          id: {
+            not: req.user!.id // Exclude current user
+          }
+        },
+        select: {
+          id: true,
+          displayId: true,
+          name: true,
+          profileImage: true,
+          createdAt: true
+        },
+        take: 10
+      });
+    } else {
+      // Search by name
+      users = await prisma.user.findMany({
+        where: {
+          name: {
+            contains: query as string,
+            mode: 'insensitive'
+          },
+          id: {
+            not: req.user!.id // Exclude current user
+          }
+        },
+        select: {
+          id: true,
+          displayId: true,
+          name: true,
+          profileImage: true,
+          createdAt: true
+        },
+        take: 10
+      });
+    }
+
+    // Check if users are already friends
+    const userIds = users.map(user => user.id);
+    const friendships = await prisma.friend.findMany({
+      where: {
+        OR: [
+          { userId: req.user!.id, friendId: { in: userIds } },
+          { friendId: req.user!.id, userId: { in: userIds } }
+        ]
+      } as any
+    });
+
+    const friendIds = new Set();
+    friendships.forEach(friendship => {
+      if (friendship.userId === req.user!.id) {
+        friendIds.add(friendship.friendId);
+      } else {
+        friendIds.add(friendship.userId);
+      }
+    });
+
+    // Add friendship status to results
+    const results = users.map(user => ({
+      ...user,
+      isFriend: friendIds.has(user.id)
+    }));
+
+    return res.json(results);
+  } catch (error) {
+    console.error('Search friends error:', error);
     return res.status(500).json({ error: 'Internal server error' });
   }
 });

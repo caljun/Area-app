@@ -796,13 +796,25 @@ router.get('/memberships', async (req: AuthRequest, res: Response) => {
 router.post('/:id/invite', async (req: AuthRequest, res: Response) => {
   try {
     const { id } = req.params;
-    const { userId } = req.body; // フロントエンドのAreaAPI.swiftに合わせてuserIdに変更
+    const { displayId } = req.body; // displayIdで友達を検索
 
-    console.log(`エリア招待リクエスト - areaId: ${id}, userId: ${userId}, invitedBy: ${req.user!.id}`);
+    console.log(`エリア招待リクエスト - areaId: ${id}, displayId: ${displayId}, invitedBy: ${req.user!.id}`);
 
-    if (!userId) {
-      return res.status(400).json({ error: 'User ID is required' });
+    if (!displayId) {
+      return res.status(400).json({ error: 'Display ID is required' });
     }
+
+    // displayIdからuserIdを取得
+    const targetUser = await prisma.user.findUnique({
+      where: { displayId },
+      select: { id: true, name: true }
+    });
+
+    if (!targetUser) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    const userId = targetUser.id;
 
     // Check if area belongs to user
     const area = await prisma.area.findFirst({

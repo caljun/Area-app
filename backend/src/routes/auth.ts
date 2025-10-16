@@ -33,7 +33,7 @@ const upload = multer({
 // Validation schemas
 const registerSchema = z.object({
   email: z.string().email('メールアドレスの形式が正しくありません'),
-  areaId: z.string().min(3, 'Area IDは3文字以上で入力してください'),
+  displayId: z.string().min(3, 'Display IDは3文字以上で入力してください'),
   name: z.string().min(1, 'ユーザー名は必須です'),
   password: z.string().min(8, 'パスワードは8文字以上で入力してください'),
   profileImage: z.string().url('プロフィール画像のURLが正しくありません').optional()
@@ -46,25 +46,25 @@ const step1Schema = z.object({
 
 const step2Schema = z.object({
   email: z.string().email('メールアドレスの形式が正しくありません'),
-  areaId: z.string().min(3, 'Area IDは3文字以上で入力してください')
+  displayId: z.string().min(3, 'Display IDは3文字以上で入力してください')
 });
 
 const step3Schema = z.object({
   email: z.string().email('メールアドレスの形式が正しくありません'),
-  areaId: z.string().min(3, 'Area IDは3文字以上で入力してください'),
+  displayId: z.string().min(3, 'Display IDは3文字以上で入力してください'),
   name: z.string().min(1, 'ユーザー名は必須です')
 });
 
 const step4Schema = z.object({
   email: z.string().email('メールアドレスの形式が正しくありません'),
-  areaId: z.string().min(3, 'Area IDは3文字以上で入力してください'),
+  displayId: z.string().min(3, 'Display IDは3文字以上で入力してください'),
   name: z.string().min(1, 'ユーザー名は必須です'),
   password: z.string().min(8, 'パスワードは8文字以上で入力してください')
 });
 
 const step5Schema = z.object({
   email: z.string().email('メールアドレスの形式が正しくありません'),
-  areaId: z.string().min(3, 'Area IDは3文字以上で入力してください'),
+  displayId: z.string().min(3, 'Display IDは3文字以上で入力してください'),
   name: z.string().min(1, 'ユーザー名は必須です'),
   password: z.string().min(8, 'パスワードは8文字以上で入力してください'),
   profileImage: z.string().url('プロフィール画像のURLが正しくありません').optional()
@@ -118,26 +118,26 @@ router.post('/register/step1', async (req: Request, res: Response) => {
   }
 });
 
-// Step 2: Now ID確認
+// Step 2: Display ID確認
 router.post('/register/step2', async (req: Request, res: Response) => {
   try {
-    const { email, areaId } = step2Schema.parse(req.body);
+    const { email, displayId } = step2Schema.parse(req.body);
 
-    // Now IDの重複チェック
+    // Display IDの重複チェック
     const existingUser = await prisma.user.findUnique({
-      where: { areaId }
+      where: { displayId }
     });
 
     if (existingUser) {
       return res.status(400).json({
-        error: 'このNow IDは既に使用されています'
+        error: 'このDisplay IDは既に使用されています'
       });
     }
 
     return res.status(200).json({
-      message: 'Now IDが確認されました',
+      message: 'Display IDが確認されました',
       email,
-      areaId,
+      displayId,
       nextStep: 'step3'
     });
   } catch (error) {
@@ -156,12 +156,12 @@ router.post('/register/step2', async (req: Request, res: Response) => {
 // Step 3: ユーザー名確認
 router.post('/register/step3', async (req: Request, res: Response) => {
   try {
-    const { email, areaId, name } = step3Schema.parse(req.body);
+    const { email, displayId, name } = step3Schema.parse(req.body);
 
     return res.status(200).json({
       message: 'ユーザー名が確認されました',
       email,
-      areaId,
+      displayId,
       name,
       nextStep: 'step4'
     });
@@ -181,12 +181,12 @@ router.post('/register/step3', async (req: Request, res: Response) => {
 // Step 4: パスワード確認
 router.post('/register/step4', async (req: Request, res: Response) => {
   try {
-    const { email, areaId, name, password } = step4Schema.parse(req.body);
+    const { email, displayId, name, password } = step4Schema.parse(req.body);
 
     return res.status(200).json({
       message: 'パスワードが確認されました',
       email,
-      areaId,
+      displayId,
       name,
       nextStep: 'step5'
     });
@@ -206,21 +206,21 @@ router.post('/register/step4', async (req: Request, res: Response) => {
 // Step 5: プロフィール画像設定とユーザー作成
 router.post('/register/step5', async (req: Request, res: Response) => {
   try {
-    const { email, areaId, name, password, profileImage } = step5Schema.parse(req.body);
+    const { email, displayId, name, password, profileImage } = step5Schema.parse(req.body);
 
     // 最終的な重複チェック
     const existingUser = await prisma.user.findFirst({
       where: {
         OR: [
           { email },
-          { areaId }
+          { displayId }
         ]
       }
     });
 
     if (existingUser) {
       return res.status(400).json({
-        error: existingUser.email === email ? 'このメールアドレスは既に登録されています' : 'このNow IDは既に使用されています'
+        error: existingUser.email === email ? 'このメールアドレスは既に登録されています' : 'このDisplay IDは既に使用されています'
       });
     }
 
@@ -231,7 +231,7 @@ router.post('/register/step5', async (req: Request, res: Response) => {
     const user = await prisma.user.create({
       data: {
         email,
-        areaId,
+        displayId,
         name,
         password: hashedPassword,
         profileImage: profileImage || null
@@ -239,7 +239,7 @@ router.post('/register/step5', async (req: Request, res: Response) => {
       select: {
         id: true,
         email: true,
-        areaId: true,
+        displayId: true,
         name: true,
         profileImage: true,
         createdAt: true
@@ -256,7 +256,7 @@ router.post('/register/step5', async (req: Request, res: Response) => {
     // 新規登録ユーザーの場合、プロフィールの完全性をチェック
     const missingFields = [];
     if (!user.name) missingFields.push('name');
-    if (!user.areaId) missingFields.push('areaId');
+    if (!user.displayId) missingFields.push('displayId');
     if (!user.profileImage) missingFields.push('profileImage');
     const profileComplete = missingFields.length === 0;
 
@@ -294,13 +294,13 @@ router.post('/register', (upload.single('profileImage') as unknown as RequestHan
     });
     
     // マルチパートフォームデータの場合の処理
-    let email, areaId, name, password, profileImage;
+    let email, displayId, name, password, profileImage;
     
     if (req.headers['content-type']?.includes('multipart/form-data')) {
       console.log('Processing multipart form data');
       // マルチパートフォームデータから値を取得
       email = req.body.email;
-      areaId = req.body.areaId;
+      displayId = req.body.displayId;
       name = req.body.name;
       password = req.body.password;
       
@@ -319,13 +319,13 @@ router.post('/register', (upload.single('profileImage') as unknown as RequestHan
         profileImage = req.body.profileImage;
       }
       
-      console.log('Extracted from multipart:', { email, areaId, name, hasPassword: !!password, hasProfileImage: !!profileImage, hasFile: !!req.file });
+      console.log('Extracted from multipart:', { email, displayId, name, hasPassword: !!password, hasProfileImage: !!profileImage, hasFile: !!req.file });
     } else {
       console.log('Processing JSON data');
       // 通常のJSONボディの場合
       const parsed = registerSchema.parse(req.body);
       email = parsed.email;
-      areaId = parsed.areaId;
+      displayId = parsed.displayId;
       name = parsed.name;
       password = parsed.password;
       profileImage = parsed.profileImage;
@@ -336,8 +336,8 @@ router.post('/register', (upload.single('profileImage') as unknown as RequestHan
       if (!email || !email.includes('@')) {
         return res.status(400).json({ error: 'メールアドレスの形式が正しくありません' });
       }
-      if (!areaId || areaId.length < 3) {
-        return res.status(400).json({ error: 'Area IDは3文字以上で入力してください' });
+      if (!displayId || displayId.length < 3) {
+        return res.status(400).json({ error: 'Display IDは3文字以上で入力してください' });
       }
       if (!name || name.trim().length < 1) {
         return res.status(400).json({ error: 'ユーザー名は必須です' });
@@ -352,7 +352,7 @@ router.post('/register', (upload.single('profileImage') as unknown as RequestHan
       where: {
         OR: [
           { email },
-          { areaId }
+          { displayId }
         ]
       }
     });
@@ -364,7 +364,7 @@ router.post('/register', (upload.single('profileImage') as unknown as RequestHan
         });
       } else {
         return res.status(409).json({
-          error: 'このArea IDは既に使用されています'
+          error: 'このDisplay IDは既に使用されています'
         });
       }
     }
@@ -376,7 +376,7 @@ router.post('/register', (upload.single('profileImage') as unknown as RequestHan
     const user = await prisma.user.create({
       data: {
         email,
-        areaId,
+        displayId,
         name,
         password: hashedPassword,
         profileImage: profileImage || null
@@ -384,7 +384,7 @@ router.post('/register', (upload.single('profileImage') as unknown as RequestHan
       select: {
         id: true,
         email: true,
-        areaId: true,
+        displayId: true,
         name: true,
         profileImage: true,
         createdAt: true
@@ -401,7 +401,7 @@ router.post('/register', (upload.single('profileImage') as unknown as RequestHan
     // 新規登録ユーザーの場合、プロフィールの完全性をチェック
     const missingFields = [];
     if (!user.name) missingFields.push('name');
-    if (!user.areaId) missingFields.push('areaId');
+    if (!user.displayId) missingFields.push('displayId');
     if (!user.profileImage) missingFields.push('profileImage');
     const profileComplete = missingFields.length === 0;
 
@@ -410,7 +410,7 @@ router.post('/register', (upload.single('profileImage') as unknown as RequestHan
       user: {
         id: user.id,
         email: user.email,
-        areaId: user.areaId,
+        displayId: user.displayId,
         name: user.name,
         profileImage: user.profileImage,
         createdAt: user.createdAt
@@ -493,22 +493,22 @@ router.post('/apple', async (req: Request, res: Response) => {
       return res.status(401).json({ error: 'Apple IDトークンの検証に失敗しました' });
     }
 
-    // areaIdが提供されていない場合、userIDをareaIdとして使用
-    const finalAreaId = userID;
+    // displayIdが提供されていない場合、userIDをdisplayIdとして使用
+    const finalDisplayId = userID;
 
     try {
-      // Apple User IDまたはArea IDで既存ユーザーを検索
+      // Apple User IDまたはDisplay IDで既存ユーザーを検索
       let user = await prisma.user.findFirst({
         where: {
           OR: [
             { email: `apple_${userID}@temp.com` }, // Apple IDユーザー用の一時メール
-            { areaId: finalAreaId } // 指定されたArea IDまたはUser ID
+            { displayId: finalDisplayId } // 指定されたDisplay IDまたはUser ID
           ]
         },
         select: {
           id: true,
           email: true,
-          areaId: true,
+          displayId: true,
           name: true,
           profileImage: true,
           createdAt: true
@@ -526,7 +526,7 @@ router.post('/apple', async (req: Request, res: Response) => {
         // プロフィールの完全性をチェック
         const missingFields = [];
         if (!user.name) missingFields.push('name');
-        if (!user.areaId) missingFields.push('areaId');
+        if (!user.displayId) missingFields.push('displayId');
         if (!user.profileImage) missingFields.push('profileImage');
         const profileComplete = missingFields.length === 0;
 
@@ -535,7 +535,7 @@ router.post('/apple', async (req: Request, res: Response) => {
           user: {
             id: user.id,
             email: user.email,
-            areaId: user.areaId,
+            displayId: user.displayId,
             name: user.name,
             profileImage: user.profileImage,
             createdAt: user.createdAt
@@ -545,14 +545,14 @@ router.post('/apple', async (req: Request, res: Response) => {
           missingFields
         });
       } else {
-        // 新規ユーザーの場合、Area IDの重複チェック
-        const existingAreaId = await prisma.user.findUnique({
-          where: { areaId: finalAreaId }
+        // 新規ユーザーの場合、Display IDの重複チェック
+        const existingDisplayId = await prisma.user.findUnique({
+          where: { displayId: finalDisplayId }
         });
 
-        if (existingAreaId) {
+        if (existingDisplayId) {
           return res.status(400).json({
-            error: 'このArea IDは既に使用されています'
+            error: 'このDisplay IDは既に使用されています'
           });
         }
 
@@ -560,7 +560,7 @@ router.post('/apple', async (req: Request, res: Response) => {
         const newUser = await prisma.user.create({
           data: {
             email: `apple_${userID}@temp.com`, // Apple IDユーザー用の一時メール
-            areaId: finalAreaId,
+            displayId: finalDisplayId,
             name: name || `Apple User ${userID.slice(-4)}`, // 名前がない場合はデフォルト名
             password: null, // Apple IDユーザーはパスワードなし
             profileImage: null
@@ -568,7 +568,7 @@ router.post('/apple', async (req: Request, res: Response) => {
           select: {
             id: true,
             email: true,
-            areaId: true,
+            displayId: true,
             name: true,
             profileImage: true,
             createdAt: true
@@ -590,7 +590,7 @@ router.post('/apple', async (req: Request, res: Response) => {
           user: {
             id: newUser.id,
             email: newUser.email,
-            areaId: newUser.areaId,
+            displayId: newUser.displayId,
             name: newUser.name,
             profileImage: newUser.profileImage,
             createdAt: newUser.createdAt
@@ -651,7 +651,7 @@ router.post('/login', async (req: Request, res: Response) => {
     // プロフィールの完全性をチェック
     const missingFields = [];
     if (!user.name) missingFields.push('name');
-    if (!user.areaId) missingFields.push('areaId');
+    if (!user.displayId) missingFields.push('displayId');
     if (!user.profileImage) missingFields.push('profileImage');
     const profileComplete = missingFields.length === 0;
 
@@ -660,7 +660,7 @@ router.post('/login', async (req: Request, res: Response) => {
       user: {
         id: user.id,
         email: user.email,
-        areaId: user.areaId,
+        displayId: user.displayId,
         name: user.name,
         profileImage: user.profileImage,
         createdAt: user.createdAt
@@ -691,7 +691,7 @@ router.get('/me', authMiddleware, async (req: AuthRequest, res: Response) => {
       select: {
         id: true,
         email: true,
-        areaId: true,
+        displayId: true,
         name: true,
         profileImage: true,
         createdAt: true
@@ -701,7 +701,7 @@ router.get('/me', authMiddleware, async (req: AuthRequest, res: Response) => {
     // プロフィールの完全性をチェック
     const missingFields = [];
     if (!user.name) missingFields.push('name');
-    if (!user.areaId) missingFields.push('areaId');
+    if (!user.displayId) missingFields.push('displayId');
     if (!user.profileImage) missingFields.push('profileImage');
     const profileComplete = missingFields.length === 0;
     
@@ -710,7 +710,7 @@ router.get('/me', authMiddleware, async (req: AuthRequest, res: Response) => {
       user: {
         id: user.id,
         email: user.email,
-        areaId: user.areaId,
+        displayId: user.displayId,
         name: user.name,
         profileImage: user.profileImage,
         createdAt: user.createdAt
@@ -734,7 +734,7 @@ router.get('/session', authMiddleware, async (req: AuthRequest, res: Response) =
       select: {
         id: true,
         email: true,
-        areaId: true,
+        displayId: true,
         name: true,
         profileImage: true,
         createdAt: true
@@ -744,7 +744,7 @@ router.get('/session', authMiddleware, async (req: AuthRequest, res: Response) =
     // プロフィールの完全性をチェック
     const missingFields = [];
     if (!user.name) missingFields.push('name');
-    if (!user.areaId) missingFields.push('areaId');
+    if (!user.displayId) missingFields.push('displayId');
     if (!user.profileImage) missingFields.push('profileImage');
     const profileComplete = missingFields.length === 0;
     
@@ -753,7 +753,7 @@ router.get('/session', authMiddleware, async (req: AuthRequest, res: Response) =
       user: {
         id: user.id,
         email: user.email,
-        areaId: user.areaId,
+        displayId: user.displayId,
         name: user.name,
         profileImage: user.profileImage,
         createdAt: user.createdAt

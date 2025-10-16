@@ -44,7 +44,7 @@ export const authMiddleware = async (
       select: {
         id: true,
         email: true,
-        areaId: true,
+        displayId: true,
         name: true
       }
     });
