@@ -603,41 +603,31 @@ router.get('/:id/members', async (req: AuthRequest, res: Response) => {
       orderBy: { createdAt: 'asc' }
     });
 
-    // 友達関係を確認して、友達のみを表示するかチェック
-    // エリア作成者の場合は全メンバーを表示、そうでない場合は友達のみ表示
-    let filteredMembers = members;
+    // 友達関係を確認（フロント側で友達申請ボタンの表示判定に使用）
+    const memberIds = members.map(m => m.user.id);
     
-    if (area.userId !== req.user!.id) {
-      // エリア作成者でない場合、友達関係があるメンバーのみ表示
-      const memberIds = members.map(m => m.user.id);
-      
-      const friendships = await prisma.friend.findMany({
-        where: {
-          OR: [
-            { userId: req.user!.id, friendId: { in: memberIds } },
-            { friendId: req.user!.id, userId: { in: memberIds } }
-          ]
-        } as any
-      });
+    const friendships = await prisma.friend.findMany({
+      where: {
+        OR: [
+          { userId: req.user!.id, friendId: { in: memberIds } },
+          { friendId: req.user!.id, userId: { in: memberIds } }
+        ]
+      } as any
+    });
 
-      const friendIds = new Set();
-      friendships.forEach(friendship => {
-        if (friendship.userId === req.user!.id) {
-          friendIds.add(friendship.friendId);
-        } else {
-          friendIds.add(friendship.userId);
-        }
-      });
+    const friendIds = new Set();
+    friendships.forEach(friendship => {
+      if (friendship.userId === req.user!.id) {
+        friendIds.add(friendship.friendId);
+      } else {
+        friendIds.add(friendship.userId);
+      }
+    });
 
-      // 友達関係があるメンバーのみフィルタリング（本人も含める）
-      filteredMembers = members.filter(member => 
-        friendIds.has(member.user.id) || member.user.id === req.user!.id
-      );
-      
-      console.log(`エリアメンバー取得: 全${members.length}人中、友達は${filteredMembers.length}人（本人含む）`);
-    } else {
-      console.log(`エリアメンバー取得（作成者）: 全${members.length}人`);
-    }
+    // 全メンバーを返す（フロント側で友達申請ボタンの表示判定を行う）
+    const filteredMembers = members;
+    
+    console.log(`エリアメンバー取得: 全${members.length}人（友達: ${friendIds.size}人）`);
 
     // SwiftUIアプリの期待する形式でレスポンスを返す（Userオブジェクトの配列）
     const memberUsers = filteredMembers.map(member => ({
@@ -646,7 +636,9 @@ router.get('/:id/members', async (req: AuthRequest, res: Response) => {
       areaId: member.user.areaId,
       profileImage: member.user.profileImage,
       createdAt: member.user.createdAt || new Date(),
-      updatedAt: member.user.updatedAt || new Date()
+      updatedAt: member.user.updatedAt || new Date(),
+      isFriend: friendIds.has(member.user.id), // 友達関係の情報を追加
+      isCurrentUser: member.user.id === req.user!.id // 自分自身かどうかの情報を追加
     }));
     
     return res.json(memberUsers);
