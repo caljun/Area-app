@@ -1,7 +1,8 @@
 import { Router, Request, Response } from 'express';
 import { z } from 'zod';
-import { prisma } from '../index';
+import { prisma, io } from '../index';
 import { AuthRequest } from '../middleware/auth';
+import { sendPushNotification } from '../services/firebaseAdmin';
 
 const router = Router();
 
@@ -399,7 +400,7 @@ router.post('/device-token', async (req: AuthRequest, res: Response) => {
   }
 });
 
-// プッシュ通知を送信
+// Firebase Push通知とWebSocket通知を送信
 router.post('/send-push', async (req: AuthRequest, res: Response) => {
   try {
     const { recipientId, title, body, data } = z.object({
@@ -415,38 +416,54 @@ router.post('/send-push', async (req: AuthRequest, res: Response) => {
       select: { deviceToken: true, name: true }
     });
 
-    if (!recipient || !recipient.deviceToken) {
-      return res.status(404).json({ error: '受信者のデバイストークンが見つかりません' });
+    let pushNotificationSent = false;
+    let websocketSent = false;
+
+    // Firebase Push通知を送信
+    if (recipient && recipient.deviceToken) {
+      try {
+        const success = await sendPushNotification(
+          recipient.deviceToken,
+          title,
+          body,
+          data || {}
+        );
+        
+        if (success) {
+          console.log(`プッシュ通知送信成功 - recipientId: ${recipientId}, title: ${title}`);
+          pushNotificationSent = true;
+        } else {
+          console.log(`プッシュ通知送信失敗 - recipientId: ${recipientId}`);
+        }
+      } catch (pushError) {
+        console.error('プッシュ通知送信エラー:', pushError);
+      }
+    } else {
+      console.log(`受信者のデバイストークンが設定されていません - recipientId: ${recipientId}`);
     }
 
-    // プッシュ通知を送信（APNsを使用）
-    const apn = require('apn');
-    const options = {
-      token: {
-        key: process.env.APNS_KEY_PATH || './AuthKey_ZUS86W8Y8Q.p8',
-        keyId: process.env.APNS_KEY_ID || 'ZUS86W8Y8Q',
-        teamId: process.env.APNS_TEAM_ID || 'YOUR_TEAM_ID'
-      },
-      production: process.env.NODE_ENV === 'production'
-    };
-
-    const apnProvider = new apn.Provider(options);
-    const notification = new apn.Notification();
-    
-    notification.alert = {
-      title: title,
-      body: body
-    };
-    notification.badge = 1;
-    notification.sound = 'default';
-    notification.payload = data || {};
-    notification.topic = process.env.APNS_BUNDLE_ID || 'com.anonymous.Area';
-
-    const result = await apnProvider.send(notification, recipient.deviceToken);
-    
-    if (result.failed.length > 0) {
-      console.error('Push notification failed:', result.failed);
-      return res.status(500).json({ error: 'プッシュ通知の送信に失敗しました' });
+    // WebSocket通知を送信
+    try {
+      const recipientSocket = Array.from(io.sockets.sockets.values())
+        .find(socket => socket.data.userId === recipientId);
+      
+      if (recipientSocket) {
+        recipientSocket.emit('general_notification', {
+          type: 'general_notification',
+          title,
+          body,
+          data: data || {},
+          senderId: req.user!.id,
+          message: body
+        });
+        
+        console.log(`WebSocket通知送信成功 - recipientId: ${recipientId}, title: ${title}`);
+        websocketSent = true;
+      } else {
+        console.log(`受信者のWebSocket接続が見つかりません - recipientId: ${recipientId}`);
+      }
+    } catch (websocketError) {
+      console.error('WebSocket通知送信エラー:', websocketError);
     }
 
     // 通知をデータベースに保存
@@ -462,8 +479,9 @@ router.post('/send-push', async (req: AuthRequest, res: Response) => {
     });
 
     return res.json({
-      message: 'プッシュ通知が送信されました',
-      result: result.sent
+      message: '通知が送信されました',
+      pushNotificationSent,
+      websocketSent
     });
   } catch (error) {
     if (error instanceof z.ZodError) {
@@ -473,8 +491,8 @@ router.post('/send-push', async (req: AuthRequest, res: Response) => {
       });
     }
     
-    console.error('Send push notification error:', error);
-    return res.status(500).json({ error: 'プッシュ通知の送信に失敗しました' });
+    console.error('Send notification error:', error);
+    return res.status(500).json({ error: '通知の送信に失敗しました' });
   }
 });
 

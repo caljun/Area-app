@@ -1,6 +1,6 @@
 import { Router, Request, Response } from 'express';
 import { z } from 'zod';
-import { prisma } from '../index';
+import { prisma, io } from '../index';
 import { AuthRequest } from '../middleware/auth';
 import { sendPushNotification } from '../services/firebaseAdmin';
 
@@ -308,7 +308,7 @@ router.post('/requests', async (req: AuthRequest, res: Response) => {
       // 通知作成に失敗しても友達申請は成功とする
     }
 
-    // プッシュ通知を送信
+    // Firebase Push通知を送信
     try {
       if (receiver.deviceToken) {
         const success = await sendPushNotification(
@@ -334,6 +334,30 @@ router.post('/requests', async (req: AuthRequest, res: Response) => {
     } catch (pushError) {
       console.error('友達申請プッシュ通知送信エラー:', pushError);
       // プッシュ通知送信に失敗しても友達申請は成功とする
+    }
+
+    // WebSocket通知も送信（リアルタイム通知）
+    try {
+      // 受信者のWebSocket接続を確認してリアルタイム通知を送信
+      const receiverSocket = Array.from(io.sockets.sockets.values())
+        .find(socket => socket.data.userId === receiver.id);
+      
+      if (receiverSocket) {
+        receiverSocket.emit('friend_request', {
+          type: 'friend_request',
+          requestId: request.id,
+          senderId: req.user!.id,
+          senderName: req.user!.name || 'Unknown',
+          message: `${req.user!.name}さんから友達申請が届いています`
+        });
+        
+        console.log(`友達申請WebSocket通知送信成功 - 受信者: ${receiver.name}, 送信者: ${req.user!.name}`);
+      } else {
+        console.log(`受信者のWebSocket接続が見つかりません - 受信者: ${receiver.name}`);
+      }
+    } catch (websocketError) {
+      console.error('友達申請WebSocket通知送信エラー:', websocketError);
+      // WebSocket通知送信に失敗しても友達申請は成功とする
     }
 
     // フロントのFriendRequestモデルへ整形して返却

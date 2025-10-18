@@ -1,7 +1,8 @@
 import { Router, Request, Response } from 'express';
 import { z } from 'zod';
-import { prisma } from '../index';
+import { prisma, io } from '../index';
 import { AuthRequest } from '../middleware/auth';
+import { sendPushNotificationToMultiple } from '../services/firebaseAdmin';
 
 const router = Router();
 
@@ -921,7 +922,7 @@ router.post('/:id/invite', async (req: AuthRequest, res: Response) => {
       // 通知作成に失敗しても招待は成功とする
     }
 
-    // プッシュ通知を送信
+    // Firebase Push通知を送信
     try {
       // 招待されたユーザーのデバイストークンを取得
       const invitedUser = await prisma.user.findUnique({
@@ -930,9 +931,7 @@ router.post('/:id/invite', async (req: AuthRequest, res: Response) => {
       });
 
       if (invitedUser && invitedUser.deviceToken) {
-        const { sendPushNotificationToMultiple } = await import('../services/firebaseAdmin');
-        
-        await sendPushNotificationToMultiple(
+        const result = await sendPushNotificationToMultiple(
           [invitedUser.deviceToken],
           'エリア招待',
           `${req.user!.name}さんがあなたをエリア「${area.name}」に招待しました`,
@@ -946,13 +945,39 @@ router.post('/:id/invite', async (req: AuthRequest, res: Response) => {
           }
         );
         
-        console.log(`エリア招待プッシュ通知送信完了 - invitedUserId: ${userId}, areaName: ${area.name}`);
+        console.log(`エリア招待プッシュ通知送信完了 - invitedUserId: ${userId}, areaName: ${area.name}, 成功: ${result.successCount}, 失敗: ${result.failureCount}`);
       } else {
         console.log(`プッシュ通知送信スキップ - デバイストークンなし (userId: ${userId})`);
       }
     } catch (pushError) {
-      console.error('Failed to send area invite push notification:', pushError);
-      // プッシュ通知送信に失敗しても招待は成功とする
+      console.error('エリア招待プッシュ通知送信エラー:', pushError);
+      // プッシュ通知送信に失敗してもエリア招待は成功とする
+    }
+
+    // WebSocket通知も送信（リアルタイム通知）
+    try {
+      // 招待ユーザーのWebSocket接続を確認してリアルタイム通知を送信
+      const invitedUserSocket = Array.from(io.sockets.sockets.values())
+        .find(socket => socket.data.userId === userId);
+      
+      if (invitedUserSocket) {
+        invitedUserSocket.emit('area_invite', {
+          type: 'area_invite',
+          invitationId: invitation.id,
+          areaId: area.id,
+          areaName: area.name,
+          senderId: req.user!.id,
+          senderName: req.user!.name || 'Unknown',
+          message: `${req.user!.name}さんがあなたをエリア「${area.name}」に招待しました`
+        });
+        
+        console.log(`エリア招待WebSocket通知送信完了 - invitedUserId: ${userId}, areaName: ${area.name}`);
+      } else {
+        console.log(`招待ユーザーのWebSocket接続が見つかりません - invitedUserId: ${userId}`);
+      }
+    } catch (websocketError) {
+      console.error('エリア招待WebSocket通知送信エラー:', websocketError);
+      // WebSocket通知送信に失敗してもエリア招待は成功とする
     }
 
     return res.status(201).json({
