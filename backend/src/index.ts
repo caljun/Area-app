@@ -53,6 +53,15 @@ interface JWTPayload {
   userId: string;
 }
 
+// 位置情報更新ペイロードの型定義
+interface LocationUpdatePayload {
+  userId: string;
+  areaId: string;
+  latitude: number;
+  longitude: number;
+  timestamp: number;
+}
+
 // Load environment variables
 dotenv.config();
 
@@ -412,14 +421,24 @@ io.on('connection', (socket) => {
 
   // 位置情報更新の処理（Socket.ioイベントのみ）
   // 標準WebSocketメッセージハンドラーは削除して重複を防ぐ
-  socket.on('location_update', async (data: any) => {
+  socket.on('location_update', async (data: LocationUpdatePayload) => {
     await handleLocationUpdate(socket, data);
   });
   
   // 位置情報更新の共通処理関数
-  async function handleLocationUpdate(socket: any, data: any) {
+  async function handleLocationUpdate(socket: any, data: LocationUpdatePayload) {
     if (!socket.data.userId) {
       socket.emit('error', { message: 'Not authenticated' });
+      return;
+    }
+    
+    // userIdの整合性チェック
+    if (data.userId && data.userId !== socket.data.userId) {
+      console.log('🚫 WebSocket: userId不一致のため位置更新を拒否', {
+        socketUserId: socket.data.userId,
+        dataUserId: data.userId
+      });
+      socket.emit('error', { message: 'User ID mismatch' });
       return;
     }
     
