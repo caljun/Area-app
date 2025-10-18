@@ -2,6 +2,7 @@ import { Router, Request, Response } from 'express';
 import { z } from 'zod';
 import { prisma } from '../index';
 import { AuthRequest } from '../middleware/auth';
+import { sendPushNotification } from '../services/firebaseAdmin';
 
 const router = Router();
 
@@ -305,6 +306,34 @@ router.post('/requests', async (req: AuthRequest, res: Response) => {
     } catch (notificationError) {
       console.error('Failed to create notification:', notificationError);
       // 通知作成に失敗しても友達申請は成功とする
+    }
+
+    // プッシュ通知を送信
+    try {
+      if (receiver.deviceToken) {
+        const success = await sendPushNotification(
+          receiver.deviceToken,
+          '友達申請',
+          `${req.user!.name}さんから友達申請が届いています`,
+          {
+            type: 'friend_request',
+            requestId: request.id,
+            senderId: req.user!.id,
+            senderName: req.user!.name || 'Unknown'
+          }
+        );
+        
+        if (success) {
+          console.log(`友達申請プッシュ通知送信成功 - 受信者: ${receiver.name}, 送信者: ${req.user!.name}`);
+        } else {
+          console.log(`友達申請プッシュ通知送信失敗 - 受信者: ${receiver.name}`);
+        }
+      } else {
+        console.log(`受信者のデバイストークンが設定されていません - 受信者: ${receiver.name}`);
+      }
+    } catch (pushError) {
+      console.error('友達申請プッシュ通知送信エラー:', pushError);
+      // プッシュ通知送信に失敗しても友達申請は成功とする
     }
 
     // フロントのFriendRequestモデルへ整形して返却
