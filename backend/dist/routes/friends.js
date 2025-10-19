@@ -3,6 +3,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
 const express_1 = require("express");
 const zod_1 = require("zod");
 const index_1 = require("../index");
+const firebaseAdmin_1 = require("../services/firebaseAdmin");
 const router = (0, express_1.Router)();
 const sendFriendRequestSchema = zod_1.z.object({
     toUserId: zod_1.z.string().min(1, 'User ID is required'),
@@ -184,8 +185,8 @@ router.post('/requests', async (req, res) => {
                 if (byId)
                     return byId;
             }
-            const byAreaId = await index_1.prisma.user.findUnique({ where: { areaId: identifier } });
-            return byAreaId;
+            const byDisplayId = await index_1.prisma.user.findUnique({ where: { displayId: identifier } });
+            return byDisplayId;
         };
         const receiver = await resolveReceiver(toUserId);
         if (!receiver) {
@@ -251,6 +252,48 @@ router.post('/requests', async (req, res) => {
         }
         catch (notificationError) {
             console.error('Failed to create notification:', notificationError);
+        }
+        try {
+            if (receiver.deviceToken) {
+                const success = await (0, firebaseAdmin_1.sendPushNotification)(receiver.deviceToken, '友達申請', `${req.user.name}さんから友達申請が届いています`, {
+                    type: 'friend_request',
+                    requestId: request.id,
+                    senderId: req.user.id,
+                    senderName: req.user.name || 'Unknown'
+                });
+                if (success) {
+                    console.log(`友達申請プッシュ通知送信成功 - 受信者: ${receiver.name}, 送信者: ${req.user.name}`);
+                }
+                else {
+                    console.log(`友達申請プッシュ通知送信失敗 - 受信者: ${receiver.name}`);
+                }
+            }
+            else {
+                console.log(`受信者のデバイストークンが設定されていません - 受信者: ${receiver.name}`);
+            }
+        }
+        catch (pushError) {
+            console.error('友達申請プッシュ通知送信エラー:', pushError);
+        }
+        try {
+            const receiverSocket = Array.from(index_1.io.sockets.sockets.values())
+                .find(socket => socket.data.userId === receiver.id);
+            if (receiverSocket) {
+                receiverSocket.emit('friend_request', {
+                    type: 'friend_request',
+                    requestId: request.id,
+                    senderId: req.user.id,
+                    senderName: req.user.name || 'Unknown',
+                    message: `${req.user.name}さんから友達申請が届いています`
+                });
+                console.log(`友達申請WebSocket通知送信成功 - 受信者: ${receiver.name}, 送信者: ${req.user.name}`);
+            }
+            else {
+                console.log(`受信者のWebSocket接続が見つかりません - 受信者: ${receiver.name}`);
+            }
+        }
+        catch (websocketError) {
+            console.error('友達申請WebSocket通知送信エラー:', websocketError);
         }
         const apiRequest = {
             id: request.id,
@@ -562,6 +605,84 @@ router.put('/area-request/:requestId', async (req, res) => {
             });
         }
         console.error('Respond to area request error:', error);
+        return res.status(500).json({ error: 'Internal server error' });
+    }
+});
+router.get('/search', async (req, res) => {
+    try {
+        const { query, type = 'displayId' } = req.query;
+        if (!query) {
+            return res.status(400).json({ error: 'Search query is required' });
+        }
+        let users;
+        if (type === 'displayId') {
+            users = await index_1.prisma.user.findMany({
+                where: {
+                    displayId: {
+                        contains: query,
+                        mode: 'insensitive'
+                    },
+                    id: {
+                        not: req.user.id
+                    }
+                },
+                select: {
+                    id: true,
+                    displayId: true,
+                    name: true,
+                    profileImage: true,
+                    createdAt: true
+                },
+                take: 10
+            });
+        }
+        else {
+            users = await index_1.prisma.user.findMany({
+                where: {
+                    name: {
+                        contains: query,
+                        mode: 'insensitive'
+                    },
+                    id: {
+                        not: req.user.id
+                    }
+                },
+                select: {
+                    id: true,
+                    displayId: true,
+                    name: true,
+                    profileImage: true,
+                    createdAt: true
+                },
+                take: 10
+            });
+        }
+        const userIds = users.map(user => user.id);
+        const friendships = await index_1.prisma.friend.findMany({
+            where: {
+                OR: [
+                    { userId: req.user.id, friendId: { in: userIds } },
+                    { friendId: req.user.id, userId: { in: userIds } }
+                ]
+            }
+        });
+        const friendIds = new Set();
+        friendships.forEach(friendship => {
+            if (friendship.userId === req.user.id) {
+                friendIds.add(friendship.friendId);
+            }
+            else {
+                friendIds.add(friendship.userId);
+            }
+        });
+        const results = users.map(user => ({
+            ...user,
+            isFriend: friendIds.has(user.id)
+        }));
+        return res.json(results);
+    }
+    catch (error) {
+        console.error('Search friends error:', error);
         return res.status(500).json({ error: 'Internal server error' });
     }
 });

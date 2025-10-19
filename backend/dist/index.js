@@ -55,10 +55,28 @@ exports.io = new socket_io_1.Server(server, {
 exports.prisma = new client_1.PrismaClient({
     log: process.env.NODE_ENV === 'development' ? ['query', 'error', 'warn'] : ['error'],
 });
+async function cleanupOldLocations() {
+    try {
+        const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000);
+        const result = await exports.prisma.location.deleteMany({
+            where: {
+                createdAt: { lt: oneHourAgo }
+            }
+        });
+        if (result.count > 0) {
+            console.log(`🧹 古い位置情報をクリーンアップ: ${result.count}件削除 (1時間前より古いデータ)`);
+        }
+    }
+    catch (error) {
+        console.error('❌ 古い位置情報のクリーンアップに失敗:', error);
+    }
+}
 exports.prisma.$connect()
     .then(() => {
     console.log('✅ Database connected successfully');
     (0, firebaseAdmin_1.initializeFirebaseAdmin)();
+    cleanupOldLocations();
+    setInterval(cleanupOldLocations, 30 * 60 * 1000);
 })
     .catch((error) => {
     console.error('❌ Database connection failed:', error);
@@ -97,6 +115,7 @@ app.get('/api/session', authLimiter, auth_2.authMiddleware, async (req, res) => 
             select: {
                 id: true,
                 email: true,
+                displayId: true,
                 areaId: true,
                 name: true,
                 profileImage: true,
@@ -109,8 +128,8 @@ app.get('/api/session', authLimiter, auth_2.authMiddleware, async (req, res) => 
         const missingFields = [];
         if (!user.name)
             missingFields.push('name');
-        if (!user.areaId)
-            missingFields.push('areaId');
+        if (!user.displayId)
+            missingFields.push('displayId');
         if (!user.profileImage)
             missingFields.push('profileImage');
         const profileComplete = missingFields.length === 0;
@@ -119,6 +138,7 @@ app.get('/api/session', authLimiter, auth_2.authMiddleware, async (req, res) => 
             user: {
                 id: user.id,
                 email: user.email,
+                displayId: user.displayId,
                 areaId: user.areaId,
                 name: user.name,
                 profileImage: user.profileImage,
@@ -150,6 +170,69 @@ app.use('/api/location', auth_2.authMiddleware, locations_1.default);
 app.use('/api/images', images_1.default);
 app.use('/api/notifications', auth_2.authMiddleware, notifications_1.default);
 app.use('/api/chat', auth_2.authMiddleware, chat_1.default);
+async function getFriends(userId) {
+    try {
+        const friends = await exports.prisma.friend.findMany({
+            where: {
+                OR: [
+                    { userId: userId },
+                    { friendId: userId }
+                ]
+            },
+            include: {
+                user: {
+                    select: {
+                        id: true,
+                        name: true,
+                        deviceToken: true
+                    }
+                },
+                friend: {
+                    select: {
+                        id: true,
+                        name: true,
+                        deviceToken: true
+                    }
+                }
+            }
+        });
+        const friendUsers = friends.map(friend => {
+            const friendUser = friend.userId === userId ? friend.friend : friend.user;
+            return friendUser;
+        }).filter(user => user !== null);
+        const uniqueFriends = new Map();
+        friendUsers.forEach(friend => {
+            if (friend && !uniqueFriends.has(friend.id)) {
+                uniqueFriends.set(friend.id, friend);
+            }
+        });
+        return Array.from(uniqueFriends.values());
+    }
+    catch (error) {
+        console.error('Error getting friends:', error);
+        return [];
+    }
+}
+async function sendFriendAreaNotifications(userId, eventType, areaName, userName) {
+    try {
+        const friends = await getFriends(userId);
+        console.log(`友達のエリア${eventType === 'entered' ? '入場' : '退場'}通知送信開始 - 友達数: ${friends.length}`);
+        for (const friend of friends) {
+            if (!friend)
+                continue;
+            exports.io.to(`user_${friend.id}`).emit('friend_area_event', {
+                friendName: userName,
+                event: eventType,
+                areaName: areaName,
+                timestamp: new Date().getTime()
+            });
+            console.log(`友達エリア通知送信完了 - friendId: ${friend.id}, friendName: ${friend.name}, event: ${eventType}`);
+        }
+    }
+    catch (error) {
+        console.error('Error sending friend area notifications:', error);
+    }
+}
 exports.io.on('connection', (socket) => {
     console.log('WebSocket: User connected:', socket.id);
     const token = socket.handshake.query.token;
@@ -164,19 +247,25 @@ exports.io.on('connection', (socket) => {
             try {
                 const user = await exports.prisma.user.findUnique({
                     where: { id: decoded.userId },
-                    select: { id: true, name: true, profileImage: true }
+                    select: { id: true, name: true, profileImage: true, areaId: true }
                 });
                 if (user) {
                     socket.data.userId = user.id;
                     socket.data.userName = user.name;
                     socket.data.profileImage = user.profileImage;
+                    socket.data.currentAreaId = user.areaId;
                     socket.join(`user_${user.id}`);
+                    if (user.areaId) {
+                        socket.join(`area_${user.areaId}`);
+                        console.log(`WebSocket: User ${user.name} (${user.id}) 自動でエリアRoom参加 - areaId: ${user.areaId}`);
+                    }
                     socket.emit('connection', {
                         type: 'connection',
                         data: {
                             status: 'connected',
                             userId: user.id,
-                            userName: user.name
+                            userName: user.name,
+                            currentAreaId: user.areaId
                         }
                     });
                     console.log(`WebSocket: User ${user.name} (${user.id}) authenticated and joined room`);
@@ -202,14 +291,19 @@ exports.io.on('connection', (socket) => {
                 const decoded = jsonwebtoken_1.default.verify(token, process.env.JWT_SECRET || 'fallback-secret');
                 const user = await exports.prisma.user.findUnique({
                     where: { id: decoded.userId },
-                    select: { id: true, name: true, profileImage: true }
+                    select: { id: true, name: true, profileImage: true, areaId: true }
                 });
                 if (user) {
                     socket.data.userId = user.id;
                     socket.data.userName = user.name;
                     socket.data.profileImage = user.profileImage;
+                    socket.data.currentAreaId = user.areaId;
                     socket.join(`user_${user.id}`);
-                    socket.emit('authenticated', { userId: user.id });
+                    if (user.areaId) {
+                        socket.join(`area_${user.areaId}`);
+                        console.log(`WebSocket: User ${user.name} (${user.id}) 自動でエリアRoom参加 - areaId: ${user.areaId}`);
+                    }
+                    socket.emit('authenticated', { userId: user.id, currentAreaId: user.areaId });
                     console.log(`WebSocket: User ${user.name} (${user.id}) authenticated`);
                 }
                 else {
@@ -227,6 +321,22 @@ exports.io.on('connection', (socket) => {
     async function handleLocationUpdate(socket, data) {
         if (!socket.data.userId) {
             socket.emit('error', { message: 'Not authenticated' });
+            return;
+        }
+        if (data.userId && data.userId !== socket.data.userId) {
+            console.log('🚫 WebSocket: userId不一致のため位置更新を拒否', {
+                socketUserId: socket.data.userId,
+                dataUserId: data.userId
+            });
+            socket.emit('error', { message: 'User ID mismatch' });
+            return;
+        }
+        if (!socket.data.currentAreaId || !data?.areaId || socket.data.currentAreaId !== data.areaId) {
+            console.log('🚫 WebSocket: エリア外またはエリア不一致のため位置更新を拒否', {
+                currentAreaId: socket.data.currentAreaId || null,
+                dataAreaId: data?.areaId || null
+            });
+            socket.emit('error', { message: 'Location updates are allowed only inside the joined area' });
             return;
         }
         try {
@@ -256,6 +366,34 @@ exports.io.on('connection', (socket) => {
             const isAreaChange = previousAreaId && currentAreaId && previousAreaId !== currentAreaId;
             if (isAreaEntry || isAreaExit || isAreaChange) {
                 console.log(`🎯 エリア状態変化検知: ${isAreaEntry ? '入場' : isAreaExit ? '退場' : '変更'} (${previousAreaId || 'なし'} → ${currentAreaId || 'なし'})`);
+                if (isAreaExit && previousAreaId) {
+                    try {
+                        const deletedCount = await exports.prisma.location.deleteMany({
+                            where: {
+                                userId: socket.data.userId,
+                                areaId: previousAreaId
+                            }
+                        });
+                        console.log(`🗑️ エリア退場: 古い位置情報を削除 - ${deletedCount.count}件削除 (areaId: ${previousAreaId})`);
+                    }
+                    catch (deleteError) {
+                        console.error('❌ エリア退場時の位置情報削除に失敗:', deleteError);
+                    }
+                }
+                if (isAreaChange && previousAreaId) {
+                    try {
+                        const deletedCount = await exports.prisma.location.deleteMany({
+                            where: {
+                                userId: socket.data.userId,
+                                areaId: previousAreaId
+                            }
+                        });
+                        console.log(`🗑️ エリア変更: 古いエリアの位置情報を削除 - ${deletedCount.count}件削除 (areaId: ${previousAreaId})`);
+                    }
+                    catch (deleteError) {
+                        console.error('❌ エリア変更時の位置情報削除に失敗:', deleteError);
+                    }
+                }
             }
             const locationUpdateData = {
                 action: 'friend_location_update',
@@ -284,103 +422,6 @@ exports.io.on('connection', (socket) => {
                 console.log(`━━━━━━━━━━━━━━━━━━━━━━━━━━━━`);
                 return;
             }
-            console.log(`🔄 エリアID未指定またはエリア未参加 - 友達単位で個別送信`);
-            const friends = await exports.prisma.friend.findMany({
-                where: {
-                    OR: [
-                        { userId: socket.data.userId },
-                        { friendId: socket.data.userId }
-                    ]
-                },
-                include: {
-                    user: { select: { id: true } },
-                    friend: { select: { id: true } }
-                }
-            });
-            const friendIdsSet = new Set();
-            friends.forEach(friend => {
-                if (friend.userId === socket.data.userId && friend.friend) {
-                    friendIdsSet.add(friend.friend.id);
-                }
-                else if (friend.friendId === socket.data.userId && friend.user) {
-                    friendIdsSet.add(friend.user.id);
-                }
-            });
-            const friendIds = Array.from(friendIdsSet);
-            friendIds.forEach(friendId => {
-                exports.io.to(`user_${friendId}`).emit('location', {
-                    type: 'location',
-                    data: locationUpdateData
-                });
-            });
-            console.log(`🌐 WebSocket通知送信: ${friendIds.length}人の友達に個別送信完了`);
-            if (friendIds.length > 0) {
-                console.log(`📤 送信先友達ID: ${friendIds.join(', ')}`);
-            }
-            console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-            if (friendIds.length > 0) {
-                try {
-                    const friendsWithTokens = await exports.prisma.user.findMany({
-                        where: {
-                            id: { in: friendIds },
-                            deviceToken: { not: null }
-                        },
-                        select: {
-                            id: true,
-                            deviceToken: true,
-                            name: true
-                        }
-                    });
-                    const deviceTokens = friendsWithTokens
-                        .map(friend => friend.deviceToken)
-                        .filter((token) => token !== null);
-                    if (deviceTokens.length > 0) {
-                        const userName = socket.data.userName || 'ユーザー';
-                        if (isAreaEntry || isAreaExit || isAreaChange) {
-                            let title = '';
-                            let body = '';
-                            if (isAreaEntry) {
-                                title = '友達がエリアに入りました';
-                                body = `${userName}さんがエリアに入りました`;
-                            }
-                            else if (isAreaExit) {
-                                title = '友達がエリアから出ました';
-                                body = `${userName}さんがエリアから出ました`;
-                            }
-                            else if (isAreaChange) {
-                                title = '友達がエリアを変更しました';
-                                body = `${userName}さんがエリアを変更しました`;
-                            }
-                            await (0, firebaseAdmin_1.sendAreaEntryExitNotification)(deviceTokens, title, body, {
-                                action: 'area_entry_exit',
-                                userId: socket.data.userId,
-                                userName: userName,
-                                areaId: currentAreaId || '',
-                                previousAreaId: previousAreaId || '',
-                                latitude: String(data.latitude),
-                                longitude: String(data.longitude),
-                                timestamp: String(Date.now())
-                            });
-                            console.log(`📱 エリア入退場通知送信完了: ${deviceTokens.length}人の友達に送信`);
-                        }
-                        else {
-                            await (0, firebaseAdmin_1.sendPushNotificationToMultiple)(deviceTokens, '友達が移動しました', `${userName}さんが位置を更新しました`, {
-                                action: 'friend_moved',
-                                userId: socket.data.userId,
-                                userName: userName,
-                                areaId: data.areaId || '',
-                                latitude: String(data.latitude),
-                                longitude: String(data.longitude),
-                                timestamp: String(Date.now())
-                            });
-                            console.log(`📱 サイレントPush送信完了: ${deviceTokens.length}人の友達に送信`);
-                        }
-                    }
-                }
-                catch (pushError) {
-                    console.error('Push通知送信エラー:', pushError);
-                }
-            }
         }
         catch (error) {
             console.error('WebSocket: Failed to process location update:', error);
@@ -393,14 +434,37 @@ exports.io.on('connection', (socket) => {
             return;
         }
         const { areaId } = data;
+        let areaName = 'Unknown Area';
+        try {
+            const area = await exports.prisma.area.findUnique({
+                where: { id: areaId },
+                select: { name: true }
+            });
+            if (area) {
+                areaName = area.name;
+            }
+        }
+        catch (e) {
+            console.error('Failed to get area name:', e);
+        }
         socket.join(`area_${areaId}`);
         socket.data.currentAreaId = areaId;
+        try {
+            await exports.prisma.user.update({
+                where: { id: socket.data.userId },
+                data: { areaId }
+            });
+        }
+        catch (e) {
+            console.error('DB update failed on joinArea:', e);
+        }
         const rooms = Array.from(socket.rooms);
         console.log(`━━━━━━━━━━━━━━━━━━━━━━━━━━━━`);
         console.log(`🏠 WebSocket: ユーザーがエリアに参加`);
         console.log(`👤 userId: ${socket.data.userId}`);
         console.log(`👤 userName: ${socket.data.userName || 'unknown'}`);
         console.log(`🗺️  areaId: ${areaId}`);
+        console.log(`🏷️  areaName: ${areaName}`);
         console.log(`🔑 socketId: ${socket.id}`);
         console.log(`🚪 参加中のRooms: ${rooms.join(', ')}`);
         console.log(`⏰ 時刻: ${new Date().toLocaleString('ja-JP', { timeZone: 'Asia/Tokyo' })}`);
@@ -416,6 +480,7 @@ exports.io.on('connection', (socket) => {
                 timestamp: Date.now()
             }
         });
+        await sendFriendAreaNotifications(socket.data.userId, 'entered', areaName, socket.data.userName || 'Unknown User');
         socket.emit('areaJoined', { areaId, success: true });
     });
     socket.on('leaveArea', async (data) => {
@@ -424,14 +489,38 @@ exports.io.on('connection', (socket) => {
             return;
         }
         const { areaId } = data;
+        let areaName = 'Unknown Area';
+        try {
+            const area = await exports.prisma.area.findUnique({
+                where: { id: areaId },
+                select: { name: true }
+            });
+            if (area) {
+                areaName = area.name;
+            }
+        }
+        catch (e) {
+            console.error('Failed to get area name:', e);
+        }
         socket.leave(`area_${areaId}`);
         if (socket.data.currentAreaId === areaId) {
             socket.data.currentAreaId = null;
         }
+        try {
+            await exports.prisma.user.update({
+                where: { id: socket.data.userId },
+                data: { areaId: null }
+            });
+        }
+        catch (e) {
+            console.error('DB update failed on leaveArea:', e);
+        }
         console.log(`━━━━━━━━━━━━━━━━━━━━━━━━━━━━`);
         console.log(`🚪 WebSocket: ユーザーがエリアから退出`);
         console.log(`👤 userId: ${socket.data.userId}`);
+        console.log(`👤 userName: ${socket.data.userName || 'unknown'}`);
         console.log(`🗺️  areaId: ${areaId}`);
+        console.log(`🏷️  areaName: ${areaName}`);
         console.log(`⏰ 時刻: ${new Date().toLocaleString('ja-JP', { timeZone: 'Asia/Tokyo' })}`);
         console.log(`━━━━━━━━━━━━━━━━━━━━━━━━━━━━`);
         socket.to(`area_${areaId}`).emit('location', {
@@ -444,6 +533,7 @@ exports.io.on('connection', (socket) => {
                 timestamp: Date.now()
             }
         });
+        await sendFriendAreaNotifications(socket.data.userId, 'exited', areaName, socket.data.userName || 'Unknown User');
         socket.emit('areaLeft', { areaId, success: true });
     });
     socket.on('join', (userId) => {

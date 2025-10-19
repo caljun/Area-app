@@ -27,7 +27,7 @@ const upload = (0, multer_1.default)({
 });
 const registerSchema = zod_1.z.object({
     email: zod_1.z.string().email('メールアドレスの形式が正しくありません'),
-    areaId: zod_1.z.string().min(3, 'Area IDは3文字以上で入力してください'),
+    displayId: zod_1.z.string().min(3, 'Display IDは3文字以上で入力してください'),
     name: zod_1.z.string().min(1, 'ユーザー名は必須です'),
     password: zod_1.z.string().min(8, 'パスワードは8文字以上で入力してください'),
     profileImage: zod_1.z.string().url('プロフィール画像のURLが正しくありません').optional()
@@ -37,22 +37,22 @@ const step1Schema = zod_1.z.object({
 });
 const step2Schema = zod_1.z.object({
     email: zod_1.z.string().email('メールアドレスの形式が正しくありません'),
-    areaId: zod_1.z.string().min(3, 'Area IDは3文字以上で入力してください')
+    displayId: zod_1.z.string().min(3, 'Display IDは3文字以上で入力してください')
 });
 const step3Schema = zod_1.z.object({
     email: zod_1.z.string().email('メールアドレスの形式が正しくありません'),
-    areaId: zod_1.z.string().min(3, 'Area IDは3文字以上で入力してください'),
+    displayId: zod_1.z.string().min(3, 'Display IDは3文字以上で入力してください'),
     name: zod_1.z.string().min(1, 'ユーザー名は必須です')
 });
 const step4Schema = zod_1.z.object({
     email: zod_1.z.string().email('メールアドレスの形式が正しくありません'),
-    areaId: zod_1.z.string().min(3, 'Area IDは3文字以上で入力してください'),
+    displayId: zod_1.z.string().min(3, 'Display IDは3文字以上で入力してください'),
     name: zod_1.z.string().min(1, 'ユーザー名は必須です'),
     password: zod_1.z.string().min(8, 'パスワードは8文字以上で入力してください')
 });
 const step5Schema = zod_1.z.object({
     email: zod_1.z.string().email('メールアドレスの形式が正しくありません'),
-    areaId: zod_1.z.string().min(3, 'Area IDは3文字以上で入力してください'),
+    displayId: zod_1.z.string().min(3, 'Display IDは3文字以上で入力してください'),
     name: zod_1.z.string().min(1, 'ユーザー名は必須です'),
     password: zod_1.z.string().min(8, 'パスワードは8文字以上で入力してください'),
     profileImage: zod_1.z.string().url('プロフィール画像のURLが正しくありません').optional()
@@ -97,19 +97,19 @@ router.post('/register/step1', async (req, res) => {
 });
 router.post('/register/step2', async (req, res) => {
     try {
-        const { email, areaId } = step2Schema.parse(req.body);
-        const existingUser = await index_1.prisma.user.findUnique({
-            where: { areaId }
+        const { email, displayId } = step2Schema.parse(req.body);
+        const existingUser = await index_1.prisma.user.findFirst({
+            where: { displayId }
         });
         if (existingUser) {
             return res.status(400).json({
-                error: 'このNow IDは既に使用されています'
+                error: 'このDisplay IDは既に使用されています'
             });
         }
         return res.status(200).json({
-            message: 'Now IDが確認されました',
+            message: 'Display IDが確認されました',
             email,
-            areaId,
+            displayId,
             nextStep: 'step3'
         });
     }
@@ -126,11 +126,11 @@ router.post('/register/step2', async (req, res) => {
 });
 router.post('/register/step3', async (req, res) => {
     try {
-        const { email, areaId, name } = step3Schema.parse(req.body);
+        const { email, displayId, name } = step3Schema.parse(req.body);
         return res.status(200).json({
             message: 'ユーザー名が確認されました',
             email,
-            areaId,
+            displayId,
             name,
             nextStep: 'step4'
         });
@@ -148,11 +148,11 @@ router.post('/register/step3', async (req, res) => {
 });
 router.post('/register/step4', async (req, res) => {
     try {
-        const { email, areaId, name, password } = step4Schema.parse(req.body);
+        const { email, displayId, name, password } = step4Schema.parse(req.body);
         return res.status(200).json({
             message: 'パスワードが確認されました',
             email,
-            areaId,
+            displayId,
             name,
             nextStep: 'step5'
         });
@@ -170,25 +170,25 @@ router.post('/register/step4', async (req, res) => {
 });
 router.post('/register/step5', async (req, res) => {
     try {
-        const { email, areaId, name, password, profileImage } = step5Schema.parse(req.body);
+        const { email, displayId, name, password, profileImage } = step5Schema.parse(req.body);
         const existingUser = await index_1.prisma.user.findFirst({
             where: {
                 OR: [
                     { email },
-                    { areaId }
+                    { displayId }
                 ]
             }
         });
         if (existingUser) {
             return res.status(400).json({
-                error: existingUser.email === email ? 'このメールアドレスは既に登録されています' : 'このNow IDは既に使用されています'
+                error: existingUser.email === email ? 'このメールアドレスは既に登録されています' : 'このDisplay IDは既に使用されています'
             });
         }
         const hashedPassword = await bcryptjs_1.default.hash(password, 12);
         const user = await index_1.prisma.user.create({
             data: {
                 email,
-                areaId,
+                displayId,
                 name,
                 password: hashedPassword,
                 profileImage: profileImage || null
@@ -196,7 +196,7 @@ router.post('/register/step5', async (req, res) => {
             select: {
                 id: true,
                 email: true,
-                areaId: true,
+                displayId: true,
                 name: true,
                 profileImage: true,
                 createdAt: true
@@ -206,8 +206,8 @@ router.post('/register/step5', async (req, res) => {
         const missingFields = [];
         if (!user.name)
             missingFields.push('name');
-        if (!user.areaId)
-            missingFields.push('areaId');
+        if (!user.displayId)
+            missingFields.push('displayId');
         if (!user.profileImage)
             missingFields.push('profileImage');
         const profileComplete = missingFields.length === 0;
@@ -241,11 +241,11 @@ router.post('/register', upload.single('profileImage'), async (req, res) => {
             hasProfileImage: !!req.body.profileImage,
             contentType: req.headers['content-type']
         });
-        let email, areaId, name, password, profileImage;
+        let email, displayId, name, password, profileImage;
         if (req.headers['content-type']?.includes('multipart/form-data')) {
             console.log('Processing multipart form data');
             email = req.body.email;
-            areaId = req.body.areaId;
+            displayId = req.body.displayId;
             name = req.body.name;
             password = req.body.password;
             if (req.file) {
@@ -260,13 +260,13 @@ router.post('/register', upload.single('profileImage'), async (req, res) => {
             else {
                 profileImage = req.body.profileImage;
             }
-            console.log('Extracted from multipart:', { email, areaId, name, hasPassword: !!password, hasProfileImage: !!profileImage, hasFile: !!req.file });
+            console.log('Extracted from multipart:', { email, displayId, name, hasPassword: !!password, hasProfileImage: !!profileImage, hasFile: !!req.file });
         }
         else {
             console.log('Processing JSON data');
             const parsed = registerSchema.parse(req.body);
             email = parsed.email;
-            areaId = parsed.areaId;
+            displayId = parsed.displayId;
             name = parsed.name;
             password = parsed.password;
             profileImage = parsed.profileImage;
@@ -275,8 +275,8 @@ router.post('/register', upload.single('profileImage'), async (req, res) => {
             if (!email || !email.includes('@')) {
                 return res.status(400).json({ error: 'メールアドレスの形式が正しくありません' });
             }
-            if (!areaId || areaId.length < 3) {
-                return res.status(400).json({ error: 'Area IDは3文字以上で入力してください' });
+            if (!displayId || displayId.length < 3) {
+                return res.status(400).json({ error: 'Display IDは3文字以上で入力してください' });
             }
             if (!name || name.trim().length < 1) {
                 return res.status(400).json({ error: 'ユーザー名は必須です' });
@@ -289,7 +289,7 @@ router.post('/register', upload.single('profileImage'), async (req, res) => {
             where: {
                 OR: [
                     { email },
-                    { areaId }
+                    { displayId }
                 ]
             }
         });
@@ -301,7 +301,7 @@ router.post('/register', upload.single('profileImage'), async (req, res) => {
             }
             else {
                 return res.status(409).json({
-                    error: 'このArea IDは既に使用されています'
+                    error: 'このDisplay IDは既に使用されています'
                 });
             }
         }
@@ -309,7 +309,7 @@ router.post('/register', upload.single('profileImage'), async (req, res) => {
         const user = await index_1.prisma.user.create({
             data: {
                 email,
-                areaId,
+                displayId,
                 name,
                 password: hashedPassword,
                 profileImage: profileImage || null
@@ -317,7 +317,7 @@ router.post('/register', upload.single('profileImage'), async (req, res) => {
             select: {
                 id: true,
                 email: true,
-                areaId: true,
+                displayId: true,
                 name: true,
                 profileImage: true,
                 createdAt: true
@@ -327,8 +327,8 @@ router.post('/register', upload.single('profileImage'), async (req, res) => {
         const missingFields = [];
         if (!user.name)
             missingFields.push('name');
-        if (!user.areaId)
-            missingFields.push('areaId');
+        if (!user.displayId)
+            missingFields.push('displayId');
         if (!user.profileImage)
             missingFields.push('profileImage');
         const profileComplete = missingFields.length === 0;
@@ -337,7 +337,7 @@ router.post('/register', upload.single('profileImage'), async (req, res) => {
             user: {
                 id: user.id,
                 email: user.email,
-                areaId: user.areaId,
+                displayId: user.displayId,
                 name: user.name,
                 profileImage: user.profileImage,
                 createdAt: user.createdAt
@@ -399,19 +399,16 @@ router.post('/apple', async (req, res) => {
             }
             return res.status(401).json({ error: 'Apple IDトークンの検証に失敗しました' });
         }
-        const finalAreaId = userID;
+        const finalDisplayId = "";
         try {
             let user = await index_1.prisma.user.findFirst({
                 where: {
-                    OR: [
-                        { email: `apple_${userID}@temp.com` },
-                        { areaId: finalAreaId }
-                    ]
+                    email: `apple_${userID}@temp.com`
                 },
                 select: {
                     id: true,
                     email: true,
-                    areaId: true,
+                    displayId: true,
                     name: true,
                     profileImage: true,
                     createdAt: true
@@ -422,8 +419,8 @@ router.post('/apple', async (req, res) => {
                 const missingFields = [];
                 if (!user.name)
                     missingFields.push('name');
-                if (!user.areaId)
-                    missingFields.push('areaId');
+                if (!user.displayId)
+                    missingFields.push('displayId');
                 if (!user.profileImage)
                     missingFields.push('profileImage');
                 const profileComplete = missingFields.length === 0;
@@ -432,7 +429,7 @@ router.post('/apple', async (req, res) => {
                     user: {
                         id: user.id,
                         email: user.email,
-                        areaId: user.areaId,
+                        displayId: user.displayId,
                         name: user.name,
                         profileImage: user.profileImage,
                         createdAt: user.createdAt
@@ -443,18 +440,18 @@ router.post('/apple', async (req, res) => {
                 });
             }
             else {
-                const existingAreaId = await index_1.prisma.user.findUnique({
-                    where: { areaId: finalAreaId }
+                const existingDisplayId = await index_1.prisma.user.findFirst({
+                    where: { displayId: finalDisplayId }
                 });
-                if (existingAreaId) {
+                if (existingDisplayId) {
                     return res.status(400).json({
-                        error: 'このArea IDは既に使用されています'
+                        error: 'このDisplay IDは既に使用されています'
                     });
                 }
                 const newUser = await index_1.prisma.user.create({
                     data: {
                         email: `apple_${userID}@temp.com`,
-                        areaId: finalAreaId,
+                        displayId: finalDisplayId,
                         name: name || `Apple User ${userID.slice(-4)}`,
                         password: null,
                         profileImage: null
@@ -462,7 +459,7 @@ router.post('/apple', async (req, res) => {
                     select: {
                         id: true,
                         email: true,
-                        areaId: true,
+                        displayId: true,
                         name: true,
                         profileImage: true,
                         createdAt: true
@@ -476,7 +473,7 @@ router.post('/apple', async (req, res) => {
                     user: {
                         id: newUser.id,
                         email: newUser.email,
-                        areaId: newUser.areaId,
+                        displayId: newUser.displayId,
                         name: newUser.name,
                         profileImage: newUser.profileImage,
                         createdAt: newUser.createdAt
@@ -521,8 +518,8 @@ router.post('/login', async (req, res) => {
         const missingFields = [];
         if (!user.name)
             missingFields.push('name');
-        if (!user.areaId)
-            missingFields.push('areaId');
+        if (!user.displayId)
+            missingFields.push('displayId');
         if (!user.profileImage)
             missingFields.push('profileImage');
         const profileComplete = missingFields.length === 0;
@@ -531,7 +528,7 @@ router.post('/login', async (req, res) => {
             user: {
                 id: user.id,
                 email: user.email,
-                areaId: user.areaId,
+                displayId: user.displayId,
                 name: user.name,
                 profileImage: user.profileImage,
                 createdAt: user.createdAt
@@ -559,7 +556,7 @@ router.get('/me', auth_1.authMiddleware, async (req, res) => {
             select: {
                 id: true,
                 email: true,
-                areaId: true,
+                displayId: true,
                 name: true,
                 profileImage: true,
                 createdAt: true
@@ -568,8 +565,8 @@ router.get('/me', auth_1.authMiddleware, async (req, res) => {
         const missingFields = [];
         if (!user.name)
             missingFields.push('name');
-        if (!user.areaId)
-            missingFields.push('areaId');
+        if (!user.displayId)
+            missingFields.push('displayId');
         if (!user.profileImage)
             missingFields.push('profileImage');
         const profileComplete = missingFields.length === 0;
@@ -578,7 +575,7 @@ router.get('/me', auth_1.authMiddleware, async (req, res) => {
             user: {
                 id: user.id,
                 email: user.email,
-                areaId: user.areaId,
+                displayId: user.displayId,
                 name: user.name,
                 profileImage: user.profileImage,
                 createdAt: user.createdAt
@@ -600,7 +597,7 @@ router.get('/session', auth_1.authMiddleware, async (req, res) => {
             select: {
                 id: true,
                 email: true,
-                areaId: true,
+                displayId: true,
                 name: true,
                 profileImage: true,
                 createdAt: true
@@ -609,8 +606,8 @@ router.get('/session', auth_1.authMiddleware, async (req, res) => {
         const missingFields = [];
         if (!user.name)
             missingFields.push('name');
-        if (!user.areaId)
-            missingFields.push('areaId');
+        if (!user.displayId)
+            missingFields.push('displayId');
         if (!user.profileImage)
             missingFields.push('profileImage');
         const profileComplete = missingFields.length === 0;
@@ -619,7 +616,7 @@ router.get('/session', auth_1.authMiddleware, async (req, res) => {
             user: {
                 id: user.id,
                 email: user.email,
-                areaId: user.areaId,
+                displayId: user.displayId,
                 name: user.name,
                 profileImage: user.profileImage,
                 createdAt: user.createdAt

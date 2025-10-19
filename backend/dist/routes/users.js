@@ -11,6 +11,7 @@ router.get('/profile', async (req, res) => {
             select: {
                 id: true,
                 email: true,
+                displayId: true,
                 areaId: true,
                 name: true,
                 createdAt: true,
@@ -26,14 +27,27 @@ router.get('/profile', async (req, res) => {
 });
 router.put('/profile', async (req, res) => {
     try {
-        const { profileImage, name } = req.body;
+        const { profileImage, name, displayId } = req.body;
         const updateData = {};
         if (profileImage !== undefined)
             updateData.profileImage = profileImage;
         if (name !== undefined)
             updateData.name = name;
+        if (displayId !== undefined)
+            updateData.displayId = displayId;
         if (Object.keys(updateData).length === 0) {
             return res.status(400).json({ error: '更新するフィールドが指定されていません' });
+        }
+        if (displayId && displayId !== req.user.displayId) {
+            const existingUser = await index_1.prisma.user.findFirst({
+                where: {
+                    displayId: displayId,
+                    id: { not: req.user.id }
+                }
+            });
+            if (existingUser) {
+                return res.status(409).json({ error: 'このDisplay IDは既に使用されています' });
+            }
         }
         const updatedUser = await index_1.prisma.user.update({
             where: { id: req.user.id },
@@ -41,6 +55,7 @@ router.put('/profile', async (req, res) => {
             select: {
                 id: true,
                 email: true,
+                displayId: true,
                 areaId: true,
                 name: true,
                 profileImage: true,
@@ -50,8 +65,8 @@ router.put('/profile', async (req, res) => {
         const missingFields = [];
         if (!updatedUser.name)
             missingFields.push('name');
-        if (!updatedUser.areaId)
-            missingFields.push('areaId');
+        if (!updatedUser.displayId)
+            missingFields.push('displayId');
         if (!updatedUser.profileImage)
             missingFields.push('profileImage');
         const profileComplete = missingFields.length === 0;
@@ -60,6 +75,7 @@ router.put('/profile', async (req, res) => {
             user: {
                 id: updatedUser.id,
                 email: updatedUser.email,
+                displayId: updatedUser.displayId,
                 areaId: updatedUser.areaId,
                 name: updatedUser.name,
                 profileImage: updatedUser.profileImage,
@@ -79,13 +95,31 @@ router.patch('/me', (req, res, next) => {
     console.log('🔄 プロフィール更新リクエスト開始');
     console.log('📋 リクエストヘッダー:', req.headers);
     console.log('📦 リクエストボディ:', req.body);
-    (0, upload_1.uploadSingleProfileImage)(req, res, next);
-}, upload_1.handleUploadError, upload_1.validateCloudinaryUpload, async (req, res) => {
+    const contentType = req.headers['content-type'];
+    console.log('🔍 Content-Type:', contentType);
+    if (contentType && contentType.includes('multipart/form-data')) {
+        console.log('📷 画像アップロードあり - multer処理実行');
+        (0, upload_1.uploadSingleProfileImage)(req, res, next);
+    }
+    else {
+        console.log('📝 テキストのみ - multer処理スキップ');
+        next();
+    }
+}, upload_1.handleUploadError, (req, res, next) => {
+    if (req.file) {
+        console.log('🔍 画像アップロード検出 - Cloudinary検証実行');
+        (0, upload_1.validateCloudinaryUpload)(req, res, next);
+    }
+    else {
+        console.log('📝 画像なし - Cloudinary検証スキップ');
+        next();
+    }
+}, async (req, res) => {
     try {
         console.log('🔍 プロフィール更新処理開始');
         console.log('📁 req.file の詳細:', req.file);
         console.log('📄 req.body の詳細:', req.body);
-        const { name, areaId } = req.body;
+        const { name, displayId } = req.body;
         let profileImage = req.body.profileImage;
         if (req.file) {
             console.log('✅ 画像ファイル検出成功');
@@ -137,18 +171,21 @@ router.patch('/me', (req, res, next) => {
         }
         if (name !== undefined && name.trim() !== '')
             updateData.name = name.trim();
-        if (areaId !== undefined && areaId.trim() !== '')
-            updateData.areaId = areaId.trim();
+        if (displayId !== undefined && displayId.trim() !== '')
+            updateData.displayId = displayId.trim();
         console.log('🔄 最終更新データ:', updateData);
         if (Object.keys(updateData).length === 0) {
             return res.status(400).json({ error: '更新するフィールドが指定されていません' });
         }
-        if (areaId && areaId !== req.user.areaId) {
-            const existingUser = await index_1.prisma.user.findUnique({
-                where: { areaId }
+        if (displayId && displayId !== req.user.displayId) {
+            const existingUser = await index_1.prisma.user.findFirst({
+                where: {
+                    displayId: displayId,
+                    id: { not: req.user.id }
+                }
             });
             if (existingUser) {
-                return res.status(409).json({ error: 'このArea IDは既に使用されています' });
+                return res.status(409).json({ error: 'このDisplay IDは既に使用されています' });
             }
         }
         console.log('💾 データベース更新開始:', { userId: req.user.id, updateData });
@@ -158,6 +195,7 @@ router.patch('/me', (req, res, next) => {
             select: {
                 id: true,
                 email: true,
+                displayId: true,
                 areaId: true,
                 name: true,
                 profileImage: true,
@@ -168,13 +206,13 @@ router.patch('/me', (req, res, next) => {
             id: updatedUser.id,
             profileImage: updatedUser.profileImage,
             name: updatedUser.name,
-            areaId: updatedUser.areaId
+            displayId: updatedUser.displayId
         });
         const missingFields = [];
         if (!updatedUser.name)
             missingFields.push('name');
-        if (!updatedUser.areaId)
-            missingFields.push('areaId');
+        if (!updatedUser.displayId)
+            missingFields.push('displayId');
         if (!updatedUser.profileImage)
             missingFields.push('profileImage');
         const profileComplete = missingFields.length === 0;
@@ -184,6 +222,7 @@ router.patch('/me', (req, res, next) => {
             user: {
                 id: updatedUser.id,
                 email: updatedUser.email,
+                displayId: updatedUser.displayId,
                 areaId: updatedUser.areaId,
                 name: updatedUser.name,
                 profileImage: updatedUser.profileImage,
@@ -199,15 +238,16 @@ router.patch('/me', (req, res, next) => {
         return res.status(500).json({ error: 'プロフィールの更新に失敗しました' });
     }
 });
-router.get('/search/:areaId', async (req, res) => {
+router.get('/search/:displayId', async (req, res) => {
     try {
-        const { areaId } = req.params;
+        const { displayId } = req.params;
         const user = await index_1.prisma.user.findUnique({
-            where: { areaId },
+            where: { displayId },
             select: {
                 id: true,
                 name: true,
-                areaId: true
+                displayId: true,
+                profileImage: true
             }
         });
         if (!user) {
@@ -232,8 +272,8 @@ router.get('/search', async (req, res) => {
         let whereClause = {
             id: { not: req.user.id }
         };
-        if (type === 'areaId') {
-            whereClause.areaId = { contains: query, mode: 'insensitive' };
+        if (type === 'displayId') {
+            whereClause.displayId = { contains: query, mode: 'insensitive' };
         }
         else if (type === 'username') {
             whereClause.name = { contains: query, mode: 'insensitive' };
@@ -241,7 +281,7 @@ router.get('/search', async (req, res) => {
         else {
             whereClause.OR = [
                 { name: { contains: query, mode: 'insensitive' } },
-                { areaId: { contains: query, mode: 'insensitive' } }
+                { displayId: { contains: query, mode: 'insensitive' } }
             ];
         }
         const users = await index_1.prisma.user.findMany({
@@ -249,7 +289,7 @@ router.get('/search', async (req, res) => {
             select: {
                 id: true,
                 name: true,
-                areaId: true,
+                displayId: true,
                 profileImage: true
             },
             take: 20

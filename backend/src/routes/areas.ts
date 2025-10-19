@@ -797,17 +797,17 @@ router.get('/memberships', async (req: AuthRequest, res: Response) => {
 router.post('/:id/invite', async (req: AuthRequest, res: Response) => {
   try {
     const { id } = req.params;
-    const { displayId } = req.body; // displayIdで友達を検索
+    const { invitedUserId } = req.body; // invitedUserIdで友達を検索
 
-    console.log(`エリア招待リクエスト - areaId: ${id}, displayId: ${displayId}, invitedBy: ${req.user!.id}`);
+    console.log(`エリア招待リクエスト - areaId: ${id}, invitedUserId: ${invitedUserId}, invitedBy: ${req.user!.id}`);
 
-    if (!displayId) {
-      return res.status(400).json({ error: 'Display ID is required' });
+    if (!invitedUserId) {
+      return res.status(400).json({ error: 'Invited User ID is required' });
     }
 
-    // displayIdからuserIdを取得
+    // invitedUserIdからユーザー情報を取得
     const targetUser = await prisma.user.findUnique({
-      where: { displayId },
+      where: { id: invitedUserId },
       select: { id: true, name: true }
     });
 

@@ -3,6 +3,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
 const express_1 = require("express");
 const zod_1 = require("zod");
 const index_1 = require("../index");
+const firebaseAdmin_1 = require("../services/firebaseAdmin");
 const router = (0, express_1.Router)();
 const createNotificationSchema = zod_1.z.object({
     type: zod_1.z.enum(['FRIEND_REQUEST', 'AREA_INVITE', 'LOCATION_UPDATE', 'GENERAL']),
@@ -358,32 +359,47 @@ router.post('/send-push', async (req, res) => {
             where: { id: recipientId },
             select: { deviceToken: true, name: true }
         });
-        if (!recipient || !recipient.deviceToken) {
-            return res.status(404).json({ error: '受信者のデバイストークンが見つかりません' });
+        let pushNotificationSent = false;
+        let websocketSent = false;
+        if (recipient && recipient.deviceToken) {
+            try {
+                const success = await (0, firebaseAdmin_1.sendPushNotification)(recipient.deviceToken, title, body, data || {});
+                if (success) {
+                    console.log(`プッシュ通知送信成功 - recipientId: ${recipientId}, title: ${title}`);
+                    pushNotificationSent = true;
+                }
+                else {
+                    console.log(`プッシュ通知送信失敗 - recipientId: ${recipientId}`);
+                }
+            }
+            catch (pushError) {
+                console.error('プッシュ通知送信エラー:', pushError);
+            }
         }
-        const apn = require('apn');
-        const options = {
-            token: {
-                key: process.env.APNS_KEY_PATH || './AuthKey_ZUS86W8Y8Q.p8',
-                keyId: process.env.APNS_KEY_ID || 'ZUS86W8Y8Q',
-                teamId: process.env.APNS_TEAM_ID || 'YOUR_TEAM_ID'
-            },
-            production: process.env.NODE_ENV === 'production'
-        };
-        const apnProvider = new apn.Provider(options);
-        const notification = new apn.Notification();
-        notification.alert = {
-            title: title,
-            body: body
-        };
-        notification.badge = 1;
-        notification.sound = 'default';
-        notification.payload = data || {};
-        notification.topic = process.env.APNS_BUNDLE_ID || 'com.anonymous.Area';
-        const result = await apnProvider.send(notification, recipient.deviceToken);
-        if (result.failed.length > 0) {
-            console.error('Push notification failed:', result.failed);
-            return res.status(500).json({ error: 'プッシュ通知の送信に失敗しました' });
+        else {
+            console.log(`受信者のデバイストークンが設定されていません - recipientId: ${recipientId}`);
+        }
+        try {
+            const recipientSocket = Array.from(index_1.io.sockets.sockets.values())
+                .find(socket => socket.data.userId === recipientId);
+            if (recipientSocket) {
+                recipientSocket.emit('general_notification', {
+                    type: 'general_notification',
+                    title,
+                    body,
+                    data: data || {},
+                    senderId: req.user.id,
+                    message: body
+                });
+                console.log(`WebSocket通知送信成功 - recipientId: ${recipientId}, title: ${title}`);
+                websocketSent = true;
+            }
+            else {
+                console.log(`受信者のWebSocket接続が見つかりません - recipientId: ${recipientId}`);
+            }
+        }
+        catch (websocketError) {
+            console.error('WebSocket通知送信エラー:', websocketError);
         }
         await index_1.prisma.notification.create({
             data: {
@@ -396,8 +412,9 @@ router.post('/send-push', async (req, res) => {
             }
         });
         return res.json({
-            message: 'プッシュ通知が送信されました',
-            result: result.sent
+            message: '通知が送信されました',
+            pushNotificationSent,
+            websocketSent
         });
     }
     catch (error) {
@@ -407,8 +424,8 @@ router.post('/send-push', async (req, res) => {
                 details: error.errors
             });
         }
-        console.error('Send push notification error:', error);
-        return res.status(500).json({ error: 'プッシュ通知の送信に失敗しました' });
+        console.error('Send notification error:', error);
+        return res.status(500).json({ error: '通知の送信に失敗しました' });
     }
 });
 exports.default = router;

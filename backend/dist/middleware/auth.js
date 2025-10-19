@@ -23,6 +23,7 @@ const authMiddleware = async (req, res, next) => {
             select: {
                 id: true,
                 email: true,
+                displayId: true,
                 areaId: true,
                 name: true
             }

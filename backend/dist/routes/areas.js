@@ -3,6 +3,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
 const express_1 = require("express");
 const zod_1 = require("zod");
 const index_1 = require("../index");
+const firebaseAdmin_1 = require("../services/firebaseAdmin");
 const router = (0, express_1.Router)();
 const createAreaSchema = zod_1.z.object({
     name: zod_1.z.string().min(1, 'Area name is required'),
@@ -185,11 +186,11 @@ router.get('/joined', async (req, res) => {
             }
         }
         const joinedAreas = memberships
-            .filter(m => m.area && m.area.userId !== req.user.id && m.addedBy !== req.user.id)
+            .filter(m => m.area && m.area.userId !== req.user.id)
             .map(m => m.area);
-        console.log(`参加エリアフィルタリング完了 - 参加エリア数: ${joinedAreas.length}`);
+        console.log(`参加エリアフィルタリング完了 - 参加エリア数: ${joinedAreas.length} (作成エリア除外後)`);
         for (const area of joinedAreas) {
-            console.log(`参加エリア詳細 - areaId: ${area.id}, areaName: ${area.name}, areaOwner: ${area.userId}`);
+            console.log(`参加エリア詳細 - areaId: ${area.id}, areaName: ${area.name}, areaOwner: ${area.userId} (作成者: ${req.user.id})`);
         }
         const apiAreas = await Promise.all(joinedAreas.map(async (area) => {
             const memberCount = await index_1.prisma.areaMember.count({
@@ -217,7 +218,7 @@ router.get('/joined', async (req, res) => {
                 updatedAt: area.updatedAt,
                 memberCount,
                 onlineCount,
-                isOwner: false
+                isOwner: area.userId === req.user.id
             };
         }));
         console.log(`参加エリア一覧取得完了 - エリア数: ${apiAreas.length}`);
@@ -328,6 +329,28 @@ router.get('/:id', async (req, res) => {
 router.post('/', async (req, res) => {
     try {
         const { name, coordinates, isPublic = false } = createAreaSchema.parse(req.body);
+        const existingCount = await index_1.prisma.area.count({ where: { userId: req.user.id } });
+        if (existingCount >= 5) {
+            return res.status(400).json({ error: '作成できるエリアは最大5件までです' });
+        }
+        const latitudes = coordinates.map(c => c.latitude);
+        const longitudes = coordinates.map(c => c.longitude);
+        const centroidLat = latitudes.reduce((a, b) => a + b, 0) / latitudes.length;
+        const centroidLng = longitudes.reduce((a, b) => a + b, 0) / longitudes.length;
+        const toRad = (deg) => (deg * Math.PI) / 180;
+        const earthRadiusM = 6371000;
+        const maxRadiusM = coordinates.reduce((max, c) => {
+            const dLat = toRad(c.latitude - centroidLat);
+            const dLng = toRad(c.longitude - centroidLng);
+            const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+                Math.cos(toRad(centroidLat)) * Math.cos(toRad(c.latitude)) *
+                    Math.sin(dLng / 2) * Math.sin(dLng / 2);
+            const distance = 2 * earthRadiusM * Math.asin(Math.min(1, Math.sqrt(a)));
+            return Math.max(max, distance);
+        }, 0);
+        if (maxRadiusM < 100 || maxRadiusM > 800) {
+            return res.status(400).json({ error: 'エリアの半径は100m以上800m以下である必要があります' });
+        }
         const result = await index_1.prisma.$transaction(async (tx) => {
             const area = await tx.area.create({
                 data: {
@@ -456,7 +479,7 @@ router.get('/:id/members', async (req, res) => {
                     select: {
                         id: true,
                         name: true,
-                        areaId: true,
+                        displayId: true,
                         profileImage: true,
                         createdAt: true,
                         updatedAt: true
@@ -465,39 +488,35 @@ router.get('/:id/members', async (req, res) => {
             },
             orderBy: { createdAt: 'asc' }
         });
-        let filteredMembers = members;
-        if (area.userId !== req.user.id) {
-            const memberIds = members.map(m => m.user.id);
-            const friendships = await index_1.prisma.friend.findMany({
-                where: {
-                    OR: [
-                        { userId: req.user.id, friendId: { in: memberIds } },
-                        { friendId: req.user.id, userId: { in: memberIds } }
-                    ]
-                }
-            });
-            const friendIds = new Set();
-            friendships.forEach(friendship => {
-                if (friendship.userId === req.user.id) {
-                    friendIds.add(friendship.friendId);
-                }
-                else {
-                    friendIds.add(friendship.userId);
-                }
-            });
-            filteredMembers = members.filter(member => friendIds.has(member.user.id) || member.user.id === req.user.id);
-            console.log(`エリアメンバー取得: 全${members.length}人中、友達は${filteredMembers.length}人（本人含む）`);
-        }
-        else {
-            console.log(`エリアメンバー取得（作成者）: 全${members.length}人`);
-        }
+        const memberIds = members.map(m => m.user.id);
+        const friendships = await index_1.prisma.friend.findMany({
+            where: {
+                OR: [
+                    { userId: req.user.id, friendId: { in: memberIds } },
+                    { friendId: req.user.id, userId: { in: memberIds } }
+                ]
+            }
+        });
+        const friendIds = new Set();
+        friendships.forEach(friendship => {
+            if (friendship.userId === req.user.id) {
+                friendIds.add(friendship.friendId);
+            }
+            else {
+                friendIds.add(friendship.userId);
+            }
+        });
+        const filteredMembers = members;
+        console.log(`エリアメンバー取得: 全${members.length}人（友達: ${friendIds.size}人）`);
         const memberUsers = filteredMembers.map(member => ({
             id: member.user.id,
             name: member.user.name,
-            areaId: member.user.areaId,
+            displayId: member.user.displayId,
             profileImage: member.user.profileImage,
             createdAt: member.user.createdAt || new Date(),
-            updatedAt: member.user.updatedAt || new Date()
+            updatedAt: member.user.updatedAt || new Date(),
+            isFriend: friendIds.has(member.user.id),
+            isCurrentUser: member.user.id === req.user.id
         }));
         return res.json(memberUsers);
     }
@@ -629,11 +648,19 @@ router.get('/memberships', async (req, res) => {
 router.post('/:id/invite', async (req, res) => {
     try {
         const { id } = req.params;
-        const { userId } = req.body;
-        console.log(`エリア招待リクエスト - areaId: ${id}, userId: ${userId}, invitedBy: ${req.user.id}`);
-        if (!userId) {
-            return res.status(400).json({ error: 'User ID is required' });
+        const { invitedUserId } = req.body;
+        console.log(`エリア招待リクエスト - areaId: ${id}, invitedUserId: ${invitedUserId}, invitedBy: ${req.user.id}`);
+        if (!invitedUserId) {
+            return res.status(400).json({ error: 'Invited User ID is required' });
         }
+        const targetUser = await index_1.prisma.user.findUnique({
+            where: { id: invitedUserId },
+            select: { id: true, name: true }
+        });
+        if (!targetUser) {
+            return res.status(404).json({ error: 'User not found' });
+        }
+        const userId = targetUser.id;
         const area = await index_1.prisma.area.findFirst({
             where: {
                 id,
@@ -719,6 +746,51 @@ router.post('/:id/invite', async (req, res) => {
         }
         catch (notificationError) {
             console.error('Failed to create area invite notification:', notificationError);
+        }
+        try {
+            const invitedUser = await index_1.prisma.user.findUnique({
+                where: { id: userId },
+                select: { deviceToken: true, name: true }
+            });
+            if (invitedUser && invitedUser.deviceToken) {
+                const result = await (0, firebaseAdmin_1.sendPushNotificationToMultiple)([invitedUser.deviceToken], 'エリア招待', `${req.user.name}さんがあなたをエリア「${area.name}」に招待しました`, {
+                    type: 'area_invite',
+                    invitationId: invitation.id,
+                    areaId: area.id,
+                    areaName: area.name,
+                    senderId: req.user.id,
+                    senderName: req.user.name || 'Unknown'
+                });
+                console.log(`エリア招待プッシュ通知送信完了 - invitedUserId: ${userId}, areaName: ${area.name}, 成功: ${result.successCount}, 失敗: ${result.failureCount}`);
+            }
+            else {
+                console.log(`プッシュ通知送信スキップ - デバイストークンなし (userId: ${userId})`);
+            }
+        }
+        catch (pushError) {
+            console.error('エリア招待プッシュ通知送信エラー:', pushError);
+        }
+        try {
+            const invitedUserSocket = Array.from(index_1.io.sockets.sockets.values())
+                .find(socket => socket.data.userId === userId);
+            if (invitedUserSocket) {
+                invitedUserSocket.emit('area_invite', {
+                    type: 'area_invite',
+                    invitationId: invitation.id,
+                    areaId: area.id,
+                    areaName: area.name,
+                    senderId: req.user.id,
+                    senderName: req.user.name || 'Unknown',
+                    message: `${req.user.name}さんがあなたをエリア「${area.name}」に招待しました`
+                });
+                console.log(`エリア招待WebSocket通知送信完了 - invitedUserId: ${userId}, areaName: ${area.name}`);
+            }
+            else {
+                console.log(`招待ユーザーのWebSocket接続が見つかりません - invitedUserId: ${userId}`);
+            }
+        }
+        catch (websocketError) {
+            console.error('エリア招待WebSocket通知送信エラー:', websocketError);
         }
         return res.status(201).json({
             message: 'Invitation sent successfully',
