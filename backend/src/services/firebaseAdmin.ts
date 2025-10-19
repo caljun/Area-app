@@ -15,7 +15,6 @@ export function initializeFirebaseAdmin() {
     // 環境変数からサービスアカウント情報を取得
     const serviceAccount: admin.ServiceAccount = {
       projectId: process.env.FIREBASE_PROJECT_ID || 'area-90c52',
-      privateKeyId: process.env.FIREBASE_PRIVATE_KEY_ID || 'bf1a1c060ee8fd2fd5daee5b267f3bd88599382a',
       privateKey: process.env.FIREBASE_PRIVATE_KEY?.replace(/\\n/g, '\n') || `-----BEGIN PRIVATE KEY-----
 MIIEvQIBADANBgkqhkiG9w0BAQEFAASCBKcwggSjAgEAAoIBAQDexCWLl+nZISNs
 uS2rf1kzOKWfxNQ2rmo6btvkeu1rySb8S55feo+UIx6xpTEfG3vqf5XnTIlVy4/+
@@ -44,13 +43,7 @@ nuoiZsqbcoQtievU5REwqW4TXjp7HH5DNGKXcJVyplS2vaYQzuwsvobO5VbLU2vB
 QQlODrgdieTdnt4nmoNhSTEeuWLo3W539wfV+V3yqv2MTjPaaG0+Ccp8JYIAMHI8
 e+ReKvJraIOVuVSDdGHi7nE=
 -----END PRIVATE KEY-----`,
-      clientEmail: process.env.FIREBASE_CLIENT_EMAIL || 'firebase-adminsdk-fbsvc@area-90c52.iam.gserviceaccount.com',
-      clientId: process.env.FIREBASE_CLIENT_ID || '114145158376487522101',
-      authUri: 'https://accounts.google.com/o/oauth2/auth',
-      tokenUri: 'https://oauth2.googleapis.com/token',
-      authProviderX509CertUrl: 'https://www.googleapis.com/oauth2/v1/certs',
-      clientX509CertUrl: 'https://www.googleapis.com/robot/v1/metadata/x509/firebase-adminsdk-fbsvc%40area-90c52.iam.gserviceaccount.com',
-      universeDomain: 'googleapis.com'
+      clientEmail: process.env.FIREBASE_CLIENT_EMAIL || 'firebase-adminsdk-fbsvc@area-90c52.iam.gserviceaccount.com'
     };
 
     // 必須環境変数の確認
