@@ -377,25 +377,30 @@ router.post('/device-token', async (req: AuthRequest, res: Response) => {
       deviceToken: z.string().min(1, 'デバイストークンは必須です')
     }).parse(req.body);
 
+    console.log(`📱 デバイストークン登録開始 - userId: ${req.user!.id}, token: ${deviceToken.substring(0, 20)}...`);
+
     // デバイストークンを更新または作成
-    await prisma.user.update({
+    const updatedUser = await prisma.user.update({
       where: { id: req.user!.id },
       data: { deviceToken }
     });
 
+    console.log(`✅ デバイストークン登録完了 - userId: ${req.user!.id}, name: ${updatedUser.name}`);
+
     return res.json({
       message: 'デバイストークンが登録されました',
-      deviceToken
+      deviceToken: deviceToken.substring(0, 20) + '...' // セキュリティのため一部のみ返す
     });
   } catch (error) {
     if (error instanceof z.ZodError) {
+      console.error('❌ デバイストークン登録 - バリデーションエラー:', error.errors);
       return res.status(400).json({
         error: '入力内容に問題があります',
         details: error.errors
       });
     }
     
-    console.error('Device token registration error:', error);
+    console.error('❌ デバイストークン登録エラー:', error);
     return res.status(500).json({ error: 'デバイストークンの登録に失敗しました' });
   }
 });

@@ -58,8 +58,9 @@ e+ReKvJraIOVuVSDdGHi7nE=
     });
 
     console.log('✅ Firebase Admin SDK が初期化されました（環境変数使用）');
-    console.log(`プロジェクトID: ${serviceAccount.projectId}`);
-    console.log(`クライアントメール: ${serviceAccount.clientEmail}`);
+    console.log(`📱 プロジェクトID: ${serviceAccount.projectId}`);
+    console.log(`📱 クライアントメール: ${serviceAccount.clientEmail}`);
+    console.log(`📱 プライベートキー: ${serviceAccount.privateKey.substring(0, 50)}...`);
     isInitialized = true;
   } catch (error) {
     console.error('❌ Firebase Admin SDK の初期化に失敗:', error);

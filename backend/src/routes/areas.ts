@@ -227,7 +227,7 @@ router.get('/joined', async (req: AuthRequest, res: Response) => {
     }
 
     // Exclude areas owned by the user to ensure "joined" means non-owned memberships
-    // エリア作成者（オーナー）は参加エリアから除外する
+    // プロフィール表示用：作成したエリアは除外する
     const joinedAreas = memberships
       .filter(m => m.area && m.area.userId !== req.user!.id) // 作成者は除外
       .map(m => m.area!);
@@ -278,6 +278,81 @@ router.get('/joined', async (req: AuthRequest, res: Response) => {
     return res.json(apiAreas);
   } catch (error) {
     console.error('Get joined areas error:', error);
+    return res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// Get areas for location sharing (including owned areas)
+// 位置情報共有用：作成したエリアも含める
+router.get('/for-location-sharing', async (req: AuthRequest, res: Response) => {
+  try {
+    console.log(`位置情報共有用エリア一覧取得開始 - userId: ${req.user!.id}`);
+
+    const memberships = await prisma.areaMember.findMany({
+      where: { userId: req.user!.id },
+      include: { 
+        area: {
+          select: {
+            id: true,
+            name: true,
+            coordinates: true,
+            userId: true,
+            isPublic: true,
+            imageUrl: true,
+            createdAt: true,
+            updatedAt: true
+          }
+        }
+      },
+      orderBy: { createdAt: 'desc' }
+    });
+
+    console.log(`位置情報共有用メンバーシップ取得完了 - 件数: ${memberships.length}`);
+
+    // 位置情報共有用：作成したエリアも含める
+    const areasForLocationSharing = memberships
+      .filter(m => m.area) // エリアが存在するもののみ
+      .map(m => m.area!);
+
+    console.log(`位置情報共有用エリアフィルタリング完了 - エリア数: ${areasForLocationSharing.length} (作成エリア含む)`);
+
+    const apiAreas = await Promise.all(areasForLocationSharing.map(async (area) => {
+      // メンバー数を取得（所有者も含む）
+      const memberCount = await prisma.areaMember.count({
+        where: { areaId: area.id }
+      });
+
+      // オンラインメンバー数を取得（簡易版）
+      const onlineCount = await prisma.areaMember.count({
+        where: {
+          areaId: area.id,
+          user: {
+            updatedAt: {
+              gte: new Date(Date.now() - 5 * 60 * 1000)
+            }
+          }
+        }
+      });
+
+      return {
+        id: area.id,
+        name: area.name,
+        coordinates: area.coordinates,
+        userId: area.userId,
+        isPublic: area.isPublic,
+        imageUrl: area.imageUrl,
+        createdAt: area.createdAt,
+        updatedAt: area.updatedAt,
+        memberCount,
+        onlineCount,
+        isOwner: area.userId === req.user!.id
+      };
+    }));
+
+    console.log(`位置情報共有用エリア一覧取得完了 - エリア数: ${apiAreas.length}`);
+    return res.json(apiAreas);
+  } catch (error) {
+    console.error('Get areas for location sharing error:', error);
     return res.status(500).json({ error: 'Internal server error' });
   }
 });
@@ -924,13 +999,19 @@ router.post('/:id/invite', async (req: AuthRequest, res: Response) => {
 
     // Firebase Push通知を送信
     try {
+      console.log(`📱 エリア招待プッシュ通知送信開始 - invitedUserId: ${userId}, areaName: ${area.name}`);
+      
       // 招待されたユーザーのデバイストークンを取得
       const invitedUser = await prisma.user.findUnique({
         where: { id: userId },
         select: { deviceToken: true, name: true }
       });
 
+      console.log(`📱 招待ユーザー情報取得 - name: ${invitedUser?.name}, hasDeviceToken: ${invitedUser?.deviceToken ? 'YES' : 'NO'}`);
+
       if (invitedUser && invitedUser.deviceToken) {
+        console.log(`📱 デバイストークン確認 - token: ${invitedUser.deviceToken.substring(0, 20)}...`);
+        
         const result = await sendPushNotificationToMultiple(
           [invitedUser.deviceToken],
           'エリア招待',
@@ -945,12 +1026,12 @@ router.post('/:id/invite', async (req: AuthRequest, res: Response) => {
           }
         );
         
-        console.log(`エリア招待プッシュ通知送信完了 - invitedUserId: ${userId}, areaName: ${area.name}, 成功: ${result.successCount}, 失敗: ${result.failureCount}`);
+        console.log(`✅ エリア招待プッシュ通知送信完了 - invitedUserId: ${userId}, areaName: ${area.name}, 成功: ${result.successCount}, 失敗: ${result.failureCount}`);
       } else {
-        console.log(`プッシュ通知送信スキップ - デバイストークンなし (userId: ${userId})`);
+        console.log(`❌ プッシュ通知送信スキップ - デバイストークンなし (userId: ${userId}, name: ${invitedUser?.name})`);
       }
     } catch (pushError) {
-      console.error('エリア招待プッシュ通知送信エラー:', pushError);
+      console.error('❌ エリア招待プッシュ通知送信エラー:', pushError);
       // プッシュ通知送信に失敗してもエリア招待は成功とする
     }
 
