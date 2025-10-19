@@ -13,7 +13,7 @@ export function initializeFirebaseAdmin() {
 
   try {
     // 環境変数からサービスアカウント情報を取得
-    const serviceAccount = {
+    const serviceAccount: admin.ServiceAccount = {
       type: 'service_account',
       project_id: process.env.FIREBASE_PROJECT_ID || 'area-90c52',
       private_key_id: process.env.FIREBASE_PRIVATE_KEY_ID || 'bf1a1c060ee8fd2fd5daee5b267f3bd88599382a',
