@@ -8,7 +8,7 @@ const router = Router();
 // Validation schemas
 const createPostSchema = z.object({
   content: z.string().min(1, '投稿内容は必須です'),
-  imageUrl: z.string().url('画像URLの形式が正しくありません').optional(),
+  imageUrl: z.string().url('画像URLの形式が正しくありません'),
   location: z.object({
     type: z.literal('Point'),
     coordinates: z.array(z.number()).length(2) // [longitude, latitude]
