@@ -3,6 +3,15 @@ import multer from 'multer';
 import { v2 as cloudinary } from 'cloudinary';
 import { AuthRequest } from '../middleware/auth';
 
+// Multerの型定義を拡張
+declare global {
+  namespace Express {
+    interface Request {
+      file?: Express.Multer.File;
+    }
+  }
+}
+
 const router = Router();
 
 // Cloudinary設定
