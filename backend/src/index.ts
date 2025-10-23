@@ -16,6 +16,7 @@ import locationRoutes from './routes/locations';
 import imageRoutes from './routes/images';
 import notificationRoutes from './routes/notifications';
 import chatRoutes from './routes/chat';
+import postRoutes from './routes/posts';
 // import uploadRoutes from './routes/upload'; 
 
 // Import middleware
@@ -243,6 +244,7 @@ app.use('/api/location', authMiddleware, locationRoutes); // フロントエン�
 app.use('/api/images', imageRoutes); // 認証不要なエンドポイントがあるため、authMiddlewareを削除 
 app.use('/api/notifications', authMiddleware, notificationRoutes);
 app.use('/api/chat', authMiddleware, chatRoutes);
+app.use('/api/posts', authMiddleware, postRoutes);
 // app.use('/api/images/upload', authMiddleware, uploadRoutes); 
 
 // Helper function to get friends of a user

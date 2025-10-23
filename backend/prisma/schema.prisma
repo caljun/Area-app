@@ -44,6 +44,10 @@ model User {
   // エリア招待関連
   areaInvitationInvited AreaInvitation[] @relation("AreaInvitationInvited")
   areaInvitationInviter AreaInvitation[] @relation("AreaInvitationInviter")
+  // 投稿関連
+  posts    Post[]
+  comments Comment[]
+  postLikes PostLike[]
 
   @@map("users")
 }
@@ -64,6 +68,7 @@ model Area {
   areaMembers  AreaMember[]  @relation("AreaMembers")
   areaInvitations AreaInvitation[] @relation("AreaInvitations")
   locations    Location[]    // エリア内の位置情報
+  posts        Post[]       // エリア内の投稿
 
   @@map("areas")
 }
@@ -276,4 +281,60 @@ enum MessageType {
   IMAGE
   LOCATION
   AREA
+}
+
+// 投稿機能用のモデル
+model Post {
+  id        String   @id @default(auto()) @map("_id") @db.ObjectId
+  content   String
+  imageUrl  String?
+  location  Json     // GeoJSON Point { type: "Point", coordinates: [longitude, latitude] }
+  areaId    String   @db.ObjectId
+  userId    String   @db.ObjectId
+  userName  String?
+  userProfileImage String?
+  likeCount Int      @default(0)
+  commentCount Int   @default(0)
+  isLiked   Boolean  @default(false)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  area     Area      @relation(fields: [areaId], references: [id], onDelete: Cascade)
+  user     User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  comments Comment[]
+  likes    PostLike[]
+
+  @@map("posts")
+}
+
+model Comment {
+  id        String   @id @default(auto()) @map("_id") @db.ObjectId
+  content   String
+  postId    String   @db.ObjectId
+  userId    String   @db.ObjectId
+  userName  String?
+  userProfileImage String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  post Post @relation(fields: [postId], references: [id], onDelete: Cascade)
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("comments")
+}
+
+model PostLike {
+  id     String @id @default(auto()) @map("_id") @db.ObjectId
+  postId String @db.ObjectId
+  userId String @db.ObjectId
+  createdAt DateTime @default(now())
+
+  // Relations
+  post Post @relation(fields: [postId], references: [id], onDelete: Cascade)
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([postId, userId])
+  @@map("post_likes")
 } 
