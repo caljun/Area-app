@@ -26,7 +26,7 @@ import { authMiddleware } from './middleware/auth';
 import { PrismaClient } from '@prisma/client';
 
 // Import Firebase Admin
-import { initializeFirebaseAdmin, sendPushNotificationToMultiple, sendAreaEntryExitNotification } from './services/firebaseAdmin';
+import { initializeFirebaseAdmin, sendPushNotificationToMultiple, sendAreaEntryExitNotification, sendPushNotification } from './services/firebaseAdmin';
 
 // 型の問題を回避
 declare global {
@@ -304,7 +304,7 @@ async function sendFriendAreaNotifications(userId: string, eventType: 'entered' 
     for (const friend of friends) {
       if (!friend) continue;
       
-      // WebSocket通知
+      // WebSocket通知（エリア入退場通知はWebSocket通知のみで機能している）
       io.to(`user_${friend.id}`).emit('friend_area_event', {
         friendName: userName,
         event: eventType,

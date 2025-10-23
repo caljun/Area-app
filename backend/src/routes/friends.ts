@@ -308,35 +308,7 @@ router.post('/requests', async (req: AuthRequest, res: Response) => {
       // 通知作成に失敗しても友達申請は成功とする
     }
 
-    // Firebase Push通知を送信
-    try {
-      if (receiver.deviceToken) {
-        const success = await sendPushNotification(
-          receiver.deviceToken,
-          '友達申請',
-          `${req.user!.name}さんから友達申請が届いています`,
-          {
-            type: 'friend_request',
-            requestId: request.id,
-            senderId: req.user!.id,
-            senderName: req.user!.name || 'Unknown'
-          }
-        );
-        
-        if (success) {
-          console.log(`友達申請プッシュ通知送信成功 - 受信者: ${receiver.name}, 送信者: ${req.user!.name}`);
-        } else {
-          console.log(`友達申請プッシュ通知送信失敗 - 受信者: ${receiver.name}`);
-        }
-      } else {
-        console.log(`受信者のデバイストークンが設定されていません - 受信者: ${receiver.name}`);
-      }
-    } catch (pushError) {
-      console.error('友達申請プッシュ通知送信エラー:', pushError);
-      // プッシュ通知送信に失敗しても友達申請は成功とする
-    }
-
-    // WebSocket通知も送信（リアルタイム通知）
+    // WebSocket通知を送信（エリア入退場通知と同じ方式）
     try {
       // 受信者のWebSocket接続を確認してリアルタイム通知を送信
       const receiverSocket = Array.from(io.sockets.sockets.values())
