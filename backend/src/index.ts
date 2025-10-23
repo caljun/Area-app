@@ -101,24 +101,33 @@ export const io = new Server(server, {
   }
 });
 
-// Initialize Prisma
+// Initialize Prisma with optimized settings
 export const prisma = new PrismaClient({
   log: process.env.NODE_ENV === 'development' ? ['query', 'error', 'warn'] : ['error'],
+  datasources: {
+    db: {
+      url: process.env.DATABASE_URL
+    }
+  }
 });
 
-// 古い位置情報の自動削除機能
+// 古い位置情報の自動削除機能（メモリ最適化版）
 async function cleanupOldLocations() {
   try {
-    // 1時間前より古い位置情報を削除
-    const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000);
+    // 30分前より古い位置情報を削除（より頻繁にクリーンアップ）
+    const thirtyMinutesAgo = new Date(Date.now() - 30 * 60 * 1000);
+    
+    // 古い位置情報を削除
     const result = await prisma.location.deleteMany({
       where: {
-        createdAt: { lt: oneHourAgo }
+        createdAt: { lt: thirtyMinutesAgo }
       }
     });
     
-    if (result.count > 0) {
-      console.log(`🧹 古い位置情報をクリーンアップ: ${result.count}件削除 (1時間前より古いデータ)`);
+    const totalDeleted = result.count;
+    
+    if (totalDeleted > 0) {
+      console.log(`🧹 古い位置情報をクリーンアップ: ${totalDeleted}件削除 (30分前より古いデータ)`);
     }
   } catch (error) {
     console.error('❌ 古い位置情報のクリーンアップに失敗:', error);
@@ -132,9 +141,9 @@ prisma.$connect()
     // Firebase Admin SDKの初期化
     initializeFirebaseAdmin();
     
-    // サーバー起動時にクリーンアップを実行し、その後30分ごとに実行
+    // サーバー起動時にクリーンアップを実行し、その後15分ごとに実行
     cleanupOldLocations();
-    setInterval(cleanupOldLocations, 30 * 60 * 1000); // 30分間隔
+    setInterval(cleanupOldLocations, 15 * 60 * 1000); // 15分間隔（より頻繁にクリーンアップ）
   })
   .catch((error) => {
     console.error('❌ Database connection failed:', error);
@@ -172,9 +181,22 @@ app.use(cors({
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true }));
 
-// Health check
+// Health check with memory monitoring
 app.get('/health', (req, res) => {
-  res.json({ status: 'OK', timestamp: new Date().toISOString() });
+  const memUsage = process.memoryUsage();
+  const memUsageMB = {
+    rss: Math.round(memUsage.rss / 1024 / 1024),
+    heapTotal: Math.round(memUsage.heapTotal / 1024 / 1024),
+    heapUsed: Math.round(memUsage.heapUsed / 1024 / 1024),
+    external: Math.round(memUsage.external / 1024 / 1024)
+  };
+  
+  res.json({ 
+    status: 'OK', 
+    timestamp: new Date().toISOString(),
+    memory: memUsageMB,
+    uptime: process.uptime()
+  });
 });
 
 // Session validation API for SwiftUI app (requires authentication)
@@ -792,6 +814,28 @@ process.on('SIGINT', async () => {
     process.exit(0);
   });
 });
+
+// メモリ監視とガベージコレクション
+function monitorMemory() {
+  const memUsage = process.memoryUsage();
+  const heapUsedMB = Math.round(memUsage.heapUsed / 1024 / 1024);
+  
+  // メモリ使用量が800MBを超えた場合、ガベージコレクションを強制実行
+  if (heapUsedMB > 800) {
+    console.log(`⚠️ High memory usage detected: ${heapUsedMB}MB, forcing garbage collection`);
+    if (global.gc) {
+      global.gc();
+    }
+  }
+  
+  // 定期的にメモリ使用量をログ出力（本番環境では5分ごと）
+  if (process.env.NODE_ENV === 'production') {
+    console.log(`📊 Memory usage: ${heapUsedMB}MB (RSS: ${Math.round(memUsage.rss / 1024 / 1024)}MB)`);
+  }
+}
+
+// メモリ監視を5分ごとに実行
+setInterval(monitorMemory, 5 * 60 * 1000);
 
 // グローバルエラーハンドラー
 process.on('uncaughtException', (error) => {

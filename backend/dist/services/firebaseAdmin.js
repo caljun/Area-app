@@ -16,10 +16,8 @@ function initializeFirebaseAdmin() {
     }
     try {
         const serviceAccount = {
-            type: 'service_account',
-            project_id: process.env.FIREBASE_PROJECT_ID || 'area-90c52',
-            private_key_id: process.env.FIREBASE_PRIVATE_KEY_ID || 'bf1a1c060ee8fd2fd5daee5b267f3bd88599382a',
-            private_key: process.env.FIREBASE_PRIVATE_KEY?.replace(/\\n/g, '\n') || `-----BEGIN PRIVATE KEY-----
+            projectId: process.env.FIREBASE_PROJECT_ID || 'area-90c52',
+            privateKey: process.env.FIREBASE_PRIVATE_KEY?.replace(/\\n/g, '\n') || `-----BEGIN PRIVATE KEY-----
 MIIEvQIBADANBgkqhkiG9w0BAQEFAASCBKcwggSjAgEAAoIBAQDexCWLl+nZISNs
 uS2rf1kzOKWfxNQ2rmo6btvkeu1rySb8S55feo+UIx6xpTEfG3vqf5XnTIlVy4/+
 dXmcZ6vjUdHvlfT8MYeuIXllrnoj/6DFXdJnzKJed72QEiYzwGbbaQFMk+vxQwDZ
@@ -47,15 +45,9 @@ nuoiZsqbcoQtievU5REwqW4TXjp7HH5DNGKXcJVyplS2vaYQzuwsvobO5VbLU2vB
 QQlODrgdieTdnt4nmoNhSTEeuWLo3W539wfV+V3yqv2MTjPaaG0+Ccp8JYIAMHI8
 e+ReKvJraIOVuVSDdGHi7nE=
 -----END PRIVATE KEY-----`,
-            client_email: process.env.FIREBASE_CLIENT_EMAIL || 'firebase-adminsdk-fbsvc@area-90c52.iam.gserviceaccount.com',
-            client_id: process.env.FIREBASE_CLIENT_ID || '114145158376487522101',
-            auth_uri: 'https://accounts.google.com/o/oauth2/auth',
-            token_uri: 'https://oauth2.googleapis.com/token',
-            auth_provider_x509_cert_url: 'https://www.googleapis.com/oauth2/v1/certs',
-            client_x509_cert_url: 'https://www.googleapis.com/robot/v1/metadata/x509/firebase-adminsdk-fbsvc%40area-90c52.iam.gserviceaccount.com',
-            universe_domain: 'googleapis.com'
+            clientEmail: process.env.FIREBASE_CLIENT_EMAIL || 'firebase-adminsdk-fbsvc@area-90c52.iam.gserviceaccount.com'
         };
-        if (!serviceAccount.project_id || !serviceAccount.private_key || !serviceAccount.client_email) {
+        if (!serviceAccount.projectId || !serviceAccount.privateKey || !serviceAccount.clientEmail) {
             console.warn('⚠️ Firebase Admin SDK: 必須環境変数が設定されていません');
             console.warn('⚠️ 必要な環境変数: FIREBASE_PROJECT_ID, FIREBASE_PRIVATE_KEY, FIREBASE_CLIENT_EMAIL');
             console.warn('⚠️ デフォルト値を使用して初期化を試行します');
@@ -64,8 +56,9 @@ e+ReKvJraIOVuVSDdGHi7nE=
             credential: firebase_admin_1.default.credential.cert(serviceAccount),
         });
         console.log('✅ Firebase Admin SDK が初期化されました（環境変数使用）');
-        console.log(`プロジェクトID: ${serviceAccount.project_id}`);
-        console.log(`クライアントメール: ${serviceAccount.client_email}`);
+        console.log(`📱 プロジェクトID: ${serviceAccount.projectId}`);
+        console.log(`📱 クライアントメール: ${serviceAccount.clientEmail}`);
+        console.log(`📱 プライベートキー: ${serviceAccount.privateKey.substring(0, 50)}...`);
         isInitialized = true;
     }
     catch (error) {

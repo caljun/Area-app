@@ -20,6 +20,7 @@ const locations_1 = __importDefault(require("./routes/locations"));
 const images_1 = __importDefault(require("./routes/images"));
 const notifications_1 = __importDefault(require("./routes/notifications"));
 const chat_1 = __importDefault(require("./routes/chat"));
+const posts_1 = __importDefault(require("./routes/posts"));
 const errorHandler_1 = require("./middleware/errorHandler");
 const auth_2 = require("./middleware/auth");
 const client_1 = require("@prisma/client");
@@ -54,17 +55,23 @@ exports.io = new socket_io_1.Server(server, {
 });
 exports.prisma = new client_1.PrismaClient({
     log: process.env.NODE_ENV === 'development' ? ['query', 'error', 'warn'] : ['error'],
+    datasources: {
+        db: {
+            url: process.env.DATABASE_URL
+        }
+    }
 });
 async function cleanupOldLocations() {
     try {
-        const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000);
+        const thirtyMinutesAgo = new Date(Date.now() - 30 * 60 * 1000);
         const result = await exports.prisma.location.deleteMany({
             where: {
-                createdAt: { lt: oneHourAgo }
+                createdAt: { lt: thirtyMinutesAgo }
             }
         });
-        if (result.count > 0) {
-            console.log(`🧹 古い位置情報をクリーンアップ: ${result.count}件削除 (1時間前より古いデータ)`);
+        const totalDeleted = result.count;
+        if (totalDeleted > 0) {
+            console.log(`🧹 古い位置情報をクリーンアップ: ${totalDeleted}件削除 (30分前より古いデータ)`);
         }
     }
     catch (error) {
@@ -76,7 +83,7 @@ exports.prisma.$connect()
     console.log('✅ Database connected successfully');
     (0, firebaseAdmin_1.initializeFirebaseAdmin)();
     cleanupOldLocations();
-    setInterval(cleanupOldLocations, 30 * 60 * 1000);
+    setInterval(cleanupOldLocations, 15 * 60 * 1000);
 })
     .catch((error) => {
     console.error('❌ Database connection failed:', error);
@@ -106,7 +113,19 @@ app.use((0, cors_1.default)({
 app.use(express_1.default.json({ limit: '10mb' }));
 app.use(express_1.default.urlencoded({ extended: true }));
 app.get('/health', (req, res) => {
-    res.json({ status: 'OK', timestamp: new Date().toISOString() });
+    const memUsage = process.memoryUsage();
+    const memUsageMB = {
+        rss: Math.round(memUsage.rss / 1024 / 1024),
+        heapTotal: Math.round(memUsage.heapTotal / 1024 / 1024),
+        heapUsed: Math.round(memUsage.heapUsed / 1024 / 1024),
+        external: Math.round(memUsage.external / 1024 / 1024)
+    };
+    res.json({
+        status: 'OK',
+        timestamp: new Date().toISOString(),
+        memory: memUsageMB,
+        uptime: process.uptime()
+    });
 });
 app.get('/api/session', authLimiter, auth_2.authMiddleware, async (req, res) => {
     try {
@@ -170,6 +189,7 @@ app.use('/api/location', auth_2.authMiddleware, locations_1.default);
 app.use('/api/images', images_1.default);
 app.use('/api/notifications', auth_2.authMiddleware, notifications_1.default);
 app.use('/api/chat', auth_2.authMiddleware, chat_1.default);
+app.use('/api/posts', auth_2.authMiddleware, posts_1.default);
 async function getFriends(userId) {
     try {
         const friends = await exports.prisma.friend.findMany({
@@ -598,6 +618,20 @@ process.on('SIGINT', async () => {
         process.exit(0);
     });
 });
+function monitorMemory() {
+    const memUsage = process.memoryUsage();
+    const heapUsedMB = Math.round(memUsage.heapUsed / 1024 / 1024);
+    if (heapUsedMB > 800) {
+        console.log(`⚠️ High memory usage detected: ${heapUsedMB}MB, forcing garbage collection`);
+        if (global.gc) {
+            global.gc();
+        }
+    }
+    if (process.env.NODE_ENV === 'production') {
+        console.log(`📊 Memory usage: ${heapUsedMB}MB (RSS: ${Math.round(memUsage.rss / 1024 / 1024)}MB)`);
+    }
+}
+setInterval(monitorMemory, 5 * 60 * 1000);
 process.on('uncaughtException', (error) => {
     console.error('🚨 Uncaught Exception:', error);
     console.error('Stack trace:', error.stack);

@@ -3,7 +3,6 @@ Object.defineProperty(exports, "__esModule", { value: true });
 const express_1 = require("express");
 const zod_1 = require("zod");
 const index_1 = require("../index");
-const firebaseAdmin_1 = require("../services/firebaseAdmin");
 const router = (0, express_1.Router)();
 const createAreaSchema = zod_1.z.object({
     name: zod_1.z.string().min(1, 'Area name is required'),
@@ -226,6 +225,68 @@ router.get('/joined', async (req, res) => {
     }
     catch (error) {
         console.error('Get joined areas error:', error);
+        return res.status(500).json({ error: 'Internal server error' });
+    }
+});
+router.get('/for-location-sharing', async (req, res) => {
+    try {
+        console.log(`位置情報共有用エリア一覧取得開始 - userId: ${req.user.id}`);
+        const memberships = await index_1.prisma.areaMember.findMany({
+            where: { userId: req.user.id },
+            include: {
+                area: {
+                    select: {
+                        id: true,
+                        name: true,
+                        coordinates: true,
+                        userId: true,
+                        isPublic: true,
+                        imageUrl: true,
+                        createdAt: true,
+                        updatedAt: true
+                    }
+                }
+            },
+            orderBy: { createdAt: 'desc' }
+        });
+        console.log(`位置情報共有用メンバーシップ取得完了 - 件数: ${memberships.length}`);
+        const areasForLocationSharing = memberships
+            .filter(m => m.area)
+            .map(m => m.area);
+        console.log(`位置情報共有用エリアフィルタリング完了 - エリア数: ${areasForLocationSharing.length} (作成エリア含む)`);
+        const apiAreas = await Promise.all(areasForLocationSharing.map(async (area) => {
+            const memberCount = await index_1.prisma.areaMember.count({
+                where: { areaId: area.id }
+            });
+            const onlineCount = await index_1.prisma.areaMember.count({
+                where: {
+                    areaId: area.id,
+                    user: {
+                        updatedAt: {
+                            gte: new Date(Date.now() - 5 * 60 * 1000)
+                        }
+                    }
+                }
+            });
+            return {
+                id: area.id,
+                name: area.name,
+                coordinates: area.coordinates,
+                userId: area.userId,
+                isPublic: area.isPublic,
+                imageUrl: area.imageUrl,
+                createdAt: area.createdAt,
+                updatedAt: area.updatedAt,
+                memberCount,
+                onlineCount,
+                isOwner: area.userId === req.user.id
+            };
+        }));
+        console.log(`位置情報共有用エリア一覧取得完了 - エリア数: ${apiAreas.length}`);
+        return res.json(apiAreas);
+    }
+    catch (error) {
+        console.error('Get areas for location sharing error:', error);
         return res.status(500).json({ error: 'Internal server error' });
     }
 });
@@ -746,29 +807,6 @@ router.post('/:id/invite', async (req, res) => {
         }
         catch (notificationError) {
             console.error('Failed to create area invite notification:', notificationError);
-        }
-        try {
-            const invitedUser = await index_1.prisma.user.findUnique({
-                where: { id: userId },
-                select: { deviceToken: true, name: true }
-            });
-            if (invitedUser && invitedUser.deviceToken) {
-                const result = await (0, firebaseAdmin_1.sendPushNotificationToMultiple)([invitedUser.deviceToken], 'エリア招待', `${req.user.name}さんがあなたをエリア「${area.name}」に招待しました`, {
-                    type: 'area_invite',
-                    invitationId: invitation.id,
-                    areaId: area.id,
-                    areaName: area.name,
-                    senderId: req.user.id,
-                    senderName: req.user.name || 'Unknown'
-                });
-                console.log(`エリア招待プッシュ通知送信完了 - invitedUserId: ${userId}, areaName: ${area.name}, 成功: ${result.successCount}, 失敗: ${result.failureCount}`);
-            }
-            else {
-                console.log(`プッシュ通知送信スキップ - デバイストークンなし (userId: ${userId})`);
-            }
-        }
-        catch (pushError) {
-            console.error('エリア招待プッシュ通知送信エラー:', pushError);
         }
         try {
             const invitedUserSocket = Array.from(index_1.io.sockets.sockets.values())

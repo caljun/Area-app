@@ -1,151 +1,145 @@
 "use strict";
+var __importDefault = (this && this.__importDefault) || function (mod) {
+    return (mod && mod.__esModule) ? mod : { "default": mod };
+};
 Object.defineProperty(exports, "__esModule", { value: true });
 const express_1 = require("express");
-const zod_1 = require("zod");
-const index_1 = require("../index");
-const auth_1 = require("../middleware/auth");
-const upload_1 = require("../middleware/upload");
+const multer_1 = __importDefault(require("multer"));
 const cloudinary_1 = require("cloudinary");
 const router = (0, express_1.Router)();
-const uploadImageSchema = zod_1.z.object({
-    type: zod_1.z.enum(['PROFILE', 'AREA', 'GENERAL'])
+cloudinary_1.v2.config({
+    cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
+    api_key: process.env.CLOUDINARY_API_KEY,
+    api_secret: process.env.CLOUDINARY_API_SECRET
 });
-router.post('/upload', auth_1.authMiddleware, (req, res, next) => {
-    (0, upload_1.uploadSingle)(req, res, next);
-}, upload_1.handleUploadError, upload_1.validateCloudinaryUpload, async (req, res) => {
-    try {
-        const { type } = uploadImageSchema.parse(req.body);
-        const result = req.file;
-        const image = await index_1.prisma.image.create({
-            data: {
-                userId: req.user.id,
-                url: result.secure_url,
-                publicId: result.public_id,
-                type: type
-            }
-        });
-        if (type === 'PROFILE') {
-            await index_1.prisma.user.update({
-                where: { id: req.user.id },
-                data: { profileImage: result.secure_url }
-            });
+const upload = (0, multer_1.default)({
+    storage: multer_1.default.memoryStorage(),
+    limits: {
+        fileSize: 10 * 1024 * 1024,
+    },
+    fileFilter: (req, file, cb) => {
+        if (file.mimetype.startsWith('image/')) {
+            cb(null, true);
         }
-        return res.status(201).json({
-            message: '画像のアップロードが完了しました',
-            image: {
-                id: image.id,
-                url: image.url,
-                type: image.type,
-                createdAt: image.createdAt
-            }
-        });
-    }
-    catch (error) {
-        if (error instanceof zod_1.z.ZodError) {
-            return res.status(400).json({
-                error: '入力内容に問題があります',
-                details: error.errors
-            });
+        else {
+            cb(new Error('画像ファイルのみアップロード可能です'));
         }
-        console.error('Upload image error:', error);
-        return res.status(500).json({ error: '画像のアップロードに失敗しました' });
     }
 });
-router.post('/upload-registration', (req, res, next) => {
-    (0, upload_1.uploadSingle)(req, res, next);
-}, upload_1.handleUploadError, upload_1.validateCloudinaryUpload, async (req, res) => {
-    try {
-        const { type } = uploadImageSchema.parse(req.body);
-        const result = req.file;
-        return res.status(201).json({
-            message: '画像のアップロードが完了しました',
-            image: {
-                url: result.secure_url,
-                type: type,
-                createdAt: new Date()
-            }
-        });
-    }
-    catch (error) {
-        if (error instanceof zod_1.z.ZodError) {
-            return res.status(400).json({
-                error: '入力内容に問題があります',
-                details: error.errors
-            });
-        }
-        console.error('Upload registration image error:', error);
-        return res.status(500).json({ error: '画像のアップロードに失敗しました' });
-    }
-});
-router.get('/', auth_1.authMiddleware, async (req, res) => {
-    try {
-        const { type } = req.query;
-        const where = { userId: req.user.id };
-        if (type) {
-            where.type = type;
-        }
-        const images = await index_1.prisma.image.findMany({
-            where,
-            orderBy: { createdAt: 'desc' }
-        });
-        return res.json({ images });
-    }
-    catch (error) {
-        console.error('Get images error:', error);
-        return res.status(500).json({ error: '画像の取得に失敗しました' });
-    }
-});
-router.delete('/:id', auth_1.authMiddleware, async (req, res) => {
-    try {
-        const { id } = req.params;
-        const image = await index_1.prisma.image.findFirst({
-            where: {
-                id,
-                userId: req.user.id
-            }
-        });
-        if (!image) {
-            return res.status(404).json({ error: '画像が見つかりません' });
+router.post('/upload-post-image', (req, res) => {
+    upload.single('image')(req, res, async (err) => {
+        if (err) {
+            return res.status(400).json({ error: err.message });
         }
         try {
-            await cloudinary_1.v2.uploader.destroy(image.publicId);
-        }
-        catch (cloudinaryError) {
-            console.error('Cloudinary delete error:', cloudinaryError);
-        }
-        await index_1.prisma.image.delete({
-            where: { id }
-        });
-        if (image.type === 'PROFILE') {
-            await index_1.prisma.user.update({
-                where: { id: req.user.id },
-                data: { profileImage: null }
+            if (!req.file) {
+                return res.status(400).json({ error: '画像ファイルが必要です' });
+            }
+            const result = await new Promise((resolve, reject) => {
+                cloudinary_1.v2.uploader.upload_stream({
+                    folder: 'area-posts',
+                    transformation: [
+                        { width: 800, height: 600, crop: 'limit' },
+                        { quality: 'auto' }
+                    ]
+                }, (error, result) => {
+                    if (error)
+                        reject(error);
+                    else
+                        resolve(result);
+                }).end(req.file.buffer);
+            });
+            res.json({
+                imageUrl: result.secure_url,
+                publicId: result.public_id
             });
         }
-        return res.json({ message: '画像の削除が完了しました' });
-    }
-    catch (error) {
-        console.error('Delete image error:', error);
-        return res.status(500).json({ error: '画像の削除に失敗しました' });
-    }
-});
-router.get('/:id', auth_1.authMiddleware, async (req, res) => {
-    try {
-        const { id } = req.params;
-        const image = await index_1.prisma.image.findFirst({
-            where: {
-                id,
-                userId: req.user.id
-            }
-        });
-        if (!image) {
-            return res.status(404).json({ error: '画像が見つかりません' });
+        catch (error) {
+            console.error('Image upload error:', error);
+            res.status(500).json({ error: '画像のアップロードに失敗しました' });
         }
-        return res.json({ image });
+    });
+});
+router.post('/upload-profile-image', (req, res) => {
+    upload.single('image')(req, res, async (err) => {
+        if (err) {
+            return res.status(400).json({ error: err.message });
+        }
+        try {
+            if (!req.file) {
+                return res.status(400).json({ error: '画像ファイルが必要です' });
+            }
+            const result = await new Promise((resolve, reject) => {
+                cloudinary_1.v2.uploader.upload_stream({
+                    folder: 'area-profiles',
+                    transformation: [
+                        { width: 400, height: 400, crop: 'fill', gravity: 'face' },
+                        { quality: 'auto' }
+                    ]
+                }, (error, result) => {
+                    if (error)
+                        reject(error);
+                    else
+                        resolve(result);
+                }).end(req.file.buffer);
+            });
+            res.json({
+                imageUrl: result.secure_url,
+                publicId: result.public_id
+            });
+        }
+        catch (error) {
+            console.error('Profile image upload error:', error);
+            res.status(500).json({ error: 'プロフィール画像のアップロードに失敗しました' });
+        }
+    });
+});
+router.post('/upload-area-image', (req, res) => {
+    upload.single('image')(req, res, async (err) => {
+        if (err) {
+            return res.status(400).json({ error: err.message });
+        }
+        try {
+            if (!req.file) {
+                return res.status(400).json({ error: '画像ファイルが必要です' });
+            }
+            const result = await new Promise((resolve, reject) => {
+                cloudinary_1.v2.uploader.upload_stream({
+                    folder: 'area-images',
+                    transformation: [
+                        { width: 1200, height: 800, crop: 'limit' },
+                        { quality: 'auto' }
+                    ]
+                }, (error, result) => {
+                    if (error)
+                        reject(error);
+                    else
+                        resolve(result);
+                }).end(req.file.buffer);
+            });
+            res.json({
+                imageUrl: result.secure_url,
+                publicId: result.public_id
+            });
+        }
+        catch (error) {
+            console.error('Area image upload error:', error);
+            res.status(500).json({ error: 'エリア画像のアップロードに失敗しました' });
+        }
+    });
+});
+router.delete('/delete-image', async (req, res) => {
+    try {
+        const { publicId } = req.body;
+        if (!publicId) {
+            return res.status(400).json({ error: '画像IDが必要です' });
+        }
+        await cloudinary_1.v2.uploader.destroy(publicId);
+        res.json({ success: true });
     }
     catch (error) {
-        console.error('Get image error:', error);
-        return res.status(500).json({ error: '画像の取得に失敗しました' });
+        console.error('Image delete error:', error);
+        res.status(500).json({ error: '画像の削除に失敗しました' });
     }
 });
 exports.default = router;

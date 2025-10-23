@@ -3,7 +3,6 @@ Object.defineProperty(exports, "__esModule", { value: true });
 const express_1 = require("express");
 const zod_1 = require("zod");
 const index_1 = require("../index");
-const firebaseAdmin_1 = require("../services/firebaseAdmin");
 const router = (0, express_1.Router)();
 const sendFriendRequestSchema = zod_1.z.object({
     toUserId: zod_1.z.string().min(1, 'User ID is required'),
@@ -252,28 +251,6 @@ router.post('/requests', async (req, res) => {
         }
         catch (notificationError) {
             console.error('Failed to create notification:', notificationError);
-        }
-        try {
-            if (receiver.deviceToken) {
-                const success = await (0, firebaseAdmin_1.sendPushNotification)(receiver.deviceToken, '友達申請', `${req.user.name}さんから友達申請が届いています`, {
-                    type: 'friend_request',
-                    requestId: request.id,
-                    senderId: req.user.id,
-                    senderName: req.user.name || 'Unknown'
-                });
-                if (success) {
-                    console.log(`友達申請プッシュ通知送信成功 - 受信者: ${receiver.name}, 送信者: ${req.user.name}`);
-                }
-                else {
-                    console.log(`友達申請プッシュ通知送信失敗 - 受信者: ${receiver.name}`);
-                }
-            }
-            else {
-                console.log(`受信者のデバイストークンが設定されていません - 受信者: ${receiver.name}`);
-            }
-        }
-        catch (pushError) {
-            console.error('友達申請プッシュ通知送信エラー:', pushError);
         }
         try {
             const receiverSocket = Array.from(index_1.io.sockets.sockets.values())
