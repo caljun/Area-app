@@ -3,15 +3,6 @@ import multer from 'multer';
 import { v2 as cloudinary } from 'cloudinary';
 import { AuthRequest } from '../middleware/auth';
 
-// Multerの型定義を拡張
-declare global {
-  namespace Express {
-    interface Request {
-      file?: Express.Multer.File;
-    }
-  }
-}
-
 const router = Router();
 
 // Cloudinary設定
@@ -38,105 +29,123 @@ const upload = multer({
 });
 
 // 投稿用画像アップロード
-router.post('/upload-post-image', upload.single('image'), async (req: AuthRequest, res: Response) => {
-  try {
-    if (!req.file) {
-      return res.status(400).json({ error: '画像ファイルが必要です' });
+router.post('/upload-post-image', (req: any, res: any) => {
+  upload.single('image')(req, res, async (err: any) => {
+    if (err) {
+      return res.status(400).json({ error: err.message });
     }
 
-    // Cloudinaryにアップロード
-    const result = await new Promise((resolve, reject) => {
-      cloudinary.uploader.upload_stream(
-        {
-          folder: 'area-posts',
-          transformation: [
-            { width: 800, height: 600, crop: 'limit' },
-            { quality: 'auto' }
-          ]
-        },
-        (error, result) => {
-          if (error) reject(error);
-          else resolve(result);
-        }
-      ).end(req.file.buffer);
-    });
+    try {
+      if (!req.file) {
+        return res.status(400).json({ error: '画像ファイルが必要です' });
+      }
 
-    res.json({ 
-      imageUrl: (result as any).secure_url,
-      publicId: (result as any).public_id
-    });
-  } catch (error) {
-    console.error('Image upload error:', error);
-    res.status(500).json({ error: '画像のアップロードに失敗しました' });
-  }
+      // Cloudinaryにアップロード
+      const result = await new Promise((resolve, reject) => {
+        cloudinary.uploader.upload_stream(
+          {
+            folder: 'area-posts',
+            transformation: [
+              { width: 800, height: 600, crop: 'limit' },
+              { quality: 'auto' }
+            ]
+          },
+          (error, result) => {
+            if (error) reject(error);
+            else resolve(result);
+          }
+        ).end(req.file.buffer);
+      });
+
+      res.json({ 
+        imageUrl: (result as any).secure_url,
+        publicId: (result as any).public_id
+      });
+    } catch (error) {
+      console.error('Image upload error:', error);
+      res.status(500).json({ error: '画像のアップロードに失敗しました' });
+    }
+  });
 });
 
 // プロフィール画像アップロード
-router.post('/upload-profile-image', upload.single('image'), async (req: AuthRequest, res: Response) => {
-  try {
-    if (!req.file) {
-      return res.status(400).json({ error: '画像ファイルが必要です' });
+router.post('/upload-profile-image', (req: any, res: any) => {
+  upload.single('image')(req, res, async (err: any) => {
+    if (err) {
+      return res.status(400).json({ error: err.message });
     }
 
-    // Cloudinaryにアップロード
-    const result = await new Promise((resolve, reject) => {
-      cloudinary.uploader.upload_stream(
-        {
-          folder: 'area-profiles',
-          transformation: [
-            { width: 400, height: 400, crop: 'fill', gravity: 'face' },
-            { quality: 'auto' }
-          ]
-        },
-        (error, result) => {
-          if (error) reject(error);
-          else resolve(result);
-        }
-      ).end(req.file.buffer);
-    });
+    try {
+      if (!req.file) {
+        return res.status(400).json({ error: '画像ファイルが必要です' });
+      }
 
-    res.json({ 
-      imageUrl: (result as any).secure_url,
-      publicId: (result as any).public_id
-    });
-  } catch (error) {
-    console.error('Profile image upload error:', error);
-    res.status(500).json({ error: 'プロフィール画像のアップロードに失敗しました' });
-  }
+      // Cloudinaryにアップロード
+      const result = await new Promise((resolve, reject) => {
+        cloudinary.uploader.upload_stream(
+          {
+            folder: 'area-profiles',
+            transformation: [
+              { width: 400, height: 400, crop: 'fill', gravity: 'face' },
+              { quality: 'auto' }
+            ]
+          },
+          (error, result) => {
+            if (error) reject(error);
+            else resolve(result);
+          }
+        ).end(req.file.buffer);
+      });
+
+      res.json({ 
+        imageUrl: (result as any).secure_url,
+        publicId: (result as any).public_id
+      });
+    } catch (error) {
+      console.error('Profile image upload error:', error);
+      res.status(500).json({ error: 'プロフィール画像のアップロードに失敗しました' });
+    }
+  });
 });
 
 // エリア画像アップロード
-router.post('/upload-area-image', upload.single('image'), async (req: AuthRequest, res: Response) => {
-  try {
-    if (!req.file) {
-      return res.status(400).json({ error: '画像ファイルが必要です' });
+router.post('/upload-area-image', (req: any, res: any) => {
+  upload.single('image')(req, res, async (err: any) => {
+    if (err) {
+      return res.status(400).json({ error: err.message });
     }
 
-    // Cloudinaryにアップロード
-    const result = await new Promise((resolve, reject) => {
-      cloudinary.uploader.upload_stream(
-        {
-          folder: 'area-images',
-          transformation: [
-            { width: 1200, height: 800, crop: 'limit' },
-            { quality: 'auto' }
-          ]
-        },
-        (error, result) => {
-          if (error) reject(error);
-          else resolve(result);
-        }
-      ).end(req.file.buffer);
-    });
+    try {
+      if (!req.file) {
+        return res.status(400).json({ error: '画像ファイルが必要です' });
+      }
 
-    res.json({ 
-      imageUrl: (result as any).secure_url,
-      publicId: (result as any).public_id
-    });
-  } catch (error) {
-    console.error('Area image upload error:', error);
-    res.status(500).json({ error: 'エリア画像のアップロードに失敗しました' });
-  }
+      // Cloudinaryにアップロード
+      const result = await new Promise((resolve, reject) => {
+        cloudinary.uploader.upload_stream(
+          {
+            folder: 'area-images',
+            transformation: [
+              { width: 1200, height: 800, crop: 'limit' },
+              { quality: 'auto' }
+            ]
+          },
+          (error, result) => {
+            if (error) reject(error);
+            else resolve(result);
+          }
+        ).end(req.file.buffer);
+      });
+
+      res.json({ 
+        imageUrl: (result as any).secure_url,
+        publicId: (result as any).public_id
+      });
+    } catch (error) {
+      console.error('Area image upload error:', error);
+      res.status(500).json({ error: 'エリア画像のアップロードに失敗しました' });
+    }
+  });
 });
 
 // 画像削除

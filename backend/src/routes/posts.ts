@@ -512,16 +512,8 @@ router.get('/nearby', async (req: AuthRequest, res: Response) => {
     // 近くの投稿を取得（簡易版 - 実際の実装ではGeoJSONクエリを使用）
     const posts = await prisma.post.findMany({
       where: {
-        location: {
-          // MongoDBのGeoJSONクエリを使用
-          $near: {
-            $geometry: {
-              type: 'Point',
-              coordinates: [longitude, latitude]
-            },
-            $maxDistance: radiusMeters
-          }
-        }
+        // 簡易的な距離計算（実際の実装ではMongoDBのGeoJSONクエリを使用）
+        // ここでは全ての投稿を取得して、後でフィルタリング
       },
       include: {
         user: {
