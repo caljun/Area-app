@@ -559,4 +559,34 @@ router.get('/nearby', async (req: AuthRequest, res: Response) => {
   }
 });
 
+// 自分の投稿取得
+router.get('/my', async (req: AuthRequest, res: Response) => {
+  try {
+    const posts = await prisma.post.findMany({
+      where: { userId: req.user!.id },
+      include: {
+        area: {
+          select: {
+            id: true,
+            name: true
+          }
+        },
+        user: {
+          select: {
+            id: true,
+            name: true,
+            profileImage: true
+          }
+        }
+      },
+      orderBy: { createdAt: 'desc' }
+    });
+
+    res.json(posts);
+  } catch (error) {
+    console.error('Get my posts error:', error);
+    res.status(500).json({ error: '自分の投稿の取得に失敗しました' });
+  }
+});
+
 export default router;
