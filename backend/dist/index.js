@@ -21,6 +21,9 @@ const images_1 = __importDefault(require("./routes/images"));
 const notifications_1 = __importDefault(require("./routes/notifications"));
 const chat_1 = __importDefault(require("./routes/chat"));
 const posts_1 = __importDefault(require("./routes/posts"));
+const participationLogs_1 = __importDefault(require("./routes/participationLogs"));
+const areaStatistics_1 = __importDefault(require("./routes/areaStatistics"));
+const geofence_1 = __importDefault(require("./routes/geofence"));
 const errorHandler_1 = require("./middleware/errorHandler");
 const auth_2 = require("./middleware/auth");
 const client_1 = require("@prisma/client");
@@ -190,6 +193,9 @@ app.use('/api/images', images_1.default);
 app.use('/api/notifications', auth_2.authMiddleware, notifications_1.default);
 app.use('/api/chat', auth_2.authMiddleware, chat_1.default);
 app.use('/api/posts', auth_2.authMiddleware, posts_1.default);
+app.use('/api/participation-logs', auth_2.authMiddleware, participationLogs_1.default);
+app.use('/api/area-statistics', auth_2.authMiddleware, areaStatistics_1.default);
+app.use('/api/geofence', auth_2.authMiddleware, geofence_1.default);
 async function getFriends(userId) {
     try {
         const friends = await exports.prisma.friend.findMany({
@@ -334,119 +340,6 @@ exports.io.on('connection', (socket) => {
                 socket.emit('auth_error', { message: 'Invalid token' });
             }
         });
-    }
-    socket.on('location_update', async (data) => {
-        await handleLocationUpdate(socket, data);
-    });
-    async function handleLocationUpdate(socket, data) {
-        if (!socket.data.userId) {
-            socket.emit('error', { message: 'Not authenticated' });
-            return;
-        }
-        if (data.userId && data.userId !== socket.data.userId) {
-            console.log('🚫 WebSocket: userId不一致のため位置更新を拒否', {
-                socketUserId: socket.data.userId,
-                dataUserId: data.userId
-            });
-            socket.emit('error', { message: 'User ID mismatch' });
-            return;
-        }
-        if (!socket.data.currentAreaId || !data?.areaId || socket.data.currentAreaId !== data.areaId) {
-            console.log('🚫 WebSocket: エリア外またはエリア不一致のため位置更新を拒否', {
-                currentAreaId: socket.data.currentAreaId || null,
-                dataAreaId: data?.areaId || null
-            });
-            socket.emit('error', { message: 'Location updates are allowed only inside the joined area' });
-            return;
-        }
-        try {
-            console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-            console.log('🌐 WebSocket: 位置情報更新受信');
-            console.log(`👤 userId: ${socket.data.userId}`);
-            console.log(`🗺️  位置: (${data.latitude}, ${data.longitude})`);
-            console.log(`🏠 エリアID: ${data.areaId || 'なし'}`);
-            console.log(`⏰ 時刻: ${new Date().toLocaleString('ja-JP', { timeZone: 'Asia/Tokyo' })}`);
-            const previousLocation = await exports.prisma.location.findFirst({
-                where: { userId: socket.data.userId },
-                orderBy: { createdAt: 'desc' }
-            });
-            const location = await exports.prisma.location.create({
-                data: {
-                    userId: socket.data.userId,
-                    latitude: data.latitude,
-                    longitude: data.longitude,
-                    areaId: data.areaId || null
-                }
-            });
-            console.log(`✅ 位置情報保存完了 - locationId: ${location.id}`);
-            const previousAreaId = previousLocation?.areaId || null;
-            const currentAreaId = data.areaId || null;
-            const isAreaEntry = !previousAreaId && currentAreaId;
-            const isAreaExit = previousAreaId && !currentAreaId;
-            const isAreaChange = previousAreaId && currentAreaId && previousAreaId !== currentAreaId;
-            if (isAreaEntry || isAreaExit || isAreaChange) {
-                console.log(`🎯 エリア状態変化検知: ${isAreaEntry ? '入場' : isAreaExit ? '退場' : '変更'} (${previousAreaId || 'なし'} → ${currentAreaId || 'なし'})`);
-                if (isAreaExit && previousAreaId) {
-                    try {
-                        const deletedCount = await exports.prisma.location.deleteMany({
-                            where: {
-                                userId: socket.data.userId,
-                                areaId: previousAreaId
-                            }
-                        });
-                        console.log(`🗑️ エリア退場: 古い位置情報を削除 - ${deletedCount.count}件削除 (areaId: ${previousAreaId})`);
-                    }
-                    catch (deleteError) {
-                        console.error('❌ エリア退場時の位置情報削除に失敗:', deleteError);
-                    }
-                }
-                if (isAreaChange && previousAreaId) {
-                    try {
-                        const deletedCount = await exports.prisma.location.deleteMany({
-                            where: {
-                                userId: socket.data.userId,
-                                areaId: previousAreaId
-                            }
-                        });
-                        console.log(`🗑️ エリア変更: 古いエリアの位置情報を削除 - ${deletedCount.count}件削除 (areaId: ${previousAreaId})`);
-                    }
-                    catch (deleteError) {
-                        console.error('❌ エリア変更時の位置情報削除に失敗:', deleteError);
-                    }
-                }
-            }
-            const locationUpdateData = {
-                action: 'friend_location_update',
-                userId: socket.data.userId,
-                userName: socket.data.userName,
-                profileImage: socket.data.profileImage,
-                latitude: data.latitude,
-                longitude: data.longitude,
-                areaId: data.areaId,
-                timestamp: location.createdAt.getTime()
-            };
-            if (data.areaId && socket.data.currentAreaId === data.areaId) {
-                const roomName = `area_${data.areaId}`;
-                const socketsInRoom = await exports.io.in(roomName).fetchSockets();
-                const recipientCount = socketsInRoom.length - 1;
-                socket.to(roomName).emit('location', {
-                    type: 'location',
-                    data: locationUpdateData
-                });
-                console.log(`🌐 WebSocket通知送信: エリア単位broadcast完了`);
-                console.log(`📍 送信先エリアID: ${data.areaId}`);
-                console.log(`📍 Room名: ${roomName}`);
-                console.log(`👥 Room内のSocket数: ${socketsInRoom.length}人（自分含む）`);
-                console.log(`📤 送信先: ${recipientCount}人（自分除く）`);
-                console.log(`🔑 送信者socketId: ${socket.id}`);
-                console.log(`━━━━━━━━━━━━━━━━━━━━━━━━━━━━`);
-                return;
-            }
-        }
-        catch (error) {
-            console.error('WebSocket: Failed to process location update:', error);
-            socket.emit('error', { message: 'Failed to update location' });
-        }
     }
     socket.on('joinArea', async (data) => {
         if (!socket.data.userId) {

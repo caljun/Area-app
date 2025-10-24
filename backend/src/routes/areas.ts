@@ -30,7 +30,10 @@ router.get('/', async (req: AuthRequest, res: Response) => {
   try {
     // 1. 自分が作成したエリアを取得
     const ownedAreas = await prisma.area.findMany({
-      where: { userId: req.user!.id },
+      where: { 
+        userId: req.user!.id,
+        isDeleted: false 
+      } as any,
       orderBy: { createdAt: 'desc' }
     });
 
@@ -99,7 +102,10 @@ router.get('/', async (req: AuthRequest, res: Response) => {
 router.get('/public', async (req: Request, res: Response) => {
   try {
     const areas = await prisma.area.findMany({
-      where: { isPublic: true },
+      where: { 
+        isPublic: true,
+        isDeleted: false 
+      } as any,
       orderBy: { createdAt: 'desc' }
     });
 
@@ -480,10 +486,15 @@ router.post('/', async (req: AuthRequest, res: Response) => {
     const { name, coordinates, isPublic = false } = createAreaSchema.parse(req.body);
 
     // Server-side validations aligned with iOS spec
-    // 1) Enforce max 5 areas per user
-    const existingCount = await prisma.area.count({ where: { userId: req.user!.id } });
-    if (existingCount >= 5) {
-      return res.status(400).json({ error: '作成できるエリアは最大5件までです' });
+    // 1) Enforce max 3 areas per user (changed from 5 to 3)
+    const existingCount = await prisma.area.count({ 
+      where: { 
+        userId: req.user!.id,
+        isDeleted: false 
+      } as any
+    });
+    if (existingCount >= 3) {
+      return res.status(400).json({ error: '作成できるエリアは最大3件までです' });
     }
 
     // 2) Enforce geofence radius within 100–800 meters using polygon's minimum enclosing circle (approx)

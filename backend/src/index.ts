@@ -17,6 +17,9 @@ import imageRoutes from './routes/images';
 import notificationRoutes from './routes/notifications';
 import chatRoutes from './routes/chat';
 import postRoutes from './routes/posts';
+import participationLogRoutes from './routes/participationLogs';
+import areaStatisticsRoutes from './routes/areaStatistics';
+import geofenceRoutes from './routes/geofence';
 // import uploadRoutes from './routes/upload'; 
 
 // Import middleware
@@ -54,14 +57,7 @@ interface JWTPayload {
   userId: string;
 }
 
-// 位置情報更新ペイロードの型定義
-interface LocationUpdatePayload {
-  userId: string;
-  areaId: string;
-  latitude: number;
-  longitude: number;
-  timestamp: number;
-}
+// 位置情報更新ペイロードの型定義は削除（チャット専用WebSocketに変更）
 
 // Load environment variables
 dotenv.config();
@@ -267,6 +263,9 @@ app.use('/api/images', imageRoutes); // 認証不要なエンドポイントが�
 app.use('/api/notifications', authMiddleware, notificationRoutes);
 app.use('/api/chat', authMiddleware, chatRoutes);
 app.use('/api/posts', authMiddleware, postRoutes);
+app.use('/api/participation-logs', authMiddleware, participationLogRoutes);
+app.use('/api/area-statistics', authMiddleware, areaStatisticsRoutes);
+app.use('/api/geofence', authMiddleware, geofenceRoutes);
 // app.use('/api/images/upload', authMiddleware, uploadRoutes); 
 
 // Helper function to get friends of a user
@@ -443,148 +442,7 @@ io.on('connection', (socket) => {
     });
   }
 
-  // 位置情報更新の処理（Socket.ioイベントのみ）
-  // 標準WebSocketメッセージハンドラーは削除して重複を防ぐ
-  socket.on('location_update', async (data: LocationUpdatePayload) => {
-    await handleLocationUpdate(socket, data);
-  });
-  
-  // 位置情報更新の共通処理関数
-  async function handleLocationUpdate(socket: any, data: LocationUpdatePayload) {
-    if (!socket.data.userId) {
-      socket.emit('error', { message: 'Not authenticated' });
-      return;
-    }
-    
-    // userIdの整合性チェック
-    if (data.userId && data.userId !== socket.data.userId) {
-      console.log('🚫 WebSocket: userId不一致のため位置更新を拒否', {
-        socketUserId: socket.data.userId,
-        dataUserId: data.userId
-      });
-      socket.emit('error', { message: 'User ID mismatch' });
-      return;
-    }
-    
-    // エリア外は送受信ゼロ: currentAreaIdが未設定、areaId未指定、または不一致の場合は拒否
-    if (!socket.data.currentAreaId || !data?.areaId || socket.data.currentAreaId !== data.areaId) {
-      console.log('🚫 WebSocket: エリア外またはエリア不一致のため位置更新を拒否', {
-        currentAreaId: socket.data.currentAreaId || null,
-        dataAreaId: data?.areaId || null
-      });
-      socket.emit('error', { message: 'Location updates are allowed only inside the joined area' });
-      return;
-    }
-
-    try {
-      // 📍 詳細ログ出力
-      console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-      console.log('🌐 WebSocket: 位置情報更新受信');
-      console.log(`👤 userId: ${socket.data.userId}`);
-      console.log(`🗺️  位置: (${data.latitude}, ${data.longitude})`);
-      console.log(`🏠 エリアID: ${data.areaId || 'なし'}`);
-      console.log(`⏰ 時刻: ${new Date().toLocaleString('ja-JP', { timeZone: 'Asia/Tokyo' })}`);
-      
-      // 前回の位置情報を取得（エリア入退場判定用）
-      const previousLocation = await prisma.location.findFirst({
-        where: { userId: socket.data.userId },
-        orderBy: { createdAt: 'desc' }
-      });
-      
-      // データベースに位置情報を保存
-      const location = await prisma.location.create({
-        data: {
-          userId: socket.data.userId,
-          latitude: data.latitude,
-          longitude: data.longitude,
-          areaId: data.areaId || null
-        }
-      });
-      
-      console.log(`✅ 位置情報保存完了 - locationId: ${location.id}`);
-      
-      // エリア入退場の判定
-      const previousAreaId = previousLocation?.areaId || null;
-      const currentAreaId = data.areaId || null;
-      const isAreaEntry = !previousAreaId && currentAreaId; // エリアに入った
-      const isAreaExit = previousAreaId && !currentAreaId; // エリアから出た
-      const isAreaChange = previousAreaId && currentAreaId && previousAreaId !== currentAreaId; // エリア変更
-      
-      if (isAreaEntry || isAreaExit || isAreaChange) {
-        console.log(`🎯 エリア状態変化検知: ${isAreaEntry ? '入場' : isAreaExit ? '退場' : '変更'} (${previousAreaId || 'なし'} → ${currentAreaId || 'なし'})`);
-        
-        // エリア退場時は古い位置情報を削除
-        if (isAreaExit && previousAreaId) {
-          try {
-            const deletedCount = await prisma.location.deleteMany({
-              where: { 
-                userId: socket.data.userId,
-                areaId: previousAreaId 
-              }
-            });
-            console.log(`🗑️ エリア退場: 古い位置情報を削除 - ${deletedCount.count}件削除 (areaId: ${previousAreaId})`);
-          } catch (deleteError) {
-            console.error('❌ エリア退場時の位置情報削除に失敗:', deleteError);
-          }
-        }
-        
-        // エリア変更時も古いエリアの位置情報を削除
-        if (isAreaChange && previousAreaId) {
-          try {
-            const deletedCount = await prisma.location.deleteMany({
-              where: { 
-                userId: socket.data.userId,
-                areaId: previousAreaId 
-              }
-            });
-            console.log(`🗑️ エリア変更: 古いエリアの位置情報を削除 - ${deletedCount.count}件削除 (areaId: ${previousAreaId})`);
-          } catch (deleteError) {
-            console.error('❌ エリア変更時の位置情報削除に失敗:', deleteError);
-          }
-        }
-      }
-
-      // 位置情報更新データ
-      const locationUpdateData = {
-        action: 'friend_location_update',
-        userId: socket.data.userId,
-        userName: socket.data.userName,
-        profileImage: socket.data.profileImage,
-        latitude: data.latitude,
-        longitude: data.longitude,
-        areaId: data.areaId,
-        timestamp: location.createdAt.getTime()
-      };
-
-      // エリア参加かつ一致している場合のみエリア単位でbroadcast
-      if (data.areaId && socket.data.currentAreaId === data.areaId) {
-        // 同じエリアの全員に送信（自分以外）
-        const roomName = `area_${data.areaId}`;
-        const socketsInRoom = await io.in(roomName).fetchSockets();
-        const recipientCount = socketsInRoom.length - 1; // 自分を除く
-        
-        socket.to(roomName).emit('location', {
-          type: 'location',
-          data: locationUpdateData
-        });
-        
-        console.log(`🌐 WebSocket通知送信: エリア単位broadcast完了`);
-        console.log(`📍 送信先エリアID: ${data.areaId}`);
-        console.log(`📍 Room名: ${roomName}`);
-        console.log(`👥 Room内のSocket数: ${socketsInRoom.length}人（自分含む）`);
-        console.log(`📤 送信先: ${recipientCount}人（自分除く）`);
-        console.log(`🔑 送信者socketId: ${socket.id}`);
-        console.log(`━━━━━━━━━━━━━━━━━━━━━━━━━━━━`);
-        
-        return; // 送信完了
-      }
-      // ここまで到達しない想定（不一致は前段でreturn）
-      
-    } catch (error) {
-      console.error('WebSocket: Failed to process location update:', error);
-      socket.emit('error', { message: 'Failed to update location' });
-    }
-  }
+  // 位置情報更新機能は削除 - チャット専用WebSocketに変更
 
   // エリアに参加（エリア単位のRoom作成）
   socket.on('joinArea', async (data: { areaId: string }) => {

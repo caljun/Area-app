@@ -48,6 +48,8 @@ model User {
   posts    Post[]
   comments Comment[]
   postLikes PostLike[]
+  // ジオフェンス参加ログ関連
+  participationLogs ParticipationLog[]
 
   @@map("users")
 }
@@ -59,6 +61,8 @@ model Area {
   userId      String   @db.ObjectId
   isPublic    Boolean  @default(false)
   imageUrl    String?
+  isDeleted   Boolean  @default(false) // 論理削除フラグ
+  deletedAt   DateTime? // 削除日時
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
@@ -69,6 +73,10 @@ model Area {
   areaInvitations AreaInvitation[] @relation("AreaInvitations")
   locations    Location[]    // エリア内の位置情報
   posts        Post[]       // エリア内の投稿
+  // ジオフェンス参加ログ関連
+  participationLogs ParticipationLog[]
+  // エリア統計関連
+  statistics   AreaStatistics?
 
   @@map("areas")
 }
@@ -289,7 +297,7 @@ model Post {
   content   String
   imageUrl  String
   location  Json     // GeoJSON Point { type: "Point", coordinates: [longitude, latitude] }
-  areaId    String   @db.ObjectId
+  areaId    String   @db.ObjectId // エリア内のみ投稿可能（必須）
   userId    String   @db.ObjectId
   userName  String?
   userProfileImage String?
@@ -337,4 +345,40 @@ model PostLike {
 
   @@unique([postId, userId])
   @@map("post_likes")
+}
+
+// ジオフェンス参加ログ用のモデル
+model ParticipationLog {
+  id        String   @id @default(auto()) @map("_id") @db.ObjectId
+  userId    String   @db.ObjectId
+  areaId    String   @db.ObjectId
+  enteredAt DateTime
+  exitedAt  DateTime?
+  durationSeconds Int? // 滞在時間（秒）
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  area Area @relation(fields: [areaId], references: [id], onDelete: Cascade)
+
+  @@map("participation_logs")
+}
+
+// エリア統計情報用のモデル
+model AreaStatistics {
+  id                        String   @id @default(auto()) @map("_id") @db.ObjectId
+  areaId                    String   @unique @db.ObjectId
+  currentParticipants       Int      @default(0)
+  totalPosts                Int      @default(0)
+  totalVisits               Int      @default(0)
+  averageStayTimeSeconds    Int      @default(0)
+  lastActivity              DateTime?
+  createdAt                 DateTime @default(now())
+  updatedAt                 DateTime @updatedAt
+
+  // Relations
+  area Area @relation(fields: [areaId], references: [id], onDelete: Cascade)
+
+  @@map("area_statistics")
 } 

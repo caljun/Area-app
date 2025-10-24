@@ -23,7 +23,10 @@ const updateAreaSchema = zod_1.z.object({
 router.get('/', async (req, res) => {
     try {
         const ownedAreas = await index_1.prisma.area.findMany({
-            where: { userId: req.user.id },
+            where: {
+                userId: req.user.id,
+                isDeleted: false
+            },
             orderBy: { createdAt: 'desc' }
         });
         const memberAreas = await index_1.prisma.areaMember.findMany({
@@ -76,7 +79,10 @@ router.get('/', async (req, res) => {
 router.get('/public', async (req, res) => {
     try {
         const areas = await index_1.prisma.area.findMany({
-            where: { isPublic: true },
+            where: {
+                isPublic: true,
+                isDeleted: false
+            },
             orderBy: { createdAt: 'desc' }
         });
         const apiAreas = await Promise.all(areas.map(async (area) => {
@@ -390,9 +396,14 @@ router.get('/:id', async (req, res) => {
 router.post('/', async (req, res) => {
     try {
         const { name, coordinates, isPublic = false } = createAreaSchema.parse(req.body);
-        const existingCount = await index_1.prisma.area.count({ where: { userId: req.user.id } });
-        if (existingCount >= 5) {
-            return res.status(400).json({ error: '作成できるエリアは最大5件までです' });
+        const existingCount = await index_1.prisma.area.count({
+            where: {
+                userId: req.user.id,
+                isDeleted: false
+            }
+        });
+        if (existingCount >= 3) {
+            return res.status(400).json({ error: '作成できるエリアは最大3件までです' });
         }
         const latitudes = coordinates.map(c => c.latitude);
         const longitudes = coordinates.map(c => c.longitude);
