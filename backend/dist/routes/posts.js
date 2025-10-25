@@ -177,6 +177,34 @@ router.get('/', async (req, res) => {
         res.status(500).json({ error: '投稿の取得に失敗しました' });
     }
 });
+router.get('/my', async (req, res) => {
+    try {
+        const posts = await index_1.prisma.post.findMany({
+            where: { userId: req.user.id },
+            include: {
+                area: {
+                    select: {
+                        id: true,
+                        name: true
+                    }
+                },
+                user: {
+                    select: {
+                        id: true,
+                        name: true,
+                        profileImage: true
+                    }
+                }
+            },
+            orderBy: { createdAt: 'desc' }
+        });
+        res.json(posts);
+    }
+    catch (error) {
+        console.error('Get my posts error:', error);
+        res.status(500).json({ error: '自分の投稿の取得に失敗しました' });
+    }
+});
 router.get('/:id', async (req, res) => {
     try {
         const { id } = req.params;
@@ -456,34 +484,6 @@ router.get('/nearby', async (req, res) => {
     catch (error) {
         console.error('Get nearby posts error:', error);
         res.status(500).json({ error: '近くの投稿の取得に失敗しました' });
-    }
-});
-router.get('/my', async (req, res) => {
-    try {
-        const posts = await index_1.prisma.post.findMany({
-            where: { userId: req.user.id },
-            include: {
-                area: {
-                    select: {
-                        id: true,
-                        name: true
-                    }
-                },
-                user: {
-                    select: {
-                        id: true,
-                        name: true,
-                        profileImage: true
-                    }
-                }
-            },
-            orderBy: { createdAt: 'desc' }
-        });
-        res.json(posts);
-    }
-    catch (error) {
-        console.error('Get my posts error:', error);
-        res.status(500).json({ error: '自分の投稿の取得に失敗しました' });
     }
 });
 exports.default = router;
