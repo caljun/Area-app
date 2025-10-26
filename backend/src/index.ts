@@ -559,6 +559,9 @@ io.on('connection', (socket) => {
         where: { id: socket.data.userId },
         data: { areaId: null }
       });
+      
+      // DB反映完了を待機して競合を防止
+      await new Promise((resolve) => setTimeout(resolve, 100));
     } catch (e) {
       console.error('DB update failed on leaveArea:', e);
     }
