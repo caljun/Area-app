@@ -291,6 +291,12 @@ enum MessageType {
   AREA
 }
 
+enum PostVisibility {
+  PUBLIC
+  FRIENDS_ONLY
+  PRIVATE
+}
+
 // 投稿機能用のモデル
 model Post {
   id        String   @id @default(auto()) @map("_id") @db.ObjectId
@@ -301,6 +307,7 @@ model Post {
   userId    String   @db.ObjectId
   userName  String?
   userProfileImage String?
+  visibility PostVisibility @default(PUBLIC)
   likeCount Int      @default(0)
   commentCount Int   @default(0)
   isLiked   Boolean  @default(false)

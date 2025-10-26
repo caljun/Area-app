@@ -163,9 +163,35 @@ router.get('/', async (req: AuthRequest, res: Response) => {
       return res.status(404).json({ error: 'エリアが見つかりません' });
     }
 
-    // 投稿を取得
+    // 友達リストを取得
+    const friends = await prisma.friend.findMany({
+      where: {
+        OR: [
+          { userId: req.user!.id },
+          { friendId: req.user!.id }
+        ]
+      }
+    });
+
+    const friendIds = friends.map(friend => 
+      friend.userId === req.user!.id ? friend.friendId : friend.userId
+    );
+
+    // 投稿取得ロジック（友達フィルタリング付き）
     const posts = await prisma.post.findMany({
-      where: { areaId: areaId as string },
+      where: {
+        areaId: areaId as string,
+        OR: [
+          { userId: req.user!.id }, // 自分の投稿
+          { visibility: 'PUBLIC' }, // 公開投稿
+          {
+            AND: [
+              { visibility: 'FRIENDS_ONLY' }, // 友達のみ投稿
+              { userId: { in: friendIds } } // 友達の投稿
+            ]
+          }
+        ]
+      },
       include: {
         user: {
           select: {
