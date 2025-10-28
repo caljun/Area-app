@@ -118,14 +118,21 @@ router.post('/update', async (req: AuthRequest, res: Response) => {
     console.log(`🏠 エリアID: ${areaId || 'なし'}`);
     console.log(`⏰ 時刻: ${new Date().toLocaleString('ja-JP', { timeZone: 'Asia/Tokyo' })}`);
     
-    const location = await prisma.location.create({
-      data: {
-        userId: req.user!.id,
-        latitude,
-        longitude,
-        areaId: areaId || null
-      }
-    });
+    // 位置情報保存と同時にユーザーのupdatedAtを更新（オンライン判定用）
+    const [location] = await prisma.$transaction([
+      prisma.location.create({
+        data: {
+          userId: req.user!.id,
+          latitude,
+          longitude,
+          areaId: areaId || null
+        }
+      }),
+      prisma.user.update({
+        where: { id: req.user!.id },
+        data: { updatedAt: new Date() }
+      })
+    ]);
     
     console.log(`✅ 位置情報保存完了 - locationId: ${location.id}`);
     console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━');

@@ -64,13 +64,17 @@ router.get('/', async (req: AuthRequest, res: Response) => {
         where: { areaId: area.id }
       });
       
-      // オンラインメンバー数を取得（簡易版）
+      // オンラインメンバー数を取得（位置情報ベース）
       const onlineCount = await prisma.areaMember.count({
         where: { 
           areaId: area.id,
           user: {
-            updatedAt: {
-              gte: new Date(Date.now() - 5 * 60 * 1000) // 5分以内
+            locations: {
+              some: {
+                createdAt: {
+                  gte: new Date(Date.now() - 5 * 60 * 1000) // 5分以内に位置情報を送信
+                }
+              }
             }
           }
         }
@@ -116,13 +120,17 @@ router.get('/public', async (req: Request, res: Response) => {
         where: { areaId: area.id }
       });
       
-      // オンラインメンバー数を取得（簡易版）
+      // オンラインメンバー数を取得（位置情報ベース）
       const onlineCount = await prisma.areaMember.count({
         where: { 
           areaId: area.id,
           user: {
-            updatedAt: {
-              gte: new Date(Date.now() - 5 * 60 * 1000) // 5分以内
+            locations: {
+              some: {
+                createdAt: {
+                  gte: new Date(Date.now() - 5 * 60 * 1000) // 5分以内に位置情報を送信
+                }
+              }
             }
           }
         }
