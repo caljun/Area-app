@@ -505,7 +505,9 @@ router.post('/', async (req: AuthRequest, res: Response) => {
       return res.status(400).json({ error: '作成できるエリアは最大3件までです' });
     }
 
-    // 2) Enforce geofence radius within 100–800 meters using polygon's minimum enclosing circle (approx)
+    // 2) Enforce geofence radius maximum 800 meters using polygon's minimum enclosing circle (approx)
+    // 最小半径制限を削除：フロントエンド側で警告表示を行うため、バックエンドでは100m未満も許可
+    const MAX_RADIUS_M = 800;
     // Compute centroid and max distance to vertices as an approximation of circumradius
     const latitudes = coordinates.map(c => c.latitude);
     const longitudes = coordinates.map(c => c.longitude);
@@ -525,8 +527,16 @@ router.post('/', async (req: AuthRequest, res: Response) => {
       return Math.max(max, distance);
     }, 0);
 
-    if (maxRadiusM < 100 || maxRadiusM > 800) {
-      return res.status(400).json({ error: 'エリアの半径は100m以上800m以下である必要があります' });
+    // 最大半径のみチェック（最小半径チェックは削除）
+    if (maxRadiusM > MAX_RADIUS_M) {
+      return res.status(422).json({
+        error: 'エリアの半径が大きすぎます',
+        errorCode: 'AREA_RADIUS_TOO_LARGE',
+        details: {
+          currentRadiusM: Math.round(maxRadiusM),
+          allowedMaxRadiusM: MAX_RADIUS_M
+        }
+      });
     }
 
     // トランザクションでエリア作成と所有者のメンバー登録を同時に実行
