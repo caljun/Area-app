@@ -49,8 +49,12 @@ router.get('/', async (req, res) => {
                 where: {
                     areaId: area.id,
                     user: {
-                        updatedAt: {
-                            gte: new Date(Date.now() - 5 * 60 * 1000)
+                        locations: {
+                            some: {
+                                createdAt: {
+                                    gte: new Date(Date.now() - 5 * 60 * 1000)
+                                }
+                            }
                         }
                     }
                 }
@@ -93,8 +97,12 @@ router.get('/public', async (req, res) => {
                 where: {
                     areaId: area.id,
                     user: {
-                        updatedAt: {
-                            gte: new Date(Date.now() - 5 * 60 * 1000)
+                        locations: {
+                            some: {
+                                createdAt: {
+                                    gte: new Date(Date.now() - 5 * 60 * 1000)
+                                }
+                            }
                         }
                     }
                 }
@@ -405,6 +413,7 @@ router.post('/', async (req, res) => {
         if (existingCount >= 3) {
             return res.status(400).json({ error: '作成できるエリアは最大3件までです' });
         }
+        const MAX_RADIUS_M = 800;
         const latitudes = coordinates.map(c => c.latitude);
         const longitudes = coordinates.map(c => c.longitude);
         const centroidLat = latitudes.reduce((a, b) => a + b, 0) / latitudes.length;
@@ -420,8 +429,15 @@ router.post('/', async (req, res) => {
             const distance = 2 * earthRadiusM * Math.asin(Math.min(1, Math.sqrt(a)));
             return Math.max(max, distance);
         }, 0);
-        if (maxRadiusM < 100 || maxRadiusM > 800) {
-            return res.status(400).json({ error: 'エリアの半径は100m以上800m以下である必要があります' });
+        if (maxRadiusM > MAX_RADIUS_M) {
+            return res.status(422).json({
+                error: 'エリアの半径が大きすぎます',
+                errorCode: 'AREA_RADIUS_TOO_LARGE',
+                details: {
+                    currentRadiusM: Math.round(maxRadiusM),
+                    allowedMaxRadiusM: MAX_RADIUS_M
+                }
+            });
         }
         const result = await index_1.prisma.$transaction(async (tx) => {
             const area = await tx.area.create({

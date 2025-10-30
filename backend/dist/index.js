@@ -424,6 +424,7 @@ exports.io.on('connection', (socket) => {
                 where: { id: socket.data.userId },
                 data: { areaId: null }
             });
+            await new Promise((resolve) => setTimeout(resolve, 100));
         }
         catch (e) {
             console.error('DB update failed on leaveArea:', e);

@@ -95,14 +95,20 @@ router.post('/update', async (req, res) => {
         console.log(`📏 精度: ${accuracy || 'N/A'}m`);
         console.log(`🏠 エリアID: ${areaId || 'なし'}`);
         console.log(`⏰ 時刻: ${new Date().toLocaleString('ja-JP', { timeZone: 'Asia/Tokyo' })}`);
-        const location = await index_1.prisma.location.create({
-            data: {
-                userId: req.user.id,
-                latitude,
-                longitude,
-                areaId: areaId || null
-            }
-        });
+        const [location] = await index_1.prisma.$transaction([
+            index_1.prisma.location.create({
+                data: {
+                    userId: req.user.id,
+                    latitude,
+                    longitude,
+                    areaId: areaId || null
+                }
+            }),
+            index_1.prisma.user.update({
+                where: { id: req.user.id },
+                data: { updatedAt: new Date() }
+            })
+        ]);
         console.log(`✅ 位置情報保存完了 - locationId: ${location.id}`);
         console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
         const user = await index_1.prisma.user.findUnique({ where: { id: req.user.id }, select: { areaId: true } });

@@ -130,8 +130,29 @@ router.get('/', async (req, res) => {
         if (!area) {
             return res.status(404).json({ error: 'エリアが見つかりません' });
         }
+        const friends = await index_1.prisma.friend.findMany({
+            where: {
+                OR: [
+                    { userId: req.user.id },
+                    { friendId: req.user.id }
+                ]
+            }
+        });
+        const friendIds = friends.map(friend => friend.userId === req.user.id ? friend.friendId : friend.userId);
         const posts = await index_1.prisma.post.findMany({
-            where: { areaId: areaId },
+            where: {
+                areaId: areaId,
+                OR: [
+                    { userId: req.user.id },
+                    { visibility: 'PUBLIC' },
+                    {
+                        AND: [
+                            { visibility: 'FRIENDS_ONLY' },
+                            { userId: { in: friendIds } }
+                        ]
+                    }
+                ]
+            },
             include: {
                 user: {
                     select: {
