@@ -117,7 +117,15 @@ router.post('/', async (req: AuthRequest, res: Response) => {
       }
     });
 
-    res.status(201).json(post);
+    // ユーザー情報を最新のものに更新
+    const postWithLatestUser = {
+      ...post,
+      userName: post.user?.name || post.userName,
+      userProfileImage: post.user?.profileImage || post.userProfileImage,
+      user: undefined
+    };
+
+    res.status(201).json(postWithLatestUser);
   } catch (error) {
     if (error instanceof z.ZodError) {
       return res.status(400).json({
@@ -215,11 +223,14 @@ router.get('/', async (req: AuthRequest, res: Response) => {
       take: limitNum
     });
 
-    // いいね状態を設定
+    // いいね状態を設定し、ユーザー情報を最新のものに更新
     const postsWithLikeStatus = posts.map(post => ({
       ...post,
+      userName: post.user?.name || post.userName, // userテーブルの最新情報を優先
+      userProfileImage: post.user?.profileImage || post.userProfileImage,
       isLiked: post.likes.length > 0,
-      likes: undefined // likesフィールドを除外
+      likes: undefined, // likesフィールドを除外
+      user: undefined // userオブジェクトは除外（フロントで使用しない）
     }));
 
     const total = await prisma.post.count({
@@ -264,7 +275,15 @@ router.get('/my', async (req: AuthRequest, res: Response) => {
       orderBy: { createdAt: 'desc' }
     });
 
-    res.json(posts);
+    // ユーザー情報を最新のものに更新
+    const postsWithLatestUser = posts.map(post => ({
+      ...post,
+      userName: post.user?.name || post.userName,
+      userProfileImage: post.user?.profileImage || post.userProfileImage,
+      user: undefined
+    }));
+
+    res.json(postsWithLatestUser);
   } catch (error) {
     console.error('Get my posts error:', error);
     res.status(500).json({ error: '自分の投稿の取得に失敗しました' });
@@ -333,10 +352,20 @@ router.get('/:id', async (req: AuthRequest, res: Response) => {
       return res.status(403).json({ error: 'このエリアのメンバーではありません' });
     }
 
+    // 投稿とコメントのユーザー情報を最新のものに更新
     const postWithLikeStatus = {
       ...post,
+      userName: post.user?.name || post.userName,
+      userProfileImage: post.user?.profileImage || post.userProfileImage,
       isLiked: post.likes.length > 0,
-      likes: undefined // likesフィールドを除外
+      likes: undefined, // likesフィールドを除外
+      user: undefined,
+      comments: post.comments.map(comment => ({
+        ...comment,
+        userName: comment.user?.name || comment.userName,
+        userProfileImage: comment.user?.profileImage || comment.userProfileImage,
+        user: undefined
+      }))
     };
 
     res.json(postWithLikeStatus);
@@ -384,7 +413,15 @@ router.patch('/:id', async (req: AuthRequest, res: Response) => {
       }
     });
 
-    res.json(post);
+    // ユーザー情報を最新のものに更新
+    const postWithLatestUser = {
+      ...post,
+      userName: post.user?.name || post.userName,
+      userProfileImage: post.user?.profileImage || post.userProfileImage,
+      user: undefined
+    };
+
+    res.json(postWithLatestUser);
   } catch (error) {
     if (error instanceof z.ZodError) {
       return res.status(400).json({
@@ -593,11 +630,14 @@ router.get('/nearby', async (req: AuthRequest, res: Response) => {
       take: 50
     });
 
-    // いいね状態を設定
+    // いいね状態を設定し、ユーザー情報を最新のものに更新
     const postsWithLikeStatus = posts.map(post => ({
       ...post,
+      userName: post.user?.name || post.userName,
+      userProfileImage: post.user?.profileImage || post.userProfileImage,
       isLiked: post.likes.length > 0,
-      likes: undefined // likesフィールドを除外
+      likes: undefined, // likesフィールドを除外
+      user: undefined
     }));
 
     res.json(postsWithLikeStatus);

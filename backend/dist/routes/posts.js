@@ -92,7 +92,13 @@ router.post('/', async (req, res) => {
                 }
             }
         });
-        res.status(201).json(post);
+        const postWithLatestUser = {
+            ...post,
+            userName: post.user?.name || post.userName,
+            userProfileImage: post.user?.profileImage || post.userProfileImage,
+            user: undefined
+        };
+        res.status(201).json(postWithLatestUser);
     }
     catch (error) {
         if (error instanceof zod_1.z.ZodError) {
@@ -177,8 +183,11 @@ router.get('/', async (req, res) => {
         });
         const postsWithLikeStatus = posts.map(post => ({
             ...post,
+            userName: post.user?.name || post.userName,
+            userProfileImage: post.user?.profileImage || post.userProfileImage,
             isLiked: post.likes.length > 0,
-            likes: undefined
+            likes: undefined,
+            user: undefined
         }));
         const total = await index_1.prisma.post.count({
             where: { areaId: areaId }
@@ -219,7 +228,13 @@ router.get('/my', async (req, res) => {
             },
             orderBy: { createdAt: 'desc' }
         });
-        res.json(posts);
+        const postsWithLatestUser = posts.map(post => ({
+            ...post,
+            userName: post.user?.name || post.userName,
+            userProfileImage: post.user?.profileImage || post.userProfileImage,
+            user: undefined
+        }));
+        res.json(postsWithLatestUser);
     }
     catch (error) {
         console.error('Get my posts error:', error);
@@ -283,8 +298,17 @@ router.get('/:id', async (req, res) => {
         }
         const postWithLikeStatus = {
             ...post,
+            userName: post.user?.name || post.userName,
+            userProfileImage: post.user?.profileImage || post.userProfileImage,
             isLiked: post.likes.length > 0,
-            likes: undefined
+            likes: undefined,
+            user: undefined,
+            comments: post.comments.map(comment => ({
+                ...comment,
+                userName: comment.user?.name || comment.userName,
+                userProfileImage: comment.user?.profileImage || comment.userProfileImage,
+                user: undefined
+            }))
         };
         res.json(postWithLikeStatus);
     }
@@ -325,7 +349,13 @@ router.patch('/:id', async (req, res) => {
                 }
             }
         });
-        res.json(post);
+        const postWithLatestUser = {
+            ...post,
+            userName: post.user?.name || post.userName,
+            userProfileImage: post.user?.profileImage || post.userProfileImage,
+            user: undefined
+        };
+        res.json(postWithLatestUser);
     }
     catch (error) {
         if (error instanceof zod_1.z.ZodError) {
@@ -497,8 +527,11 @@ router.get('/nearby', async (req, res) => {
         });
         const postsWithLikeStatus = posts.map(post => ({
             ...post,
+            userName: post.user?.name || post.userName,
+            userProfileImage: post.user?.profileImage || post.userProfileImage,
             isLiked: post.likes.length > 0,
-            likes: undefined
+            likes: undefined,
+            user: undefined
         }));
         res.json(postsWithLikeStatus);
     }
